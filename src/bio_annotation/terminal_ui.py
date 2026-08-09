@@ -50,6 +50,7 @@ from bio_annotation.terminal_text_input import (
     write_generated_text_table_from_raw_text_file,
 )
 from bio_annotation.terminal_theme import (
+    annotator_spinner,
     banner_lines,
     choice_lines,
     emit,
@@ -61,7 +62,7 @@ from bio_annotation.terminal_theme import (
 
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
-PipelineRunFn = Callable[[Path], dict[str, Any]]
+PipelineRunFn = Callable[..., dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -136,8 +137,8 @@ def run_terminal_annotation_ui(
                 "annotations this run."
             )
     output_fn("")
-    output_fn("Running annotation...")
-    payload = pipeline_run_fn(paths.config_path)
+    with annotator_spinner() as progress:
+        payload = pipeline_run_fn(paths.config_path, progress=progress)
     write_pipeline_tsv_outputs(payload, paths.results_path)
     write_json(paths.manifest_path, build_run_manifest(answers, paths, payload))
     output_info = payload.get("output") if isinstance(payload.get("output"), dict) else None

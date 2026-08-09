@@ -4,13 +4,13 @@ import ast
 import csv
 import json
 import logging
+import time
+from dataclasses import replace
 from datetime import datetime
 from functools import lru_cache
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable
-
-from rich.console import Console
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import (
@@ -54,8 +54,9 @@ from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_INSTALL_HINT,
     stanza_model_for_annotator,
 )
-from bio_annotation.entity_types import ANNOTATOR_DISPLAY_NAMES, normalize_entity_type
+from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
+from bio_annotation.progress import ProgressEvent, ProgressReporter, log_progress
 from bio_annotation.report import write_html_report
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
@@ -96,7 +97,6 @@ FLAIR_INSTALL_HINT = (
     "Install it with: uv sync --extra flair"
 )
 logger = logging.getLogger(__name__)
-_spinner_console = Console()
 
 
 def run_pipeline_from_config(
@@ -116,6 +116,7 @@ def run_pipeline_from_config(
     medcat_request_fn: Callable[[Document], Any] | None = None,
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
@@ -162,6 +163,7 @@ def run_pipeline_from_config(
         medcat_request_fn=medcat_request_fn,
         scispacy_responses_by_document=scispacy_responses_by_document,
         stanza_entities_by_document=stanza_entities_by_document,
+        progress=progress,
     )
     if config.output_path is not None:
         actual_output_path = timestamped_output_path(config.output_path)
@@ -172,6 +174,30 @@ def run_pipeline_from_config(
         }
         write_pipeline_output(payload, actual_output_path)
     return payload
+
+
+def _preflight_load(
+    annotator: str,
+    loader: Callable[[], Any],
+    reporter: ProgressReporter,
+) -> Any:
+    event = ProgressEvent(annotator=annotator, phase="preflight", event="start")
+    reporter(event)
+    started_at = time.perf_counter()
+    try:
+        loaded = loader()
+    except Exception as exc:
+        reporter(
+            replace(
+                event,
+                event="error",
+                elapsed_seconds=time.perf_counter() - started_at,
+                reason=str(exc),
+            )
+        )
+        return None
+    reporter(replace(event, event="done", elapsed_seconds=time.perf_counter() - started_at))
+    return loaded
 
 
 def build_pipeline_output(
@@ -190,7 +216,9 @@ def build_pipeline_output(
     medcat_request_fn: Callable[[Document], Any] | None = None,
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
+    reporter = progress or log_progress
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
     _validate_annotators(enabled_annotators)
@@ -222,10 +250,11 @@ def build_pipeline_output(
     flair_tagger = None
     flair_linkers: list[Any] = []
     if "flair" in enabled_annotators and flair_spans_by_document is None:
-        try:
-            flair_tagger = _load_flair_tagger(flair_options["model"] or "hunflair2")
-        except Exception as exc:
-            logger.warning("flair unavailable: %s", exc)
+        flair_tagger = _preflight_load(
+            "flair",
+            lambda: _load_flair_tagger(flair_options["model"] or "hunflair2"),
+            reporter,
+        )
         if flair_tagger is not None and flair_options.get("linking"):
             for linker_name in flair_options["linkers"]:
                 try:
@@ -234,41 +263,44 @@ def build_pipeline_output(
                     logger.warning("flair linker %s unavailable: %s", linker_name, exc)
     clinicalbert_pipeline = None
     if "clinicalbert" in enabled_annotators and clinicalbert_responses_by_document is None:
-        try:
-            clinicalbert_pipeline = _load_clinicalbert_pipeline(clinicalbert_options["model"])
-        except Exception as exc:
-            logger.warning("clinicalbert unavailable: %s", exc)
+        clinicalbert_pipeline = _preflight_load(
+            "clinicalbert",
+            lambda: _load_clinicalbert_pipeline(clinicalbert_options["model"]),
+            reporter,
+        )
     biobert_pipelines = None
     if "biobert" in enabled_annotators and biobert_responses_by_document is None:
-        try:
-            biobert_pipelines = load_biobert_pipelines()
-        except Exception as exc:
-            logger.warning("biobert unavailable: %s", exc)
+        biobert_pipelines = _preflight_load("biobert", load_biobert_pipelines, reporter)
     apollo_pipeline = None
     if "apollo" in enabled_annotators and apollo_responses_by_document is None:
-        try:
-            apollo_pipeline = _load_apollo_pipeline(apollo_options["model"])
-        except Exception as exc:
-            logger.warning("apollo unavailable: %s", exc)
+        apollo_pipeline = _preflight_load(
+            "apollo",
+            lambda: _load_apollo_pipeline(apollo_options["model"]),
+            reporter,
+        )
     d4data_pipeline = None
     if "d4data" in enabled_annotators and d4data_responses_by_document is None:
-        try:
-            d4data_pipeline = _load_d4data_pipeline(d4data_options["model"])
-        except Exception as exc:
-            logger.warning("d4data unavailable: %s", exc)
+        d4data_pipeline = _preflight_load(
+            "d4data",
+            lambda: _load_d4data_pipeline(d4data_options["model"]),
+            reporter,
+        )
     scispacy_nlps: dict[str, Any] = {}
     if scispacy_responses_by_document is None:
         for annotator in enabled_annotators:
             if annotator not in SCISPACY_ANNOTATOR_SET:
                 continue
-            try:
-                options = scispacy_options[annotator]
-                scispacy_nlps[annotator] = _load_scispacy_model(
+            options = scispacy_options[annotator]
+            nlp = _preflight_load(
+                annotator,
+                lambda: _load_scispacy_model(
                     options["model"],
                     linker_name=options.get("linker_name"),
-                )
-            except Exception as exc:
-                logger.warning("%s unavailable: %s", annotator, exc)
+                ),
+                reporter,
+            )
+            if nlp is not None:
+                scispacy_nlps[annotator] = nlp
     document_annotations: list[dict[str, Any]] = []
     annotations_output: list[dict[str, Any]] = []
     keyword_output: list[dict[str, Any]] = []
@@ -287,6 +319,7 @@ def build_pipeline_output(
             enabled_annotators,
             document_index=document_index,
             document_total=len(documents),
+            progress=reporter,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
             aioner_request_fn=aioner_request_fn,
@@ -706,21 +739,27 @@ def run_selected_annotators_with_status(
     stanza_entities: dict[str, list[Any]] | None = None,
     document_index: int | None = None,
     document_total: int | None = None,
+    progress: ProgressReporter | None = None,
 ) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
     statuses: list[dict[str, Any]] = []
 
-    if document_index is not None and document_total is not None:
-        document_progress = f" (document {document_index}/{document_total})"
-    else:
-        document_progress = ""
+    reporter = progress or log_progress
 
-    for annotator in annotators:
-        label = ANNOTATOR_DISPLAY_NAMES.get(annotator, annotator)
-        spinner = _spinner_console.status(
-            f"Running {label}...{document_progress}", spinner="dots"
+    for annotator_index, annotator in enumerate(annotators, start=1):
+        event = ProgressEvent(
+            annotator=annotator,
+            phase="annotate",
+            event="start",
+            annotator_index=annotator_index,
+            annotator_total=len(annotators),
+            document_id=document.document_id,
+            pmid=document.pmid,
+            document_index=document_index,
+            document_total=document_total,
         )
-        spinner.start()
+        reporter(event)
+        started_at = time.perf_counter()
         try:
             if annotator == "bern2":
                 results[annotator] = annotate_with_bern2(
@@ -876,8 +915,16 @@ def run_selected_annotators_with_status(
             else:
                 raise ValueError(f"Unsupported annotator: {annotator}")
         except Exception as exc:
-            logger.warning("%s unavailable: %s", annotator, exc)
             results[annotator] = []
+            reporter(
+                replace(
+                    event,
+                    event="error",
+                    elapsed_seconds=time.perf_counter() - started_at,
+                    annotation_count=0,
+                    reason=str(exc),
+                )
+            )
             statuses.append(
                 {
                     "name": annotator,
@@ -887,8 +934,6 @@ def run_selected_annotators_with_status(
                 }
             )
             continue
-        finally:
-            spinner.stop()
 
         annotation_count = len(results[annotator])
         if annotation_count:
@@ -897,6 +942,15 @@ def run_selected_annotators_with_status(
         else:
             status = "no_annotations"
             reason = _no_annotations_reason(annotator)
+        reporter(
+            replace(
+                event,
+                event="done",
+                elapsed_seconds=time.perf_counter() - started_at,
+                annotation_count=annotation_count,
+                reason=reason,
+            )
+        )
         statuses.append(
             {
                 "name": annotator,
