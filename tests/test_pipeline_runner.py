@@ -12,6 +12,7 @@ import pytest
 from bio_annotation.cli import main
 from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
+from bio_annotation.deps import DISABLE_ENV_VAR
 from bio_annotation.schemas.document import Document
 from bio_annotation.pipeline_runner import (
     _load_flair_tagger,
@@ -469,12 +470,13 @@ def test_run_pipeline_preflights_missing_flair_dependency(tmp_path, monkeypatch)
         checked_modules.append(name)
         return None
 
-    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
+    monkeypatch.setenv(DISABLE_ENV_VAR, "1")
 
     with pytest.raises(ValueError, match="uv sync --extra flair"):
         run_pipeline_from_config(config_path)
 
-    assert checked_modules == ["flair"]
+    assert "flair" in checked_modules
 
 
 def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
@@ -546,7 +548,7 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
         seen_linkers.extend(kwargs.get("linkers") or [])
         return []
 
-    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
     monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_tagger", fake_tagger_loader)
     monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_linker", fake_linker_loader)
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", fake_flair)
@@ -623,12 +625,13 @@ def test_run_pipeline_preflights_missing_scispacy_dependency(tmp_path, monkeypat
         checked_modules.append(name)
         return None
 
-    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
+    monkeypatch.setenv(DISABLE_ENV_VAR, "1")
 
     with pytest.raises(ValueError, match="uv sync --extra scispacy"):
         run_pipeline_from_config(config_path)
 
-    assert checked_modules == ["scispacy"]
+    assert "scispacy" in checked_modules
 
 
 def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:

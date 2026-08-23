@@ -7,6 +7,11 @@ from bio_annotation.entity_proposal._shared import make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
+FLAIR_INSTALL_HINT = (
+    "The Flair annotator requires the optional Flair dependency. "
+    "Install it with: uv sync --extra flair"
+)
+
 SpanKey = tuple[int | None, int | None, str]
 LinkInfo = tuple[str | None, str | None, Any]
 
