@@ -165,6 +165,13 @@ def aioner_config_paths() -> tuple[str, str]:
     return repo, model
 
 
+def bent_root(project: str) -> Path | None:
+    """Locate the installed bent package inside the tool venv, if provisioned."""
+
+    roots = sorted((Path(project) / ".venv" / "lib").glob("python*/site-packages/bent"))
+    return roots[0] if roots else None
+
+
 def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
     """Whether a setup-script annotator has its environment and resources in place."""
 
@@ -177,7 +184,18 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
     if annotator == "bent":
         project = settings.get("project")
         directory = project.strip() if isinstance(project, str) and project.strip() else DEFAULT_BENT_PROJECT
-        return (Path(directory) / ".venv").exists()
+
+        root = bent_root(directory)
+        if root is None:
+            return False
+        dicts = root / "data" / "kbs" / "dicts"
+        return (
+            (root / "data" / "NILINKER").exists()
+            and (root / "data" / "overlapping_entities").exists()
+            and (root / "abbreviation_detector" / "Ab3P" / "identify_abbr").exists()
+            and dicts.is_dir()
+            and any(dicts.iterdir())
+        )
     return True
 
 
