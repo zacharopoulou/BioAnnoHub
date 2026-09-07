@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-import warnings
+import re
 from typing import Any, Callable
 from urllib import error, parse, request
 
@@ -219,6 +219,29 @@ def parse_medcat_response(
     return annotations
 
 
+def _summarize_response_body(body: str, limit: int = 120) -> str:
+    text = " ".join(re.sub(r"<[^>]+>", " ", body).split())
+    if len(text) > limit:
+        text = text[: limit - 1].rstrip() + "…"
+    return text
+
+
+_reported_endpoints: set[str] = set()
+
+
+def reset_reported_endpoints() -> None:
+    _reported_endpoints.clear()
+
+
+def _failure_log_level(target: str) -> int:
+    """WARNING for an endpoint's first failure, DEBUG for the repeats."""
+
+    if target in _reported_endpoints:
+        return logging.DEBUG
+    _reported_endpoints.add(target)
+    return logging.WARNING
+
+
 def call_medcat(document: Document, endpoint: str | None = None, timeout: int = 45) -> Any:
     target = _normalize_medcat_process_url(endpoint or os.getenv("MEDCAT_API_URL") or DEFAULT_MEDCAT_API_URL)
     if not target:
@@ -241,16 +264,20 @@ def call_medcat(document: Document, endpoint: str | None = None, timeout: int = 
             return json.loads(response.read().decode("utf-8"))
     except error.HTTPError as exc:
         try:
-            detail = exc.read().decode("utf-8", errors="replace")[:500]
+            detail = _summarize_response_body(exc.read(4096).decode("utf-8", errors="replace"))
         except Exception:  # noqa: BLE001
             detail = ""
-        msg = f"{exc.code} {exc.reason} {detail}".strip()
-        warnings.warn(f"MedCAT HTTP error for {target!r}: {msg}", UserWarning, stacklevel=2)
-        logger.warning("MedCAT HTTP error %s", msg)
+        logger.log(
+            _failure_log_level(target),
+            "MedCAT HTTP error for %s: %s %s%s",
+            target,
+            exc.code,
+            exc.reason,
+            f" - {detail}" if detail else "",
+        )
         return None
     except (error.URLError, json.JSONDecodeError, TimeoutError, OSError) as exc:
-        warnings.warn(f"MedCAT request to {target!r} failed: {exc}", UserWarning, stacklevel=2)
-        logger.warning("MedCAT request failed: %s", exc)
+        logger.log(_failure_log_level(target), "MedCAT request to %s failed: %s", target, exc)
         return None
 
 
