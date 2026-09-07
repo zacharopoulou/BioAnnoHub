@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from bio_annotation.entity_proposal.aioner_proposer import (
     DEFAULT_AIONER_ENTITY,
@@ -36,6 +36,7 @@ from bio_annotation.pipeline_runner import (
     run_pipeline_from_config,
     write_pipeline_tsv_outputs,
 )
+from bio_annotation.progress import ProgressReporter
 from bio_annotation.terminal_text_input import (
     GENERATED_TEXT_DOCUMENT_ID,
     is_text_table_file,
@@ -58,7 +59,15 @@ from bio_annotation.terminal_theme import (
 
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
-PipelineRunFn = Callable[..., dict[str, Any]]
+
+
+class PipelineRunFn(Protocol):
+    def __call__(
+        self,
+        config_path: Path,
+        *,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)

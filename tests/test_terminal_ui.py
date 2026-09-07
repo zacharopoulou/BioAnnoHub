@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from bio_annotation.pipeline_config import load_pipeline_config
+from bio_annotation.progress import ProgressReporter
 from bio_annotation.terminal_ui import (
     TerminalUIAnswers,
     _entity_type_choices_for,
@@ -149,7 +150,9 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     def fake_output(message: str) -> None:
         messages.append(message)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path, *, progress: ProgressReporter | None = None
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "text_table"
         assert config.annotators == ["pubtator3"]
@@ -229,7 +232,9 @@ def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path, *, progress: ProgressReporter | None = None
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.text_file is not None
         assert config.text_file.read_text(encoding="utf-8") == (
@@ -271,7 +276,9 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path, *, progress: ProgressReporter | None = None
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmid_file"
         assert config.pmid_file == pmid_file.resolve()
@@ -312,7 +319,9 @@ def test_run_terminal_annotation_ui_defaults_to_all_annotators(tmp_path) -> None
         seen_prompts.append(prompt)
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path, *, progress: ProgressReporter | None = None
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmids"
         assert config.annotators == ["pubtator3", "bern2", "flair"]
@@ -352,7 +361,9 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path, *, progress: ProgressReporter | None = None
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.annotators == ["bern2", "flair"]
         assert config.entity_types == ["variant", "cell_line"]
