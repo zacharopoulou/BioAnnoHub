@@ -113,14 +113,21 @@ STANZA_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str], ...] = (
     ("stanza_jnlpba", "Stanza JNLPBA", "RNA", "rna"),
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell line", "cell_line"),
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell type", "cell_type"),
+    # Stanza i2b2 is a clinical model (2010 i2b2/VA) emitting problem / test /
+    # treatment, the same clinical categories ClinicalBERT uses.
     ("stanza_i2b2", "Stanza i2b2", "Problem", "problem"),
     ("stanza_i2b2", "Stanza i2b2", "Test", "test"),
     ("stanza_i2b2", "Stanza i2b2", "Treatment", "treatment"),
+    # Stanza radiology is a clinical model (Stanford radiology reports) emitting
+    # anatomy / observation / their modifiers / uncertainty. These radiology
+    # categories have no biomedical equivalent, so they are kept as their own types.
     ("stanza_radiology", "Stanza radiology", "Anatomy", "anatomical"),
     ("stanza_radiology", "Stanza radiology", "Anatomy modifier", "anatomy_modifier"),
     ("stanza_radiology", "Stanza radiology", "Observation", "observation"),
     ("stanza_radiology", "Stanza radiology", "Observation modifier", "observation_modifier"),
     ("stanza_radiology", "Stanza radiology", "Uncertainty", "uncertainty"),
+    # Stanza AnatEM is a biomedical model (Anatomical Entity Mention corpus) with a
+    # single anatomical entity type; it uses the default CRAFT biomedical tokenizer.
     ("stanza_anatem", "Stanza AnatEM", "Anatomy", "anatomical"),
 )
 
@@ -160,12 +167,17 @@ SCISPACY_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ..
     ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "PATHOLOGICAL_FORMATION", "pathological_formation", ()),
     ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "SIMPLE_CHEMICAL", "drug", ()),
     ("scispacy_bionlp13cg", "en_ner_bionlp13cg_md", "TISSUE", "tissue", ()),
+    # en_ner_craft_md (CRAFT corpus) tags six ontology types. GGP / CHEBI / CL /
+    # TAXON map onto the canonical set; GO (Gene Ontology) and SO (Sequence
+    # Ontology) have no canonical equivalent, so they keep their own type.
     ("scispacy_craft", "en_ner_craft_md", "GGP", "gene", ()),
     ("scispacy_craft", "en_ner_craft_md", "CHEBI", "drug", ()),
     ("scispacy_craft", "en_ner_craft_md", "CL", "cell_type", ()),
     ("scispacy_craft", "en_ner_craft_md", "TAXON", "species", ()),
     ("scispacy_craft", "en_ner_craft_md", "GO", "gene_ontology", ()),
     ("scispacy_craft", "en_ner_craft_md", "SO", "sequence_ontology", ()),
+    # General scispaCy models: same generic ENTITY detection, linked to UMLS.
+    # Labeled by exact model id; scibert is the accurate one, md the lighter one.
     ("scispacy_scibert", "en_core_sci_scibert", "ENTITY", "biomedical_entity", ("UMLS",)),
     ("scispacy_md", "en_core_sci_md", "ENTITY", "biomedical_entity", ("UMLS",)),
 )
@@ -204,12 +216,21 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # BioBERT NER is run as three fine-tuned checkpoints (gene / disease /
+    # chemical) merged under one source; span only, no normalization.
     AnnotatorEntityTypeSpec("biobert", "BioBERT", "Gene / protein", "gene", ()),
     AnnotatorEntityTypeSpec("biobert", "BioBERT", "Disease", "disease", ()),
     AnnotatorEntityTypeSpec("biobert", "BioBERT", "Chemical / drug", "drug", ()),
+    # ClinicalBERT (i2b2) emits problem / test / treatment. These are clinical
+    # categories with no exact match in the canonical biomedical set (problem is
+    # broader than disease, treatment broader than drug), so they are kept as their
+    # own types rather than forced into disease/drug.
     AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "problem", "problem", ()),
     AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "test", "test", ()),
     AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "treatment", "treatment", ()),
+    # Clinical-AI-Apollo/Medical-NER entity types are generated from the shared
+    # MACCROBAT_LABELS: DISEASE_DISORDER/MEDICATION map to canonical disease/drug,
+    # every other clinical label becomes its own first-class type.
     *(
         AnnotatorEntityTypeSpec(
             "apollo",
@@ -220,6 +241,7 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
         )
         for label in MACCROBAT_LABELS
     ),
+    # d4data/biomedical-ner-all uses the same MACCROBAT clinical label family.
     *(
         AnnotatorEntityTypeSpec(
             "d4data",
@@ -325,192 +347,412 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
     "pubtator3": AnnotatorCapability(
         label="PubTator3",
         tasks=("NER", "NEN"),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "pubtator3"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "pubtator3"
+        ),
         normalization_status="normalized",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "pubtator3"},
-        normalization_fields=("BioC infons.identifier", "annotation.identifier", "annotation.id", "PubAnnotation denotations[].obj suffix", "PubTator text column 6"),
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "pubtator3"
+        },
+        normalization_fields=(
+            "BioC infons.identifier",
+            "annotation.identifier",
+            "annotation.id",
+            "PubAnnotation denotations[].obj suffix",
+            "PubTator text column 6",
+        ),
     ),
     "bern2": AnnotatorCapability(
         label="BERN2",
         tasks=("NER", "NEN"),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "bern2"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bern2"
+        ),
         normalization_status="normalized",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "bern2"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bern2"
+        },
         normalization_fields=("id", "db_id", "identifier", "normalizedName"),
     ),
     "flair": AnnotatorCapability(
         label="Flair / HunFlair",
         tasks=("NER", "NEN"),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "flair"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "flair"
+        ),
         normalization_status="normalized",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "flair"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "flair"
+        },
         normalization_fields=("EntityMentionLinker link labels",),
     ),
     "aioner": AnnotatorCapability(
         label="AIONER",
         tasks=("NER",),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "aioner"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "aioner"
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "aioner"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "aioner"
+        },
         normalization_fields=(),
     ),
     "biobert": AnnotatorCapability(
         label="BioBERT",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "biobert")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "biobert"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "biobert"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "biobert"
+        },
         normalization_fields=(),
     ),
     "clinicalbert": AnnotatorCapability(
         label="ClinicalBERT",
         tasks=("NER",),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "clinicalbert"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "clinicalbert"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
+        },
         normalization_fields=(),
     ),
     "apollo": AnnotatorCapability(
         label="Clinical-AI-Apollo Medical-NER",
         tasks=("NER",),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "apollo"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "apollo"
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "apollo"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "apollo"
+        },
         normalization_fields=(),
     ),
     "d4data": AnnotatorCapability(
         label="d4data biomedical-ner-all",
         tasks=("NER",),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "d4data"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "d4data"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "d4data"
+        },
         normalization_fields=(),
     ),
     "medcat": AnnotatorCapability(
         label="MedCAT",
         tasks=("NER", "NEN"),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "medcat"),
+        # MedCAT's entity types depend on the loaded model pack (UMLS/SNOMED), so
+        # they pass through as returned rather than mapping to the canonical set.
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "medcat"
+        ),
         normalization_status="normalized",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "medcat"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "medcat"
+        },
         normalization_fields=("cui",),
     ),
     "scispacy_jnlpba": AnnotatorCapability(
         label="scispaCy en_ner_jnlpba_md",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_jnlpba")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_jnlpba"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_jnlpba"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_jnlpba"
+        },
         normalization_fields=(),
     ),
     "scispacy_bc5cdr": AnnotatorCapability(
         label="scispaCy en_ner_bc5cdr_md",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_bc5cdr")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_bc5cdr"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_bc5cdr"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_bc5cdr"
+        },
         normalization_fields=(),
     ),
     "scispacy_bionlp13cg": AnnotatorCapability(
         label="scispaCy en_ner_bionlp13cg_md",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_bionlp13cg")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_bionlp13cg"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_bionlp13cg"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_bionlp13cg"
+        },
         normalization_fields=(),
     ),
     "scispacy_craft": AnnotatorCapability(
         label="scispaCy en_ner_craft_md",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_craft")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_craft"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_craft"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_craft"
+        },
         normalization_fields=(),
     ),
     "scispacy_scibert": AnnotatorCapability(
         label="scispaCy en_core_sci_scibert",
         tasks=("NER", "NEN"),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_scibert")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_scibert"
+            )
+        ),
         normalization_status="normalized",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_scibert"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_scibert"
+        },
         normalization_fields=("EntityLinker kb_ents", "UMLS CUI"),
     ),
     "scispacy_md": AnnotatorCapability(
         label="scispaCy en_core_sci_md",
         tasks=("NER", "NEN"),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_md")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "scispacy_md"
+            )
+        ),
         normalization_status="normalized",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "scispacy_md"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "scispacy_md"
+        },
         normalization_fields=("EntityLinker kb_ents", "UMLS CUI"),
     ),
     "bent": AnnotatorCapability(
         label="BENT",
         tasks=("NER", "NEN"),
-        entity_types=tuple(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "bent"),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bent"
+        ),
         normalization_status="normalized",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "bent"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "bent"
+        },
         normalization_fields=("BRAT N Reference lines",),
     ),
     "stanza_bc5cdr": AnnotatorCapability(
         label="Stanza BC5CDR",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_bc5cdr")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_bc5cdr"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_bc5cdr"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_bc5cdr"
+        },
         normalization_fields=(),
     ),
     "stanza_bionlp13cg": AnnotatorCapability(
         label="Stanza BioNLP13CG",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_bionlp13cg")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_bionlp13cg"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_bionlp13cg"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_bionlp13cg"
+        },
         normalization_fields=(),
     ),
     "stanza_jnlpba": AnnotatorCapability(
         label="Stanza JNLPBA",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_jnlpba")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_jnlpba"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_jnlpba"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_jnlpba"
+        },
         normalization_fields=(),
     ),
     "stanza_i2b2": AnnotatorCapability(
         label="Stanza i2b2",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_i2b2")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_i2b2"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_i2b2"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_i2b2"
+        },
         normalization_fields=(),
     ),
     "stanza_radiology": AnnotatorCapability(
         label="Stanza radiology",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_radiology")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_radiology"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_radiology"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_radiology"
+        },
         normalization_fields=(),
     ),
     "stanza_anatem": AnnotatorCapability(
         label="Stanza AnatEM",
         tasks=("NER",),
-        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_anatem")),
+        entity_types=tuple(
+            dict.fromkeys(
+                spec.canonical_entity_type
+                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+                if spec.annotator == "stanza_anatem"
+            )
+        ),
         normalization_status="not_returned",
-        normalization_databases={spec.canonical_entity_type: spec.database_ids for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == "stanza_anatem"},
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "stanza_anatem"
+        },
         normalization_fields=(),
     ),
 }
 
-ANNOTATOR_CHOICES: tuple[tuple[str, str], ...] = tuple((annotator, capability.label) for annotator, capability in ANNOTATOR_CAPABILITIES.items())
-ANNOTATOR_DISPLAY_NAMES: dict[str, str] = {annotator: capability.label for annotator, capability in ANNOTATOR_CAPABILITIES.items()}
-ANNOTATOR_ENTITY_TYPES: dict[str, set[str]] = {annotator: set(capability.entity_types) for annotator, capability in ANNOTATOR_CAPABILITIES.items()}
+ANNOTATOR_CHOICES: tuple[tuple[str, str], ...] = tuple(
+    (annotator, capability.label)
+    for annotator, capability in ANNOTATOR_CAPABILITIES.items()
+)
+ANNOTATOR_DISPLAY_NAMES: dict[str, str] = {
+    annotator: capability.label for annotator, capability in ANNOTATOR_CAPABILITIES.items()
+}
+ANNOTATOR_ENTITY_TYPES: dict[str, set[str]] = {
+    annotator: set(capability.entity_types)
+    for annotator, capability in ANNOTATOR_CAPABILITIES.items()
+}
 
 
 def normalize_entity_type(label: Any) -> str:
     if label is None:
         return "unknown"
+
     normalized = re.sub(r"[^a-z0-9]+", "_", str(label).strip().lower()).strip("_")
     if not normalized:
         return "unknown"
+
     return ENTITY_TYPE_ALIASES.get(normalized, normalized)
 
 
