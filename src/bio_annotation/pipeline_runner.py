@@ -518,6 +518,7 @@ def write_keyword_annotator_evidence_tsv(
                         "canonical_id": _join_values(annotation.get("canonical_id")),
                         "canonical_name": annotation.get("canonical_name"),
                         "confidence": annotation.get("confidence"),
+                        "normalization_score": annotation.get("normalization_score"),
                     }
                 )
 
@@ -536,6 +537,7 @@ def write_keyword_annotator_evidence_tsv(
             "canonical_id",
             "canonical_name",
             "confidence",
+            "normalization_score",
         ],
         rows,
     )
@@ -566,6 +568,7 @@ def write_annotations_tsv(payload: dict[str, Any], output_path: Path) -> None:
                 "canonical_id": _join_values(annotation.get("canonical_id")),
                 "canonical_name": annotation.get("canonical_name"),
                 "confidence": annotation.get("confidence"),
+                "normalization_score": annotation.get("normalization_score"),
             }
         )
 
@@ -584,6 +587,7 @@ def write_annotations_tsv(payload: dict[str, Any], output_path: Path) -> None:
             "canonical_id",
             "canonical_name",
             "confidence",
+            "normalization_score",
         ],
         rows,
     )
