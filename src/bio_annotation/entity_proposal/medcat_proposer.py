@@ -209,11 +209,7 @@ def parse_medcat_response(
                     record.get("name"),
                     record.get("preferred_name"),
                 ),
-                confidence=pick_first(
-                    record.get("acc"),
-                    record.get("confidence"),
-                    record.get("score"),
-                ),
+                normalization_score=raw_conf,
             )
         )
     return annotations
