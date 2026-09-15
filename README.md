@@ -159,8 +159,9 @@ BERN2 supports:
 
 Flair/HunFlair runs through the configured local Flair model. With HunFlair2,
 TotalAnnotator also runs the configured `EntityMentionLinker` models and stores
-the single returned/top link in `canonical_id` plus `canonical_name` when Flair
-returns one.
+the single returned/top link in `canonical_id`, its preferred name in
+`canonical_name`, and the linker score in `normalization_score`. The NER model
+score remains in `confidence`.
 
 HunFlair supports:
 
@@ -179,8 +180,8 @@ linking = true
 linkers = ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
 ```
 
-The linker databases are type-specific: genes use NCBI Gene, diseases use CTD
-Diseases, chemicals/drugs use CTD Chemicals, and species use NCBI Taxonomy. Cell
+The returned identifier namespaces are type-specific: genes use NCBI Gene,
+diseases use MeSH, chemicals/drugs use MeSH, and species use NCBI Taxonomy. Cell
 line NER is supported, but no default HunFlair2 cell-line linker is configured.
 
 HunFlair does not produce variants/mutations. If the terminal UI selection includes unsupported entity types for a selected annotator, it shows a compatibility warning before continuing.
