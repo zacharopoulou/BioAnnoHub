@@ -562,6 +562,8 @@ def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers()
 
 def test_aioner_adapter_parses_pubtator_output_and_normalizes_types() -> None:
     document = sample_document()
+    # AIONER emits 5-column PubTator (no identifier; NER only). "Chemical" and
+    # "CellLine" must normalize to the canonical "drug" / "cell_line" types.
     response = (
         "PMID:12345678|t|PTEN regulates glioblastoma\n"
         "PMID:12345678|a|\n"
@@ -607,6 +609,7 @@ def test_aioner_input_flattens_newlines_preserving_offsets() -> None:
     assert title_line.startswith("PMID:12345678|t|")
     flat_text = title_line.split("|t|", 1)[1]
     assert "\n" not in flat_text
+    # Length is preserved so AIONER's absolute offsets map onto document.text.
     assert len(flat_text) == len(document.text)
 
 
@@ -621,6 +624,9 @@ def test_aioner_call_requires_configuration(monkeypatch) -> None:
 
 def test_clinicalbert_adapter_parses_pipeline_output_and_normalizes_types() -> None:
     document = sample_document()
+    # HuggingFace token-classification output. The clinical labels problem / test
+    # / treatment are kept as their own types. Span text is sliced from
+    # document.text, so the model's "word" field is ignored.
     response = [
         {"entity_group": "problem", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
         {"entity_group": "treatment", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
@@ -686,6 +692,8 @@ def test_clinicalbert_adapter_loads_configured_model() -> None:
 
 def test_clinicalbert_adapter_trims_leading_articles_and_drops_noise() -> None:
     document = sample_document()
+    # On out-of-domain text the i2b2 model tags articles and stray punctuation.
+    # Leading "a"/"an"/"the" are stripped; bare articles and lone "-" are dropped.
     response = [
         {"entity_group": "problem", "score": 0.9, "word": "a stop codon"},
         {"entity_group": "problem", "score": 0.9, "word": "an 11-base pair insertion"},
@@ -704,6 +712,7 @@ def test_clinicalbert_adapter_trims_leading_articles_and_drops_noise() -> None:
 
 def test_biobert_adapter_merges_per_model_responses() -> None:
     document = sample_document()
+    # One HuggingFace payload per checkpoint; the producing model sets the type.
     response = {
         "gene": [{"entity_group": "GENE", "score": 0.98, "word": "PTEN"}],
         "disease": [{"entity_group": "DISEASE", "score": 0.95, "word": "glioblastoma"}],
@@ -736,6 +745,7 @@ def test_biobert_adapter_loads_one_pipeline_per_model() -> None:
 
     annotations = annotate_with_biobert(document, pipeline_loader=fake_loader)
 
+    # One pipeline loaded per configured checkpoint, all merged under "biobert".
     assert loaded == list(DEFAULT_BIOBERT_MODELS.values())
     assert all(a.source == "biobert" for a in annotations)
     assert sorted(a.entity_type for a in annotations) == ["disease", "drug", "gene"]
@@ -761,6 +771,8 @@ def test_biobert_adapter_uses_request_fn_and_drops_punctuation() -> None:
 
 def test_biobert_adapter_drops_outside_zero_labels() -> None:
     document = sample_document()
+    # The diseases checkpoint mislabels its "outside" tag as "0" (not "O"), so the
+    # pipeline emits bogus "0" spans over plain text; those must be dropped.
     response = {
         "disease": [
             {"entity_group": "0", "score": 1.0, "word": "PTEN and"},
@@ -776,6 +788,9 @@ def test_biobert_adapter_drops_outside_zero_labels() -> None:
 
 
 def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:
+    # The Windows runner must hand AIONER forward-slash paths (it splits the model
+    # path on "/") and decode the subprocess as UTF-8. Imported directly so the
+    # test runs on any OS.
     from pathlib import Path
 
     from bio_annotation.entity_proposal import aioner_windows
@@ -822,6 +837,10 @@ def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) 
 
 def test_apollo_adapter_parses_pipeline_output_and_normalizes_types() -> None:
     document = sample_document()
+    # HuggingFace token-classification output (aggregation_strategy="first").
+    # "DISEASE_DISORDER"/"MEDICATION" must normalize to canonical "disease"/"drug";
+    # unmapped clinical labels like "SIGN_SYMPTOM" pass through. The span text is
+    # sliced from document.text, so a subword "word" artifact is ignored.
     response = [
         {"entity_group": "DISEASE_DISORDER", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
         {"entity_group": "MEDICATION", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
@@ -887,6 +906,8 @@ def test_apollo_adapter_loads_configured_model() -> None:
 
 def test_d4data_adapter_parses_pipeline_output_and_normalizes_types() -> None:
     document = sample_document()
+    # d4data emits mixed-case MACCROBAT labels; they should normalize through the
+    # shared MACCROBAT alias table used by Apollo too.
     response = [
         {"entity_group": "Disease_disorder", "score": 0.99, "word": "oblastoma", "start": 15, "end": 27},
         {"entity_group": "Medication", "score": 0.95, "word": "PTEN", "start": 0, "end": 4},
@@ -1080,6 +1101,7 @@ def test_scispacy_md_links_entities_to_umls_like_scibert() -> None:
         SCISPACY_MODEL_BY_ANNOTATOR,
     )
 
+    # Both general models are linkers defaulting to UMLS; md uses the lighter model.
     assert SCISPACY_LINKER_NAME_BY_ANNOTATOR == {
         "scispacy_scibert": "umls",
         "scispacy_md": "umls",
@@ -1258,6 +1280,7 @@ def test_stanza_jnlpba_loads_fixed_model_and_keeps_cell_type_distinct() -> None:
 
     assert loaded == [("genia", "jnlpba")]
     assert all(a.source == "stanza_jnlpba" for a in annotations)
+    # CELL_TYPE must stay cell_type, not be mislabeled as cell_line.
     assert [a.entity_type for a in annotations] == [
         "gene",
         "dna",
@@ -1292,6 +1315,7 @@ def test_stanza_i2b2_defaults_to_mimic_tokenizer_package() -> None:
 
     annotate_with_stanza(sample_document(), "i2b2", pipeline_loader=fake_loader)
 
+    # i2b2 is clinical, so it must default to the MIMIC tokenizer, not CRAFT.
     assert loaded == [("mimic", "i2b2")]
     assert default_package_for_model("i2b2") == "mimic"
     assert default_package_for_model("bc5cdr") == "craft"
@@ -1346,6 +1370,7 @@ def test_stanza_radiology_defaults_to_mimic_tokenizer_package() -> None:
 
     annotate_with_stanza(sample_document(), "radiology", pipeline_loader=fake_loader)
 
+    # radiology is clinical, so it must default to the MIMIC tokenizer, not CRAFT.
     assert loaded == [("mimic", "radiology")]
     assert default_package_for_model("radiology") == "mimic"
     assert default_package_for_model("bc5cdr") == "craft"
@@ -1387,6 +1412,7 @@ def test_stanza_anatem_uses_craft_biomedical_tokenizer_package() -> None:
 
     annotate_with_stanza(sample_document(), "anatem", pipeline_loader=fake_loader)
 
+    # AnatEM is biomedical, so it uses the default CRAFT tokenizer (not MIMIC).
     assert loaded == [("craft", "anatem")]
 
 
@@ -1416,6 +1442,10 @@ def test_bent_adapter_parses_brat_ner_and_nel_output() -> None:
 
 
 def test_bent_adapter_preserves_reported_offsets_without_relocating() -> None:
+    # "glioblastoma" occurs twice (first at offset 15). BENT reports the second
+    # mention with a span that does not byte-match the slice. The adapter must
+    # keep BENT's reported location instead of silently searching span_text and
+    # relocating to the first, unrelated occurrence.
     document = sample_document()
     assert document.text.count("glioblastoma") == 2
     assert document.text[62:75] != "glioblastoma"
@@ -1425,7 +1455,7 @@ def test_bent_adapter_preserves_reported_offsets_without_relocating() -> None:
 
     assert len(annotations) == 1
     assert (annotations[0].start, annotations[0].end) == (62, 75)
-    assert annotations[0].start != 15
+    assert annotations[0].start != 15  # not relocated to the first occurrence
 
 
 def test_bent_adapter_uses_request_fn() -> None:
@@ -1475,6 +1505,7 @@ def test_bent_call_runs_isolated_subprocess_and_reads_ann(monkeypatch) -> None:
     assert commands
     command = commands[0]
     assert command[:3] == ["uv", "run", "--project"]
+    # The wrapper script must live inside the resolved project dir, not be hard-coded.
     assert command[3] == str(Path("tools/bent").resolve())
     assert command[command.index("python") + 1] == str(Path("tools/bent").resolve() / "run_bent.py")
     assert command[command.index("--mode") + 1] == "ner_nel"
