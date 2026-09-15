@@ -108,6 +108,8 @@ def test_bern2_call_surfaces_connection_failures(monkeypatch) -> None:
 class FakeLabel:
     value: str
     score: float
+    data_point: object | None = None
+    label_type: str = "ner"
 
 
 @dataclass
@@ -175,6 +177,55 @@ def test_flair_adapter_loads_configured_model() -> None:
     assert len(annotations) == 1
     assert annotations[0].source == "flair"
     assert annotations[0].entity_type == "gene"
+
+
+def test_flair_adapter_keeps_top_linker_label() -> None:
+    document = sample_document()
+    span = FakeSpan(
+        text="PTEN",
+        start_position=0,
+        end_position=4,
+        labels=[FakeLabel(value="Gene", score=0.99)],
+    )
+    ner_label = FakeLabel(value="Gene", score=0.99, data_point=span)
+    link_label = FakeLabel(
+        value="NCBIGene:5728/name=PTEN",
+        score=211.5,
+        data_point=span,
+        label_type="link",
+    )
+
+    class FakeTagger:
+        def predict(self, sentence: object) -> None:
+            sentence.ner_labels = [ner_label]
+
+    class FakeLinker:
+        def predict(self, sentence: object) -> None:
+            sentence.link_labels = [link_label]
+
+    class FakeSentence:
+        def __init__(self, text: str) -> None:
+            self.text = text
+            self.ner_labels: list[FakeLabel] = []
+            self.link_labels: list[FakeLabel] = []
+
+        def get_labels(self, label_type: str | None = None) -> list[FakeLabel]:
+            if label_type == "link":
+                return self.link_labels
+            return self.ner_labels
+
+    annotations = annotate_with_flair(
+        document,
+        tagger=FakeTagger(),
+        linkers=[FakeLinker()],
+        sentence_factory=FakeSentence,
+    )
+
+    assert len(annotations) == 1
+    assert annotations[0].entity_type == "gene"
+    assert annotations[0].canonical_id == "NCBIGene:5728"
+    assert annotations[0].canonical_name == "PTEN"
+    assert annotations[0].confidence == 0.99
 
 
 def test_flair_adapter_raises_when_configured_model_cannot_load() -> None:

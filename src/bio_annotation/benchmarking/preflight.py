@@ -32,6 +32,7 @@ def preflight_benchmark_annotators(
     annotator_options: dict[str, dict[str, Any]],
     *,
     flair_tagger_loader: Callable[[str], Any] | None = None,
+    flair_linker_loader: Callable[[str], Any] | None = None,
 ) -> tuple[list[PreflightResult], dict[str, Any]]:
     """Check benchmark runtime settings before iterating over documents.
 
@@ -93,6 +94,25 @@ def preflight_benchmark_annotators(
                 )
                 raise BenchmarkPreflightError(result) from exc
             resources["flair_tagger"] = tagger
+            if options.get("linking", True):
+                linkers = []
+                linker_loader = flair_linker_loader or _load_flair_linker
+                for linker_name in options.get("linkers", []):
+                    try:
+                        linkers.append(linker_loader(str(linker_name)))
+                    except Exception as exc:
+                        result = PreflightResult(
+                            name="flair",
+                            status="failed",
+                            message=(
+                                "Benchmark config is being used. Flair is being called with "
+                                f"linker {linker_name!r}, but the linker is not available through "
+                                "Flair's EntityMentionLinker loader in the local environment. "
+                                f"Original error: {exc}"
+                            ),
+                        )
+                        raise BenchmarkPreflightError(result) from exc
+                resources["flair_linkers"] = linkers
             results.append(
                 PreflightResult(
                     name="flair",
@@ -123,6 +143,12 @@ def _load_flair_model(model: str) -> Any:
     from flair.nn import Classifier
 
     return Classifier.load(model)
+
+
+def _load_flair_linker(model: str) -> Any:
+    from flair.models import EntityMentionLinker
+
+    return EntityMentionLinker.load(model)
 
 
 __all__ = [

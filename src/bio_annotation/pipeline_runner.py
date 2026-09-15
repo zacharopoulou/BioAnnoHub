@@ -5,6 +5,7 @@ import csv
 import json
 import logging
 from datetime import datetime
+from functools import lru_cache
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Any, Callable
@@ -81,6 +82,12 @@ SUPPORTED_ANNOTATORS = {
     "medcat",
     *SCISPACY_ANNOTATORS,
     *STANZA_ANNOTATORS,
+}
+DEFAULT_FLAIR_LINKERS = {
+    "gene": "gene-linker",
+    "disease": "disease-linker",
+    "drug": "chemical-linker",
+    "species": "species-linker",
 }
 FLAIR_INSTALL_HINT = (
     "The Flair annotator requires the optional Flair dependency. "
@@ -210,11 +217,18 @@ def build_pipeline_output(
     }
 
     flair_tagger = None
+    flair_linkers: list[Any] = []
     if "flair" in enabled_annotators and flair_spans_by_document is None:
         try:
             flair_tagger = _load_flair_tagger(flair_options["model"] or "hunflair2")
         except Exception as exc:
             logger.warning("flair unavailable: %s", exc)
+        if flair_tagger is not None and flair_options.get("linking"):
+            for linker_name in flair_options["linkers"]:
+                try:
+                    flair_linkers.append(_load_flair_linker(linker_name))
+                except Exception as exc:
+                    logger.warning("flair linker %s unavailable: %s", linker_name, exc)
     clinicalbert_pipeline = None
     if "clinicalbert" in enabled_annotators and clinicalbert_responses_by_document is None:
         try:
@@ -285,6 +299,8 @@ def build_pipeline_output(
                 else None
             ),
             flair_tagger=flair_tagger,
+            flair_linkers=flair_linkers,
+            flair_options=flair_options,
             clinicalbert_response=(
                 clinicalbert_responses_by_document.get(document.document_id)
                 if clinicalbert_responses_by_document is not None
@@ -590,6 +606,7 @@ def run_selected_annotators(
     stanza_options: dict[str, dict[str, Any]] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
+    flair_linkers: list[Any] | None = None,
     flair_options: dict[str, Any] | None = None,
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
@@ -623,6 +640,7 @@ def run_selected_annotators(
         stanza_options=stanza_options,
         flair_spans=flair_spans,
         flair_tagger=flair_tagger,
+        flair_linkers=flair_linkers,
         flair_options=flair_options,
         clinicalbert_response=clinicalbert_response,
         clinicalbert_pipeline=clinicalbert_pipeline,
@@ -660,6 +678,7 @@ def run_selected_annotators_with_status(
     stanza_options: dict[str, dict[str, Any]] | None = None,
     flair_spans: list[Any] | None = None,
     flair_tagger: Any = None,
+    flair_linkers: list[Any] | None = None,
     flair_options: dict[str, Any] | None = None,
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
@@ -697,6 +716,7 @@ def run_selected_annotators_with_status(
                     document,
                     spans=flair_spans,
                     tagger=flair_tagger,
+                    linkers=flair_linkers,
                     model=flair_options.get("model") if flair_options else None,
                 )
             elif annotator == "pubtator3":
@@ -1366,10 +1386,26 @@ def _read_medcat_options(settings: dict[str, object]) -> dict[str, Any]:
 
 def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
     model = settings.get("model")
+    linking = settings.get("linking")
+    raw_linkers = settings.get("linkers")
+    linkers: list[str] = []
+    if isinstance(raw_linkers, list):
+        linkers = [item.strip() for item in raw_linkers if isinstance(item, str) and item.strip()]
+    elif isinstance(raw_linkers, dict):
+        for entity_type, linker_name in raw_linkers.items():
+            if not isinstance(entity_type, str) or not isinstance(linker_name, str):
+                continue
+            if normalize_entity_type(entity_type) in DEFAULT_FLAIR_LINKERS and linker_name.strip():
+                linkers.append(linker_name.strip())
+    else:
+        linkers = list(DEFAULT_FLAIR_LINKERS.values())
+
     return {
         "model": model.strip()
         if isinstance(model, str) and model.strip()
         else None,
+        "linking": linking if isinstance(linking, bool) else True,
+        "linkers": tuple(dict.fromkeys(linkers)),
     }
 
 
@@ -1455,6 +1491,18 @@ def _load_flair_tagger(model: str) -> Any:
 
     flair.logger.setLevel(logging.WARNING)
     return Classifier.load(model)
+
+
+@lru_cache(maxsize=8)
+def _load_flair_linker(model: str) -> Any:
+    try:
+        import flair
+        from flair.models import EntityMentionLinker
+    except ImportError as exc:
+        raise RuntimeError(FLAIR_INSTALL_HINT) from exc
+
+    flair.logger.setLevel(logging.WARNING)
+    return EntityMentionLinker.load(model)
 
 
 def _read_clinicalbert_options(settings: dict[str, object]) -> dict[str, Any]:

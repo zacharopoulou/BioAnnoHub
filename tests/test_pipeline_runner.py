@@ -414,8 +414,21 @@ def test_run_selected_annotators_passes_bern2_endpoint(monkeypatch) -> None:
 
 
 def test_read_flair_options_reads_model() -> None:
-    assert _read_flair_options({"model": "hunflair2"}) == {"model": "hunflair2"}
-    assert _read_flair_options({}) == {"model": None}
+    assert _read_flair_options({"model": "hunflair2"}) == {
+        "model": "hunflair2",
+        "linking": True,
+        "linkers": ("gene-linker", "disease-linker", "chemical-linker", "species-linker"),
+    }
+    assert _read_flair_options({"linking": False}) == {
+        "model": None,
+        "linking": False,
+        "linkers": ("gene-linker", "disease-linker", "chemical-linker", "species-linker"),
+    }
+    assert _read_flair_options({"linkers": {"disease": "custom-disease-linker", "cell_line": "ignored"}}) == {
+        "model": None,
+        "linking": True,
+        "linkers": ("custom-disease-linker",),
+    }
 
 
 def test_load_flair_tagger_reports_optional_dependency(monkeypatch) -> None:
@@ -471,10 +484,11 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
         abstract="PTEN is important.",
         source="corpus",
     )
-    calls: list[str | None] = []
+    fake_linkers = [object()]
+    calls: list[tuple[str | None, object]] = []
 
     def fake_flair(document: Document, **kwargs: object) -> list[Annotation]:
-        calls.append(kwargs.get("model"))
+        calls.append((kwargs.get("model"), kwargs.get("linkers")))
         return []
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", fake_flair)
@@ -483,9 +497,72 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
         document,
         ["flair"],
         flair_options={"model": "hunflair2"},
+        flair_linkers=fake_linkers,
     )
 
-    assert calls == ["hunflair2"]
+    assert calls == [("hunflair2", fake_linkers)]
+
+
+def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[annotators]",
+                'enabled = ["flair"]',
+                "",
+                "[annotators.flair]",
+                'model = "hunflair2"',
+                "linking = true",
+                'linkers = ["gene-linker", "disease-linker"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    loaded_taggers: list[str] = []
+    loaded_linkers: list[str] = []
+    seen_linkers: list[object] = []
+
+    def fake_find_spec(name: str) -> object | None:
+        assert name == "flair"
+        return object()
+
+    def fake_tagger_loader(model: str) -> object:
+        loaded_taggers.append(model)
+        return object()
+
+    def fake_linker_loader(model: str) -> object:
+        loaded_linkers.append(model)
+        return model
+
+    def fake_flair(document: Document, **kwargs: object) -> list[Annotation]:
+        seen_linkers.extend(kwargs.get("linkers") or [])
+        return []
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_tagger", fake_tagger_loader)
+    monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_linker", fake_linker_loader)
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", fake_flair)
+
+    run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    assert loaded_taggers == ["hunflair2"]
+    assert loaded_linkers == ["gene-linker", "disease-linker"]
+    assert seen_linkers == ["gene-linker", "disease-linker"]
 
 
 def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
