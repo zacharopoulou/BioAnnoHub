@@ -205,10 +205,10 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("bern2", "BERN2", "Cell type", "cell_type", ("Cell Ontology",)),
     AnnotatorEntityTypeSpec("bern2", "BERN2", "DNA", "dna", ()),
     AnnotatorEntityTypeSpec("bern2", "BERN2", "RNA", "rna", ()),
-    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Gene / protein", "gene", ()),
-    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Disease", "disease", ()),
-    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Chemical / drug", "drug", ()),
-    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Species", "species", ()),
+    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Gene / protein", "gene", ("NCBI Gene",)),
+    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Disease", "disease", ("MeSH",)),
+    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Chemical / drug", "drug", ("MeSH",)),
+    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Species", "species", ("NCBI Taxonomy",)),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Cell line", "cell_line", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Gene", "gene", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Chemical", "drug", ()),
@@ -384,19 +384,19 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
     ),
     "flair": AnnotatorCapability(
         label="Flair / HunFlair",
-        tasks=("NER",),
+        tasks=("NER", "NEN"),
         entity_types=tuple(
             spec.canonical_entity_type
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "flair"
         ),
-        normalization_status="not_returned",
+        normalization_status="normalized",
         normalization_databases={
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "flair"
         },
-        normalization_fields=(),
+        normalization_fields=("EntityMentionLinker link labels",),
     ),
     "aioner": AnnotatorCapability(
         label="AIONER",

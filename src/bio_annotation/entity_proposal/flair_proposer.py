@@ -7,6 +7,9 @@ from bio_annotation.entity_proposal._shared import make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
+SpanKey = tuple[int | None, int | None, str]
+LinkInfo = tuple[str | None, str | None, Any]
+
 
 def _extract_flair_label(span: Any) -> tuple[Any, Any]:
     if hasattr(span, "get_label"):
@@ -21,8 +24,73 @@ def _extract_flair_label(span: Any) -> tuple[Any, Any]:
     return getattr(span, "tag", None), getattr(span, "score", None)
 
 
-def parse_flair_spans(document: Document, spans: Iterable[Any]) -> list[Annotation]:
+def _span_key(span: Any) -> SpanKey:
+    text = getattr(span, "text", None)
+    if text is None and hasattr(span, "to_original_text"):
+        text = span.to_original_text()
+    return (
+        getattr(span, "start_position", None),
+        getattr(span, "end_position", None),
+        str(text or "").strip(),
+    )
+
+
+def _parse_link_value(value: Any) -> tuple[str | None, str | None]:
+    if value is None:
+        return None, None
+
+    text = str(value).strip()
+    if not text:
+        return None, None
+
+    canonical_id, separator, metadata = text.partition("/name=")
+    canonical_name = metadata.strip() if separator else None
+    return canonical_id.strip() or None, canonical_name or None
+
+
+def _link_label_name(label: Any) -> str | None:
+    metadata = getattr(label, "metadata", None)
+    if isinstance(metadata, dict):
+        name = metadata.get("name")
+        if name is not None and str(name).strip():
+            return str(name).strip()
+    return None
+
+
+def _flair_links_by_span(labels: Iterable[Any] | None) -> dict[SpanKey, LinkInfo]:
+    links: dict[SpanKey, LinkInfo] = {}
+    for label in labels or []:
+        span = getattr(label, "data_point", None)
+        if span is None:
+            continue
+        canonical_id, fallback_name = _parse_link_value(getattr(label, "value", None))
+        if canonical_id is None:
+            continue
+        canonical_name = _link_label_name(label) or fallback_name
+        links.setdefault(
+            _span_key(span),
+            (canonical_id, canonical_name, getattr(label, "score", None)),
+        )
+    return links
+
+
+def _get_sentence_labels(sentence: Any, label_type: str) -> Iterable[Any]:
+    try:
+        return sentence.get_labels(label_type)
+    except TypeError:
+        if label_type == "ner":
+            return sentence.get_labels()
+        return []
+
+
+def parse_flair_spans(
+    document: Document,
+    spans: Iterable[Any],
+    *,
+    link_labels: Iterable[Any] | None = None,
+) -> list[Annotation]:
     annotations: list[Annotation] = []
+    links_by_span = _flair_links_by_span(link_labels)
     for span in spans:
         label, score = _extract_flair_label(span)
         text = getattr(span, "text", None)
@@ -30,6 +98,10 @@ def parse_flair_spans(document: Document, spans: Iterable[Any]) -> list[Annotati
             text = span.to_original_text()
         if not text:
             continue
+        canonical_id, canonical_name, link_score = links_by_span.get(
+            _span_key(span),
+            (None, None, None),
+        )
 
         annotations.append(
             make_annotation(
@@ -39,7 +111,10 @@ def parse_flair_spans(document: Document, spans: Iterable[Any]) -> list[Annotati
                 entity_type=label,
                 start=getattr(span, "start_position", None),
                 end=getattr(span, "end_position", None),
+                canonical_id=canonical_id,
+                canonical_name=canonical_name,
                 confidence=score,
+                normalization_score=link_score,
             )
         )
 
@@ -53,8 +128,14 @@ def _load_flair_tagger(model: str) -> Any:
     return SequenceTagger.load(model)
 
 
-def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annotation]:
+def parse_flair_labels(
+    document: Document,
+    labels: Iterable[Any],
+    *,
+    link_labels: Iterable[Any] | None = None,
+) -> list[Annotation]:
     annotations: list[Annotation] = []
+    links_by_span = _flair_links_by_span(link_labels)
     for label in labels:
         span = getattr(label, "data_point", None)
         if span is None:
@@ -62,6 +143,10 @@ def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annota
         text = getattr(span, "text", None)
         if not text:
             continue
+        canonical_id, canonical_name, link_score = links_by_span.get(
+            _span_key(span),
+            (None, None, None),
+        )
 
         annotations.append(
             make_annotation(
@@ -71,7 +156,10 @@ def parse_flair_labels(document: Document, labels: Iterable[Any]) -> list[Annota
                 entity_type=getattr(label, "value", None),
                 start=getattr(span, "start_position", None),
                 end=getattr(span, "end_position", None),
+                canonical_id=canonical_id,
+                canonical_name=canonical_name,
                 confidence=getattr(label, "score", None),
+                normalization_score=link_score,
             )
         )
 
@@ -83,6 +171,7 @@ def annotate_with_flair(
     *,
     spans: Iterable[Any] | None = None,
     tagger: Any = None,
+    linkers: Iterable[Any] | None = None,
     model: str | None = None,
     tagger_loader: Callable[[str], Any] | None = None,
     sentence_factory: Callable[[str], Any] | None = None,
@@ -105,10 +194,17 @@ def annotate_with_flair(
             sentence = sentence_factory(document.text)
 
         tagger.predict(sentence)
+        for linker in linkers or []:
+            linker.predict(sentence)
         if hasattr(sentence, "get_labels"):
-            return parse_flair_labels(document, sentence.get_labels())
+            return parse_flair_labels(
+                document,
+                _get_sentence_labels(sentence, "ner"),
+                link_labels=_get_sentence_labels(sentence, "link"),
+            )
         if hasattr(sentence, "get_spans"):
-            return parse_flair_spans(document, sentence.get_spans("ner"))
+            link_labels = sentence.get_labels("link") if hasattr(sentence, "get_labels") else None
+            return parse_flair_spans(document, sentence.get_spans("ner"), link_labels=link_labels)
         return []
 
     return []

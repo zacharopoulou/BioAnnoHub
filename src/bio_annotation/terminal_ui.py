@@ -26,6 +26,7 @@ from bio_annotation.entity_proposal.scispacy_proposer import (
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
 )
+from bio_annotation.pipeline_runner import DEFAULT_FLAIR_LINKERS
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
     ANNOTATOR_DISPLAY_NAMES,
@@ -344,6 +345,15 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         lines += ["", "[annotators.apollo]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_APOLLO_MODEL)}"]
     if "d4data" in answers.annotators:
         lines += ["", "[annotators.d4data]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_D4DATA_MODEL)}"]
+    if "flair" in answers.annotators:
+        lines += [
+            "",
+            "[annotators.flair]",
+            'runtime = "local_model"',
+            'model = "hunflair2"',
+            "linking = true",
+            f"linkers = {_toml_string_list(DEFAULT_FLAIR_LINKERS.values())}",
+        ]
     if "medcat" in answers.annotators:
         lines += ["", "[annotators.medcat]", 'runtime = "remote_api"', f"endpoint = {_toml_string(medcat_config_endpoint())}", "min_acc = 0.3"]
     for annotator in SCISPACY_MODEL_BY_ANNOTATOR:

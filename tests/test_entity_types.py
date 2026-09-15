@@ -67,10 +67,10 @@ def test_normalize_entity_type_uses_explicit_table_rows() -> None:
 def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> None:
     assert ANNOTATOR_CAPABILITIES["pubtator3"].tasks == ("NER", "NEN")
     assert ANNOTATOR_CAPABILITIES["bern2"].tasks == ("NER", "NEN")
-    assert ANNOTATOR_CAPABILITIES["flair"].tasks == ("NER",)
+    assert ANNOTATOR_CAPABILITIES["flair"].tasks == ("NER", "NEN")
     assert annotator_supports_nen("pubtator3") is True
     assert annotator_supports_nen("bern2") is True
-    assert annotator_supports_nen("flair") is False
+    assert annotator_supports_nen("flair") is True
     assert annotator_supports_nen("bent") is True
     assert "variant" in ANNOTATOR_ENTITY_TYPES["bern2"]
     assert {"cell_line", "cell_type", "dna", "rna"} <= ANNOTATOR_ENTITY_TYPES["bern2"]
@@ -146,10 +146,10 @@ def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior(
     assert ENTITY_TYPE_DISPLAY_NAMES["pathological_formation"] == "Pathological formation"
     assert annotator_normalization_status("pubtator3") == "normalized"
     assert annotator_normalization_status("bern2") == "normalized"
-    assert annotator_normalization_status("flair") == "not_returned"
+    assert annotator_normalization_status("flair") == "normalized"
     assert "BioC infons.identifier" in annotator_normalization_fields("pubtator3")
     assert "id" in annotator_normalization_fields("bern2")
-    assert annotator_normalization_fields("flair") == ()
+    assert annotator_normalization_fields("flair") == ("EntityMentionLinker link labels",)
     assert annotator_normalization_status("bent") == "normalized"
     assert annotator_normalization_fields("bent") == ("BRAT N Reference lines",)
 
@@ -162,5 +162,8 @@ def test_normalization_databases_are_source_backed() -> None:
     assert normalization_databases("cell_type", "bern2") == ("Cell Ontology",)
     assert normalization_databases("cell_line", "bern2") == ("Cellosaurus",)
     assert normalization_databases("species", "bern2") == ("NCBI Taxonomy",)
-    assert normalization_databases("gene", "flair") == ()
+    assert normalization_databases("gene", "flair") == ("NCBI Gene",)
+    assert normalization_databases("disease", "flair") == ("MeSH",)
+    assert normalization_databases("chemical", "flair") == ("MeSH",)
+    assert normalization_databases("species", "flair") == ("NCBI Taxonomy",)
     assert normalization_databases("chemical", "bent") == ("ChEBI", "CTD Chemicals")
