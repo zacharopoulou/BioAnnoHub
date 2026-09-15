@@ -48,15 +48,25 @@ def _parse_link_value(value: Any) -> tuple[str | None, str | None]:
     return canonical_id.strip() or None, canonical_name or None
 
 
+def _link_label_name(label: Any) -> str | None:
+    metadata = getattr(label, "metadata", None)
+    if isinstance(metadata, dict):
+        name = metadata.get("name")
+        if name is not None and str(name).strip():
+            return str(name).strip()
+    return None
+
+
 def _flair_links_by_span(labels: Iterable[Any] | None) -> dict[SpanKey, LinkInfo]:
     links: dict[SpanKey, LinkInfo] = {}
     for label in labels or []:
         span = getattr(label, "data_point", None)
         if span is None:
             continue
-        canonical_id, canonical_name = _parse_link_value(getattr(label, "value", None))
+        canonical_id, fallback_name = _parse_link_value(getattr(label, "value", None))
         if canonical_id is None:
             continue
+        canonical_name = _link_label_name(label) or fallback_name
         links.setdefault(
             _span_key(span),
             (canonical_id, canonical_name, getattr(label, "score", None)),
@@ -103,7 +113,8 @@ def parse_flair_spans(
                 end=getattr(span, "end_position", None),
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
-                confidence=score if score is not None else link_score,
+                confidence=score,
+                normalization_score=link_score,
             )
         )
 
@@ -147,11 +158,8 @@ def parse_flair_labels(
                 end=getattr(span, "end_position", None),
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
-                confidence=(
-                    getattr(label, "score", None)
-                    if getattr(label, "score", None) is not None
-                    else link_score
-                ),
+                confidence=getattr(label, "score", None),
+                normalization_score=link_score,
             )
         )
 
