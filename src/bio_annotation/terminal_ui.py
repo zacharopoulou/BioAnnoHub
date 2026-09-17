@@ -5,7 +5,7 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -37,11 +37,10 @@ from bio_annotation.entity_types import (
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import (
     SUPPORTED_ANNOTATORS,
+    create_run_dir,
     run_pipeline_from_config,
-    write_pipeline_tsv_outputs,
 )
 from bio_annotation.terminal_text_input import (
-    GENERATED_TEXT_DOCUMENT_ID,
     is_text_table_file,
     prompt_existing_file,
     prompt_multiline_text,
@@ -61,7 +60,7 @@ from bio_annotation.terminal_theme import (
 
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
-PipelineRunFn = Callable[[Path], dict[str, Any]]
+PipelineRunFn = Callable[..., dict[str, Any]]
 
 
 @dataclass(frozen=True)
@@ -99,8 +98,8 @@ def run_terminal_annotation_ui(
 ) -> dict[str, Any]:
     emit(output_fn, banner_lines())
     emit(output_fn, help_lines())
-    paths = create_run_paths(runs_dir)
     answers = collect_terminal_ui_answers(input_fn=input_fn, output_fn=output_fn)
+    paths = create_run_paths(runs_dir)
     emit(
         output_fn,
         run_plan_lines(
@@ -123,16 +122,7 @@ def run_terminal_annotation_ui(
             )
     output_fn("")
     output_fn("Running annotation...")
-    payload = pipeline_run_fn(paths.config_path)
-    write_pipeline_tsv_outputs(payload, paths.results_path)
-    write_json(paths.manifest_path, build_run_manifest(answers, paths, payload))
-    output_info = payload.get("output") if isinstance(payload.get("output"), dict) else None
-    pipeline_results_path = (
-        Path(output_info["path"]) if output_info and output_info.get("path") else paths.results_path
-    )
-    # The report is written by the shared writer (write_pipeline_output); here we
-    # only resolve its path to display it.
-    report_path = pipeline_results_path.with_suffix(".html")
+    payload = pipeline_run_fn(paths.config_path, run_dir=paths.run_dir)
     output_fn("")
     emit(
         output_fn,
@@ -214,11 +204,9 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
 
 
 def create_run_paths(runs_dir: Path, *, now: datetime | None = None) -> RunPaths:
-    del now
-    run_dir = runs_dir.expanduser().resolve()
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_dir = create_run_dir(runs_dir.expanduser().resolve(), now=now)
     return RunPaths(
-        "annotation",
+        run_dir.name,
         run_dir,
         run_dir / "config.toml",
         run_dir / "results.json",
@@ -336,41 +324,8 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
     for stanza_annotator in STANZA_ANNOTATORS:
         if stanza_annotator in answers.annotators:
             lines += ["", f"[annotators.{stanza_annotator}]", 'runtime = "local"']
-    lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.results_path))}", ""]
+    lines += ["", "[filters]", f"entity_types = {_toml_string_list(answers.entity_types)}", "", "[output]", f"path = {_toml_string(str(paths.run_dir.parent / paths.results_path.name))}", ""]
     return "\n".join(lines)
-
-
-def build_run_manifest(answers: TerminalUIAnswers, paths: RunPaths, payload: dict[str, Any]) -> dict[str, Any]:
-    manifest = {
-        "run_id": paths.run_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "input_mode": answers.input_mode,
-        "annotators": answers.annotators,
-        "annotator_labels": [_annotator_label(a) for a in answers.annotators],
-        "entity_types": answers.entity_types,
-        "entity_type_labels": [_entity_type_label(e) for e in answers.entity_types],
-        "config_path": str(paths.config_path),
-        "results_path": str(paths.results_path),
-        "tsv_paths": {key: str(path) for key, path in terminal_ui_tsv_paths(paths).items()},
-        "manifest_path": str(paths.manifest_path),
-        "document_count": payload.get("document_count", 0),
-        "annotation_count": payload.get("annotation_summary", {}).get("annotation_count", 0),
-    }
-    if answers.input_mode == "pmids":
-        manifest.update({"pmids": answers.pmids, "pmids_count": len(answers.pmids)})
-    elif answers.input_mode == "pmid_file":
-        manifest.update({"pmid_file": str(answers.pmid_file) if answers.pmid_file else None})
-    elif answers.input_mode == "plain_text":
-        manifest.update(
-            {
-                "plain_text_source": answers.plain_text_source,
-                "plain_text_file": str(answers.plain_text_file) if answers.plain_text_file else None,
-                "plain_text_path": str(_plain_text_config_file(answers, paths)),
-            }
-        )
-        if not _uses_existing_text_table(answers):
-            manifest["plain_text_document_id"] = GENERATED_TEXT_DOCUMENT_ID
-    return manifest
 
 
 def terminal_ui_tsv_paths(paths: RunPaths) -> dict[str, Path]:
@@ -389,11 +344,6 @@ def write_plain_text_table(path: Path, *, document_id: str, title: str, abstract
         writer = csv.DictWriter(handle, fieldnames=["document_id", "title", "abstract"], delimiter="\t")
         writer.writeheader()
         writer.writerow({"document_id": document_id, "title": title, "abstract": abstract})
-
-
-def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def find_unsupported_entity_types(annotators: list[str], entity_types: list[str]) -> dict[str, list[str]]:

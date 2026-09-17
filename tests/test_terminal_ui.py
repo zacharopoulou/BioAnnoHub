@@ -86,7 +86,8 @@ def test_build_terminal_ui_config_for_plain_text(tmp_path) -> None:
     assert config.entity_types == ["gene", "disease"]
     assert config.annotator_settings["pubtator3"]["mode"] == "text_only"
     assert config.annotator_settings["pubtator3"]["max_poll_attempts"] == 30
-    assert config.output_path == paths.results_path
+    assert paths.run_dir.parent == (tmp_path / "out").resolve()
+    assert config.output_path == paths.run_dir.parent / "results.json"
 
 
 def test_build_terminal_ui_config_for_pmid_file(tmp_path) -> None:
@@ -177,7 +178,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     def fake_output(message: str) -> None:
         messages.append(message)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "text_table"
         assert config.annotators == ["pubtator3"]
@@ -199,7 +200,8 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
             "annotations": [],
             "document_annotations": [],
         }
-        config.output_path.write_text(json.dumps(payload), encoding="utf-8")
+        assert config_path == run_dir / "config.toml"
+        assert config.text_file == run_dir / "plain_text.tsv"
         return payload
 
     payload = run_terminal_annotation_ui(
@@ -209,30 +211,9 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
         pipeline_run_fn=fake_pipeline_run,
     )
 
-    assert (output_dir / "config.toml").exists()
-    assert (output_dir / "plain_text.tsv").exists()
-    assert (output_dir / "results.json").exists()
-    assert (output_dir / "results.keywords.tsv").exists()
-    assert (output_dir / "results.keyword_annotator_evidence.tsv").exists()
-    assert (output_dir / "results.annotations.tsv").exists()
-    assert (output_dir / "run_manifest.json").exists()
-
-    manifest = json.loads((output_dir / "run_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["input_mode"] == "plain_text"
-    assert manifest["plain_text_file"] == str(source_text)
-    assert manifest["plain_text_path"].endswith("plain_text.tsv")
-    assert manifest["results_path"] == str(output_dir / "results.json")
-    assert manifest["tsv_paths"] == {
-        "Keywords TSV": str(output_dir / "results.keywords.tsv"),
-        "Keyword evidence TSV": str(output_dir / "results.keyword_annotator_evidence.tsv"),
-        "Annotations TSV": str(output_dir / "results.annotations.tsv"),
-    }
-    assert manifest["annotators"] == ["pubtator3"]
-    assert manifest["annotator_labels"] == ["PubTator3"]
-    assert manifest["entity_types"] == ["gene", "disease"]
-    assert manifest["entity_type_labels"] == ["Gene / protein", "Disease"]
-    assert manifest["document_count"] == 2
-    assert manifest["annotation_count"] == 2
+    (run_dir,) = output_dir.iterdir()
+    assert (run_dir / "config.toml").exists()
+    assert (run_dir / "plain_text.tsv").exists()
     assert payload["document_count"] == 2
     assert any("Run complete" in message for message in messages)
     assert any("Keywords TSV" in message for message in messages)
@@ -257,7 +238,7 @@ def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.text_file is not None
         assert config.text_file.read_text(encoding="utf-8") == (
@@ -280,7 +261,8 @@ def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path
         pipeline_run_fn=fake_pipeline_run,
     )
 
-    assert (output_dir / "plain_text.tsv").read_text(encoding="utf-8").count("text-") == 2
+    (run_dir,) = output_dir.iterdir()
+    assert (run_dir / "plain_text.tsv").read_text(encoding="utf-8").count("text-") == 2
 
 
 def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
@@ -299,7 +281,7 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmid_file"
         assert config.pmid_file == pmid_file.resolve()
@@ -319,9 +301,8 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
         pipeline_run_fn=fake_pipeline_run,
     )
 
-    manifest = json.loads((output_dir / "run_manifest.json").read_text(encoding="utf-8"))
-    assert manifest["input_mode"] == "pmid_file"
-    assert manifest["pmid_file"] == str(pmid_file.resolve())
+    (run_dir,) = output_dir.iterdir()
+    assert (run_dir / "config.toml").exists()
 
 
 def test_run_terminal_annotation_ui_defaults_to_all_annotators(tmp_path) -> None:
@@ -340,7 +321,7 @@ def test_run_terminal_annotation_ui_defaults_to_all_annotators(tmp_path) -> None
         seen_prompts.append(prompt)
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmids"
         assert config.annotators == ["pubtator3", "bern2", "flair"]
@@ -380,7 +361,7 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path) -> dict[str, object]:
+    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.annotators == ["bern2", "flair"]
         assert config.entity_types == ["variant", "cell_line"]

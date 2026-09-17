@@ -9,12 +9,17 @@ from io import StringIO
 
 import pytest
 
+
+def _without_durations(statuses):
+    return [{k: v for k, v in status.items() if k != "duration_seconds"} for status in statuses]
+
 from bio_annotation.cli import main
 from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
 from bio_annotation.deps import DISABLE_ENV_VAR
 from bio_annotation.schemas.document import Document
 from bio_annotation.pipeline_runner import (
+    _aggregate_annotator_statuses,
     _load_flair_tagger,
     _read_bern2_options,
     _read_flair_options,
@@ -149,7 +154,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert payload["annotator_summary"]["produced"] == ["bern2", "pubtator3"]
     assert payload["annotator_summary"]["not_produced"] == []
     assert payload["document_annotations"][0]["sources"] == ["bern2", "pubtator3"]
-    assert payload["document_annotations"][0]["annotators"] == [
+    assert _without_durations(payload["document_annotations"][0]["annotators"]) == [
         {
             "name": "bern2",
             "status": "produced_annotations",
@@ -213,7 +218,7 @@ def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
     assert payload["annotator_summary"]["configured"] == ["bern2", "flair"]
     assert payload["annotator_summary"]["produced"] == []
     assert payload["annotator_summary"]["not_produced"] == ["bern2", "flair"]
-    assert payload["document_annotations"][0]["annotators"] == [
+    assert _without_durations(payload["document_annotations"][0]["annotators"]) == [
         {
             "name": "bern2",
             "status": "no_annotations",
@@ -346,7 +351,7 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     output = stream.getvalue()
     assert exit_code == 0
     assert "Pipeline completed." in output
-    written = sorted((tmp_path / "outputs").glob("*/test.json"))
+    written = sorted((tmp_path / "outputs").glob("2*/test.json"))
     assert len(written) == 1
     assert f"Output written to: {written[0].as_posix()}" in output
     assert "Annotations: 0" in output
@@ -578,7 +583,7 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
         )
 
     assert results == {"flair": []}
-    assert statuses == [
+    assert _without_durations(statuses) == [
         {
             "name": "flair",
             "status": "failed",
@@ -765,3 +770,17 @@ def test_read_stanza_options_omitted_package_defaults_to_none():
 def test_read_stanza_options_explicit_package_is_kept():
     assert _read_stanza_options({"package": "mimic"})["package"] == "mimic"
     assert _read_stanza_options({"package": " craft "})["package"] == "craft"
+
+
+def test_aggregate_annotator_statuses_sums_counts_timing_and_errors() -> None:
+    statuses = [
+        {"name": "bern2", "status": "produced_annotations", "annotation_count": 2, "reason": None, "duration_seconds": 0.5},
+        {"name": "medcat", "status": "failed", "annotation_count": 0, "reason": "Connection refused", "duration_seconds": 0.25},
+        {"name": "bern2", "status": "failed", "annotation_count": 0, "reason": "timeout", "duration_seconds": 1.0},
+        {"name": "medcat", "status": "failed", "annotation_count": 0, "reason": "Connection refused", "duration_seconds": 0.25},
+    ]
+
+    assert _aggregate_annotator_statuses(statuses) == [
+        {"name": "bern2", "status": "produced_annotations", "annotation_count": 2, "duration_seconds": 1.5, "failed_documents": 1, "errors": ["timeout"]},
+        {"name": "medcat", "status": "failed", "annotation_count": 0, "duration_seconds": 0.5, "failed_documents": 2, "errors": ["Connection refused"]},
+    ]
