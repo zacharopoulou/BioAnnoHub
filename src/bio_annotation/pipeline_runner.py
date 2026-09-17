@@ -4,14 +4,14 @@ import ast
 import csv
 import json
 import logging
-from datetime import datetime
-from importlib.util import find_spec
+import shutil
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import (
-    APOLLO_INSTALL_HINT,
     DEFAULT_APOLLO_MODEL,
     _load_apollo_pipeline,
     annotate_with_apollo,
@@ -19,36 +19,38 @@ from bio_annotation.annotators.apollo import (
 from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
 from bio_annotation.annotators.biobert import (
-    BIOBERT_INSTALL_HINT,
     annotate_with_biobert,
     load_biobert_pipelines,
 )
 from bio_annotation.annotators.clinicalbert import (
-    CLINICALBERT_INSTALL_HINT,
     DEFAULT_CLINICALBERT_MODEL,
     _load_clinicalbert_pipeline,
     annotate_with_clinicalbert,
 )
 from bio_annotation.annotators.d4data import (
-    D4DATA_INSTALL_HINT,
     DEFAULT_D4DATA_MODEL,
     _load_d4data_pipeline,
     annotate_with_d4data,
 )
-from bio_annotation.annotators.flair import annotate_with_flair
+from bio_annotation.annotators.flair import FLAIR_INSTALL_HINT, annotate_with_flair
 from bio_annotation.annotators.medcat import annotate_with_medcat
 from bio_annotation.annotators.pubtator3 import annotate_with_pubtator3
 from bio_annotation.annotators.scispacy import (
-    SCISPACY_INSTALL_HINT,
     SCISPACY_LINKER_NAME_BY_ANNOTATOR,
     SCISPACY_MODEL_BY_ANNOTATOR,
     _load_scispacy_model,
     annotate_with_scispacy,
 )
 from bio_annotation.annotators.stanza import annotate_with_stanza
+from bio_annotation.deps import (
+    ANNOTATOR_EXTRAS,
+    EXTRA_INSTALL_HINTS,
+    ensure_extras,
+    ensure_tool_environments,
+    extra_installed,
+)
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
-    STANZA_INSTALL_HINT,
     stanza_model_for_annotator,
 )
 from bio_annotation.entity_types import normalize_entity_type
@@ -82,10 +84,8 @@ SUPPORTED_ANNOTATORS = {
     *SCISPACY_ANNOTATORS,
     *STANZA_ANNOTATORS,
 }
-FLAIR_INSTALL_HINT = (
-    "The Flair annotator requires the optional Flair dependency. "
-    "Install it with: uv sync --extra flair"
-)
+RUN_CONFIG_NAME = "config.toml"
+RUN_MANIFEST_NAME = "run_manifest.json"
 logger = logging.getLogger(__name__)
 
 
@@ -106,7 +106,10 @@ def run_pipeline_from_config(
     medcat_request_fn: Callable[[Document], Any] | None = None,
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
+    run_dir: Path | None = None,
 ) -> dict[str, Any]:
+    started_at = datetime.now(timezone.utc)
+    started = time.perf_counter()
     config = load_pipeline_config(config_path)
     validate_optional_annotator_dependencies(
         config,
@@ -154,13 +157,26 @@ def run_pipeline_from_config(
         stanza_entities_by_document=stanza_entities_by_document,
     )
     if config.output_path is not None:
-        actual_output_path = timestamped_output_path(config.output_path)
+        run_dir = run_dir or create_run_dir(config.output_path.parent)
+        actual_output_path = run_dir / config.output_path.name
         payload["output"] = {
             "configured_path": config.output_path.as_posix(),
             "path": actual_output_path.as_posix(),
-            "run_dir": actual_output_path.parent.as_posix(),
+            "run_dir": run_dir.as_posix(),
+            "manifest_path": (run_dir / RUN_MANIFEST_NAME).as_posix(),
         }
         write_pipeline_output(payload, actual_output_path)
+        input_files = copy_run_inputs(config, config_path, run_dir)
+        manifest = build_run_manifest(
+            payload,
+            run_dir=run_dir,
+            output_path=actual_output_path,
+            input_files=input_files,
+            started_at=started_at,
+            duration_seconds=time.perf_counter() - started,
+        )
+        (run_dir / RUN_MANIFEST_NAME).write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        update_latest_run_link(run_dir)
     return payload
 
 
@@ -383,26 +399,128 @@ def write_pipeline_output(payload: dict[str, Any], output_path: Path) -> None:
     write_html_report(payload, output_path.with_suffix(".html"))
 
 
-def timestamped_output_path(output_path: Path, *, now: datetime | None = None) -> Path:
-    stamp = (now or datetime.now()).strftime("%Y%m%d-%H%M%S")
-    return output_path.parent / stamp / output_path.name
+def create_run_dir(base_dir: Path, *, now: datetime | None = None) -> Path:
+    run_dir = base_dir / (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
+
+
+def copy_run_inputs(config: PipelineConfig, config_path: Path, run_dir: Path) -> list[str]:
+    """Copy the config and input files into the run folder so the run is self-contained."""
+    config_copy = run_dir / RUN_CONFIG_NAME
+    if config_path.resolve() != config_copy.resolve():
+        shutil.copyfile(config_path, config_copy)
+    if config.input_mode == "pmids":
+        pmids_path = run_dir / "pmids.txt"
+        pmids_path.write_text("".join(f"{pmid}\n" for pmid in config.pmids), encoding="utf-8")
+        return [pmids_path.as_posix()]
+    source = {
+        "pmid_file": config.pmid_file,
+        "text_table": config.text_file,
+        "corpus": config.corpus_path,
+    }.get(config.input_mode)
+    if source is None or not source.is_file():
+        return []
+    target = run_dir / source.name
+    if source.resolve() != target.resolve():
+        shutil.copyfile(source, target)
+    return [target.as_posix()]
+
+
+def build_run_manifest(
+    payload: dict[str, Any],
+    *,
+    run_dir: Path,
+    output_path: Path,
+    input_files: list[str],
+    started_at: datetime,
+    duration_seconds: float,
+) -> dict[str, Any]:
+    annotation_summary = payload.get("annotation_summary", {})
+    return {
+        "run_id": run_dir.name,
+        "started_at": started_at.isoformat(),
+        "duration_seconds": round(duration_seconds, 3),
+        "input": {**payload.get("input", {}), "files": input_files},
+        "annotators_enabled": payload.get("pipeline", {}).get("annotators_enabled", []),
+        "entity_types": payload.get("entity_types", []),
+        "document_count": payload.get("document_count", 0),
+        "annotation_count": annotation_summary.get("annotation_count", 0),
+        "keyword_count": annotation_summary.get("keyword_count", 0),
+        "annotators": _aggregate_annotator_statuses(
+            payload.get("annotator_summary", {}).get("annotators", [])
+        ),
+        "files": {
+            "config": (run_dir / RUN_CONFIG_NAME).as_posix(),
+            "results_json": output_path.as_posix(),
+            **{
+                name: path.as_posix()
+                for name, path in pipeline_tsv_output_paths(output_path).items()
+            },
+            "html_report": output_path.with_suffix(".html").as_posix(),
+        },
+    }
+
+
+def _aggregate_annotator_statuses(statuses: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse per-document annotator statuses into one entry per annotator."""
+    aggregated: dict[str, dict[str, Any]] = {}
+    for status in statuses:
+        entry = aggregated.setdefault(
+            str(status["name"]),
+            {
+                "name": status["name"],
+                "status": "no_annotations",
+                "annotation_count": 0,
+                "duration_seconds": 0.0,
+                "failed_documents": 0,
+                "errors": [],
+            },
+        )
+        entry["annotation_count"] += status.get("annotation_count", 0)
+        entry["duration_seconds"] += status.get("duration_seconds", 0.0)
+        if status.get("status") == "failed":
+            entry["failed_documents"] += 1
+            if status.get("reason") and status["reason"] not in entry["errors"]:
+                entry["errors"].append(status["reason"])
+    for entry in aggregated.values():
+        entry["duration_seconds"] = round(entry["duration_seconds"], 3)
+        if entry["annotation_count"]:
+            entry["status"] = "produced_annotations"
+        elif entry["failed_documents"]:
+            entry["status"] = "failed"
+    return list(aggregated.values())
+
+
+def update_latest_run_link(run_dir: Path) -> None:
+    latest = run_dir.parent / "latest"
+    try:
+        if latest.is_symlink():
+            latest.unlink()
+        elif latest.exists():
+            logger.warning("Not updating %s: it exists and is not a symlink.", latest)
+            return
+        latest.symlink_to(run_dir.name, target_is_directory=True)
+    except OSError as exc:
+        logger.warning("Could not update %s: %s", latest, exc)
+
+
+def pipeline_tsv_output_paths(output_path: Path) -> dict[str, Path]:
+    return {
+        "keywords_tsv": output_path.with_name(f"{output_path.stem}.keywords.tsv"),
+        "keyword_evidence_tsv": output_path.with_name(
+            f"{output_path.stem}.keyword_annotator_evidence.tsv"
+        ),
+        "annotations_tsv": output_path.with_name(f"{output_path.stem}.annotations.tsv"),
+    }
 
 
 def write_pipeline_tsv_outputs(payload: dict[str, Any], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    write_keywords_tsv(
-        payload,
-        output_path.with_name(f"{output_path.stem}.keywords.tsv"),
-    )
-    write_keyword_annotator_evidence_tsv(
-        payload,
-        output_path.with_name(f"{output_path.stem}.keyword_annotator_evidence.tsv"),
-    )
-    write_annotations_tsv(
-        payload,
-        output_path.with_name(f"{output_path.stem}.annotations.tsv"),
-    )
+    paths = pipeline_tsv_output_paths(output_path)
+    write_keywords_tsv(payload, paths["keywords_tsv"])
+    write_keyword_annotator_evidence_tsv(payload, paths["keyword_evidence_tsv"])
+    write_annotations_tsv(payload, paths["annotations_tsv"])
 
 
 def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
@@ -681,6 +799,7 @@ def run_selected_annotators_with_status(
     statuses: list[dict[str, Any]] = []
 
     for annotator in annotators:
+        started = time.perf_counter()
         try:
             if annotator == "bern2":
                 results[annotator] = annotate_with_bern2(
@@ -843,6 +962,7 @@ def run_selected_annotators_with_status(
                     "status": "failed",
                     "annotation_count": 0,
                     "reason": str(exc),
+                    "duration_seconds": round(time.perf_counter() - started, 3),
                 }
             )
             continue
@@ -860,6 +980,7 @@ def run_selected_annotators_with_status(
                 "status": status,
                 "annotation_count": annotation_count,
                 "reason": reason,
+                "duration_seconds": round(time.perf_counter() - started, 3),
             }
         )
 
@@ -1284,48 +1405,28 @@ def validate_optional_annotator_dependencies(
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
 ) -> None:
-    if (
-        "d4data" in config.annotators
-        and d4data_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(D4DATA_INSTALL_HINT)
-    if (
-        "flair" in config.annotators
-        and flair_spans_by_document is None
-        and find_spec("flair") is None
-    ):
-        raise ValueError(FLAIR_INSTALL_HINT)
-    if (
-        "clinicalbert" in config.annotators
-        and clinicalbert_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(CLINICALBERT_INSTALL_HINT)
-    if (
-        "biobert" in config.annotators
-        and biobert_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(BIOBERT_INSTALL_HINT)
-    if (
-        "apollo" in config.annotators
-        and apollo_responses_by_document is None
-        and (find_spec("transformers") is None or find_spec("torch") is None)
-    ):
-        raise ValueError(APOLLO_INSTALL_HINT)
-    if (
-        any(annotator in SCISPACY_ANNOTATOR_SET for annotator in config.annotators)
-        and scispacy_responses_by_document is None
-        and (find_spec("scispacy") is None or find_spec("spacy") is None)
-    ):
-        raise ValueError(SCISPACY_INSTALL_HINT)
-    if (
-        any(annotator in STANZA_ANNOTATORS for annotator in config.annotators)
-        and stanza_entities_by_document is None
-        and find_spec("stanza") is None
-    ):
-        raise ValueError(STANZA_INSTALL_HINT)
+    injected = {
+        "flair": flair_spans_by_document,
+        "clinicalbert": clinicalbert_responses_by_document,
+        "biobert": biobert_responses_by_document,
+        "apollo": apollo_responses_by_document,
+        "d4data": d4data_responses_by_document,
+        "scispacy": scispacy_responses_by_document,
+        "stanza": stanza_entities_by_document,
+    }
+    required = [
+        annotator
+        for annotator in config.annotators
+        if (extra := ANNOTATOR_EXTRAS.get(annotator)) is not None and injected[extra] is None
+    ]
+    ensure_extras(required)
+    # Setup-script annotators never block the run: a missing environment leaves
+    # them unavailable and the remaining annotators still run.
+    ensure_tool_environments(config.annotators, config.annotator_settings)
+    for annotator in required:
+        extra = ANNOTATOR_EXTRAS[annotator]
+        if not extra_installed(extra):
+            raise ValueError(EXTRA_INSTALL_HINTS[extra])
 
 
 def _read_bern2_options(settings: dict[str, object]) -> dict[str, Any]:

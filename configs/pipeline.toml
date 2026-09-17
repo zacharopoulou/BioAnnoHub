@@ -87,4 +87,4 @@ cell_type = "cell_ontology"
 entity_types = []
 
 [output]
-path = "outputs/annotators_result.json"
+path = "outputs/runs/annotators_result.json"
