@@ -3203,6 +3203,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "bioc" },
     { name = "datasets" },
     { name = "en-core-sci-md" },
     { name = "en-core-sci-scibert" },
@@ -3225,6 +3226,7 @@ apollo = [
     { name = "transformers" },
 ]
 benchmarks = [
+    { name = "bioc" },
     { name = "datasets" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -3266,6 +3268,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "bioc", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
     { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
     { name = "en-core-sci-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_md-0.5.4.tar.gz" },
     { name = "en-core-sci-scibert", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz" },

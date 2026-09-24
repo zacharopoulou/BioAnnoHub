@@ -32,5 +32,58 @@ benchmarks/data/gnormplus/train.jsonl
 benchmarks/data/bc2gm/train.jsonl
 benchmarks/data/bc2gm/validation.jsonl
 
+# Can be regenerated locally with benchmarks/scripts/nlmchem.py
+benchmarks/data/nlmchem/train.jsonl
+benchmarks/data/nlmchem/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/nlm_gene.py
+benchmarks/data/nlm_gene/train.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/species_800.py
+benchmarks/data/species_800/train.jsonl
+benchmarks/data/species_800/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/jnlpba.py
+benchmarks/data/jnlpba/train.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bionlp13cg.py
+benchmarks/data/bionlp13cg/train.jsonl
+benchmarks/data/bionlp13cg/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/craft.py
+benchmarks/data/craft/train.jsonl
+benchmarks/data/craft/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/anatem.py
+benchmarks/data/anatem/train.jsonl
+benchmarks/data/anatem/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bc4chemd.py
+benchmarks/data/bc4chemd/train.jsonl
+benchmarks/data/bc4chemd/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bionlp09.py
+benchmarks/data/bionlp09/train.jsonl
+benchmarks/data/bionlp09/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bionlp11epi.py
+benchmarks/data/bionlp11epi/train.jsonl
+benchmarks/data/bionlp11epi/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bionlp11id.py
+benchmarks/data/bionlp11id/train.jsonl
+benchmarks/data/bionlp11id/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bionlp13ge.py
+benchmarks/data/bionlp13ge/train.jsonl
+benchmarks/data/bionlp13ge/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/bionlp13pc.py
+benchmarks/data/bionlp13pc/train.jsonl
+benchmarks/data/bionlp13pc/validation.jsonl
+
+# Can be regenerated locally with benchmarks/scripts/cellfinder.py
+benchmarks/data/cellfinder/train.jsonl
+
 # AIONER repository and downloaded models
 AIONER/
