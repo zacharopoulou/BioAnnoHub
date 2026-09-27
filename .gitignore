@@ -95,10 +95,6 @@ benchmarks/data/ddi/train.jsonl
 # Can be regenerated locally with benchmarks/scripts/dna_methylation.py
 benchmarks/data/dna_methylation/train.jsonl
 
-# Can be regenerated locally with benchmarks/scripts/fsu_prge.py
-# (no splits, and the whole corpus is 13 MB, so none of it is committed)
-benchmarks/data/fsu_prge/fsu_prge.jsonl
-
 # Can be regenerated locally with benchmarks/scripts/mirna.py
 benchmarks/data/mirna/train.jsonl
 

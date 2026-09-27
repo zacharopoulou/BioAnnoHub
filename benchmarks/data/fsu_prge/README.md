@@ -1,9 +1,9 @@
 # FSU_PRGE - local benchmark data
 
-**No data file is committed for this benchmark.** FSU_PRGE has no
-train/test split, so the whole corpus would have to be committed, and it
-is 13 MB. Instead, `fsu_prge.jsonl` is left out via `.gitignore`, and
-anyone who needs it can rebuild it locally in about a minute:
+FSU_PRGE has **no train/test split**: it is one corpus of 3,308 abstracts.
+So the whole corpus is in `fsu_prge.jsonl` (13 MB), which is committed to
+this repo and used for testing annotators, and nothing is left out via
+`.gitignore`. To regenerate it locally:
 
 ```
 uv run python benchmarks/scripts/fsu_prge.py
@@ -12,8 +12,7 @@ uv run python benchmarks/scripts/fsu_prge.py
 No extra dependencies are needed. The corpus is not on Hugging Face, so the
 script downloads release v1.1 from JULIE Lab
 (`https://julielab.de/downloads/resources/fsu_prge_release_v1_1.tgz`) and
-converts it. Only this README and `FSU_PRGE_ANALYTICS_SUMMARY.md` are
-committed.
+converts it.
 
 FSU_PRGE (FSU PRotein GEne corpus, JULIE Lab Jena, supervised by Udo Hahn)
 has 3,308 PubMed abstracts with 59,514 gene and protein mentions. No

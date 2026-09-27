@@ -35,8 +35,10 @@ the real test set was never released. What is public is:
 | develtest | 34 | 478 |
 
 `develtest` is the development/test set given to researchers, so it is the
-held-out set here. The file keeps its original name, `develtest.jsonl`,
-instead of `test.jsonl`, because it is not the official test set.
+held-out set here. The file keeps the official name, `develtest.jsonl`,
+which is why this is the only benchmark with a split but no `test.jsonl`:
+it is not the official test set of the original study, so scores on it
+cannot be compared directly with the paper's test results.
 
 ## Notes
 
