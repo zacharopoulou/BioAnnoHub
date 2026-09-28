@@ -394,6 +394,8 @@ def print_pubmed_search_progress(event: dict[str, object]) -> None:
     end = event.get("end")
     count = event.get("count")
     collected = int(event.get("collected") or 0)
+    max_results = event.get("max_results")
+    cap_reached = isinstance(max_results, int) and collected >= max_results
     window = f"{start} to {end}"
     if stage == "searching":
         print(f"Searching PubMed window {window}...", file=sys.stderr, flush=True)
@@ -406,7 +408,8 @@ def print_pubmed_search_progress(event: dict[str, object]) -> None:
             flush=True,
         )
     elif stage == "collected":
-        print(f"Collected {collected} PMID(s) so far.", file=sys.stderr, flush=True)
+        suffix = " (output cap reached)" if cap_reached else ""
+        print(f"Collected {collected} PMID(s) so far{suffix}.", file=sys.stderr, flush=True)
 
 
 def print_benchmark_progress(index: int, total: int, document_id: str) -> None:
