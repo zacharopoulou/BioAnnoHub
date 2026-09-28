@@ -1,6 +1,6 @@
-# TotalAnnotator Workflow Specification
+# BioAnnoHub Workflow Specification
 
-![TotalAnnotator workflow overview](assets/workflow-overview.svg)
+![BioAnnoHub workflow overview](assets/workflow-overview.svg)
 
 ## Purpose
 
@@ -11,7 +11,7 @@ for downstream evaluation.
 ## Near-Term Goal
 
 Given a PubMed query, one PMID, a file containing PMIDs, a local corpus, or a
-benchmark dataset, TotalAnnotator should:
+benchmark dataset, BioAnnoHub should:
 
 1. resolve or load the documents into one internal document format
 2. run only the annotators chosen by the user
@@ -89,7 +89,7 @@ save a PMID file for later reproducible ingestion.
 Example:
 
 ```bash
-uv run totalannotator search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
+uv run bioannohub search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
 ```
 
 ### 5. Benchmark dataset
@@ -104,7 +104,7 @@ The primary interface should be config-first.
 Users should normally run:
 
 ```bash
-uv run totalannotator run-config --config configs/pipeline.toml
+uv run bioannohub run-config --config configs/pipeline.toml
 ```
 
 The current repo interface is config-driven. CLI override flags for specific
@@ -144,7 +144,7 @@ The config should stay readable for collaborators who are not focused on code.
 
 ## Managed Annotator Environments
 
-TotalAnnotator is responsible for preparing and running the selected annotators.
+BioAnnoHub is responsible for preparing and running the selected annotators.
 
 The user should not need to manually understand each annotator's installation
 details after repository setup.
@@ -170,7 +170,7 @@ Examples:
 - `drug` vs `chemical`
 - `mutation` vs `variant`
 
-TotalAnnotator therefore needs a project-level controlled vocabulary for entity
+BioAnnoHub therefore needs a project-level controlled vocabulary for entity
 types. Annotator-specific labels should be mapped into that vocabulary.
 
 Example project vocabulary:
@@ -191,7 +191,7 @@ configuration. A user should not need to write mapping tables to run a new
 analysis. Instead:
 
 - each annotator adapter knows how to interpret that annotator's labels
-- the adapter converts them into TotalAnnotator entity types
+- the adapter converts them into BioAnnoHub entity types
 - the original annotator label is still preserved in the output
 
 This keeps normal use simple while still allowing new annotators to be added by
@@ -208,7 +208,7 @@ Example:
 entity_types = ["gene", "drug", "variant"]
 ```
 
-Before running the workflow, TotalAnnotator should validate whether the selected
+Before running the workflow, BioAnnoHub should validate whether the selected
 annotators can satisfy those requests.
 
 The system should report compatibility in three levels:
@@ -263,7 +263,7 @@ The meaning should be simple:
 
 - `mention_text` is the mention text stored for that annotation
 - `start` and `end` are the harmonized offsets in the canonical document text
-- `entity_type` is the TotalAnnotator type
+- `entity_type` is the BioAnnoHub type
 - `entity_type_original` is the original annotator label
 
 ## Offset Harmonization
@@ -274,7 +274,7 @@ Annotators may report spans differently. Some may return:
 - `offset` and `length`
 - mention text with incomplete span information
 
-TotalAnnotator should convert all spans into one rule:
+BioAnnoHub should convert all spans into one rule:
 
 - `start` is inclusive
 - `end` is exclusive
@@ -308,7 +308,7 @@ Example:
 - another returns `Ensembl:ENSG00000141510`
 - a project lexicon links both identifiers to the same gene concept
 
-This means TotalAnnotator should do two things:
+This means BioAnnoHub should do two things:
 
 1. preserve the original annotator-provided identifiers and namespaces
 2. enrich them with lexicon-backed cross-database links when possible
@@ -318,7 +318,7 @@ annotators agree biologically even if they use different databases.
 
 ## Agreement and Confidence
 
-The main shared schema should remain per-annotator, but TotalAnnotator should
+The main shared schema should remain per-annotator, but BioAnnoHub should
 also compute a derived agreement layer.
 
 This agreement layer should behave like a confidence summary for the user.
@@ -330,7 +330,7 @@ These are different concepts:
 - `annotator_confidence`
   A score returned by the annotator itself, if available.
 - `consensus_confidence`
-  A TotalAnnotator-derived score based on cross-annotator evidence.
+  A BioAnnoHub-derived score based on cross-annotator evidence.
 
 They should remain separate.
 
@@ -351,7 +351,7 @@ Overlap alone is not enough for the strongest confidence. Agreement should be
 strengthened when:
 
 - two annotators provide IDs in different databases
-- TotalAnnotator lexicons show those IDs correspond to the same concept
+- BioAnnoHub lexicons show those IDs correspond to the same concept
 
 For example, two overlapping gene mentions should receive stronger consensus if
 their NCBI Gene and Ensembl IDs cross-resolve to the same gene.
@@ -452,6 +452,6 @@ scope unless we explicitly revisit them:
 
 ## Summary Statement
 
-The near-term TotalAnnotator product is:
+The near-term BioAnnoHub product is:
 
 `a config-first annotation runner that accepts PMID or text-table input, executes selected annotators in managed environments, harmonizes their outputs into a shared schema, and reports overlap-based agreement summaries strengthened by lexicon-backed identifier matching`
