@@ -57,7 +57,7 @@ def search_pubmed_pmids(
     fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
     lo = _parse_date(date_from, upper=False) if date_from else date(1950, 1, 1)
-    hi = _parse_date(date_to, upper=True) if date_to else date(2100, 12, 31)
+    hi = _parse_date(date_to, upper=True) if date_to else date.today()
 
     pmids: dict[str, None] = {}
     stack = [(lo, hi)]
