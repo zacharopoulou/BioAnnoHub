@@ -1,4 +1,4 @@
-# BioAnnoHUb
+# BioAnnoHub
 
 BioAnnoHUb is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
 
@@ -12,7 +12,7 @@ Each interactive run writes a stable run folder containing the generated config,
 
 ## What It Does
 
-BioAnnoHUb supports:
+BioAnnoHub supports:
 
 - PubMed articles from inline PMIDs or a PMID file
 - local plain text from a CSV/TSV table, raw text file, or manual terminal input
