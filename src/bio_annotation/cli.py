@@ -74,8 +74,8 @@ def demo_payload() -> dict[str, object]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="totalannotator",
-        description="Utilities for the TotalAnnotator biomedical annotation project.",
+        prog="bioannohub",
+        description="Utilities for the BioAnnoHub biomedical annotation project.",
     )
     parser.add_argument(
         "--log-level",
@@ -184,15 +184,15 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(args.log_level)
 
     if args.command in (None, "info"):
-        print("TotalAnnotator")
+        print("BioAnnoHub")
         print("Workflow: terminal UI -> reproducible config -> annotators -> comparable outputs")
-        print("Quickstart: uv sync && uv run totalannotator annotate")
-        print("Demo: uv run totalannotator demo")
-        print("Inspect config: uv run totalannotator inspect-config")
-        print("Preview documents: uv run totalannotator load-documents")
-        print("Run config: uv run totalannotator run-config")
-        print("Review benchmark: uv run totalannotator evaluate-ncbi-review")
-        print("Search PMIDs: uv run totalannotator search-pmids --query '...' --output data/inputs/query_pmids.txt")
+        print("Quickstart: uv sync && uv run bioannohub annotate")
+        print("Demo: uv run bioannohub demo")
+        print("Inspect config: uv run bioannohub inspect-config")
+        print("Preview documents: uv run bioannohub load-documents")
+        print("Run config: uv run bioannohub run-config")
+        print("Review benchmark: uv run bioannohub evaluate-ncbi-review")
+        print("Search PMIDs: uv run bioannohub search-pmids --query '...' --output data/inputs/query_pmids.txt")
         return 0
 
     if args.command == "demo":
