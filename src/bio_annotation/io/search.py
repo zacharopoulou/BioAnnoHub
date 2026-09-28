@@ -69,7 +69,8 @@ def search_pubmed_pmids(
             stage="searching",
             start=start,
             end=end,
-            collected=len(pmids),
+            collected=_progress_collected_count(len(pmids), max_results),
+            max_results=max_results,
         )
         result = fn(window)
         count = result["count"]
@@ -79,7 +80,8 @@ def search_pubmed_pmids(
             start=start,
             end=end,
             count=count,
-            collected=len(pmids),
+            collected=_progress_collected_count(len(pmids), max_results),
+            max_results=max_results,
         )
         if count <= _CAP:
             for pmid in result["pmids"]:
@@ -90,7 +92,8 @@ def search_pubmed_pmids(
                 start=start,
                 end=end,
                 count=count,
-                collected=len(pmids),
+                collected=_progress_collected_count(len(pmids), max_results),
+                max_results=max_results,
             )
             continue
         if start == end:  # window has 1-day size and still more than 10000 results
@@ -105,7 +108,8 @@ def search_pubmed_pmids(
             split_start=start,
             split_mid=mid,
             split_end=end,
-            collected=len(pmids),
+            collected=_progress_collected_count(len(pmids), max_results),
+            max_results=max_results,
         )
         stack.append((start, mid))
         stack.append((mid + timedelta(days=1), end))
@@ -121,6 +125,10 @@ def write_pmids(path: Path, pmids: list[str]) -> None:
 def _report_progress(callback: Callable[[dict[str, Any]], None] | None, **event: Any) -> None:
     if callback is not None:
         callback(event)
+
+
+def _progress_collected_count(collected: int, max_results: int | None) -> int:
+    return min(collected, max_results) if max_results is not None else collected
 
 
 def _parse_date(value: str, *, upper: bool) -> date:
