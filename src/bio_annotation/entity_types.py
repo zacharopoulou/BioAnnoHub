@@ -206,7 +206,7 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("bern2", "BERN2", "DNA", "dna", ()),
     AnnotatorEntityTypeSpec("bern2", "BERN2", "RNA", "rna", ()),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Gene / protein", "gene", ("NCBI Gene",)),
-    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Disease", "disease", ("MeSH",)),
+    AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Disease", "disease", ("MeSH", "OMIM")),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Chemical / drug", "drug", ("MeSH",)),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Species", "species", ("NCBI Taxonomy",)),
     AnnotatorEntityTypeSpec("flair", "Flair / HunFlair", "Cell line", "cell_line", ()),

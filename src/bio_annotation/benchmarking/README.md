@@ -72,7 +72,7 @@ DEFAULT_BENCHMARK_ANNOTATOR_OPTIONS = {
     "flair": {
         "runtime": "local_model",
         "model": "hunflair2",
-        "linking": True,
+        "linking": False,
         "linkers": ["disease-linker"],
     },
     "pubtator3": {

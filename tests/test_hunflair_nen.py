@@ -81,6 +81,6 @@ def test_hunflair_linker_reads_name_metadata_and_keeps_scores_separate() -> None
     assert annotation.normalization_score == 211.5
 
 
-def test_hunflair_disease_and_chemical_ids_are_mesh() -> None:
-    assert normalization_databases("disease", "flair") == ("MeSH",)
+def test_hunflair_disease_ids_include_mesh_and_omim() -> None:
+    assert normalization_databases("disease", "flair") == ("MeSH", "OMIM")
     assert normalization_databases("chemical", "flair") == ("MeSH",)

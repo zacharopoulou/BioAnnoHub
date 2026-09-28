@@ -351,7 +351,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
             "[annotators.flair]",
             'runtime = "local_model"',
             'model = "hunflair2"',
-            "linking = true",
+            "linking = false",
             f"linkers = {_toml_string_list(DEFAULT_FLAIR_LINKERS.values())}",
         ]
     if "medcat" in answers.annotators:

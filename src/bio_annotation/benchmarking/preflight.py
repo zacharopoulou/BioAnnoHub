@@ -94,7 +94,7 @@ def preflight_benchmark_annotators(
                 )
                 raise BenchmarkPreflightError(result) from exc
             resources["flair_tagger"] = tagger
-            if options.get("linking", True):
+            if options.get("linking", False):
                 linkers = []
                 linker_loader = flair_linker_loader or _load_flair_linker
                 for linker_name in options.get("linkers", []):

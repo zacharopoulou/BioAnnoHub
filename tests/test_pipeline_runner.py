@@ -416,7 +416,7 @@ def test_run_selected_annotators_passes_bern2_endpoint(monkeypatch) -> None:
 def test_read_flair_options_reads_model() -> None:
     assert _read_flair_options({"model": "hunflair2"}) == {
         "model": "hunflair2",
-        "linking": True,
+        "linking": False,
         "linkers": ("gene-linker", "disease-linker", "chemical-linker", "species-linker"),
     }
     assert _read_flair_options({"linking": False}) == {
@@ -426,7 +426,7 @@ def test_read_flair_options_reads_model() -> None:
     }
     assert _read_flair_options({"linkers": {"disease": "custom-disease-linker", "cell_line": "ignored"}}) == {
         "model": None,
-        "linking": True,
+        "linking": False,
         "linkers": ("custom-disease-linker",),
     }
 

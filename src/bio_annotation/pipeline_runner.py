@@ -1408,7 +1408,7 @@ def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
         "model": model.strip()
         if isinstance(model, str) and model.strip()
         else None,
-        "linking": linking if isinstance(linking, bool) else True,
+        "linking": linking if isinstance(linking, bool) else False,
         "linkers": tuple(dict.fromkeys(linkers)),
     }
 

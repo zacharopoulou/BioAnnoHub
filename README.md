@@ -174,7 +174,8 @@ HunFlair supports:
 - species
 - cell line
 
-Default HunFlair2 linkers are enabled with:
+HunFlair2 linkers are opt-in because the full default linker set downloads large
+local resources. Enable linking with:
 
 ```toml
 [annotators.flair]
@@ -184,8 +185,9 @@ linkers = ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
 ```
 
 The returned identifier namespaces are type-specific: genes use NCBI Gene,
-diseases use MeSH, chemicals/drugs use MeSH, and species use NCBI Taxonomy. Cell
-line NER is supported, but no default HunFlair2 cell-line linker is configured.
+diseases use MeSH or OMIM, chemicals/drugs use MeSH, and species use NCBI
+Taxonomy. Cell line NER is supported, but no default HunFlair2 cell-line linker
+is configured.
 
 HunFlair does not produce variants/mutations. If the terminal UI selection includes unsupported entity types for a selected annotator, it shows a compatibility warning before continuing.
 

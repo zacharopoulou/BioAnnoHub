@@ -692,6 +692,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   function appendDetail(parent, hit) {
     const detail = [];
     if (typeof hit.confidence === "number") detail.push("conf " + hit.confidence.toFixed(3));
+    if (typeof hit.normalization_score === "number") detail.push("link " + hit.normalization_score.toFixed(3));
     const mentions = typeof hit.mentions === "number" ? hit.mentions : 1;
     if (mentions > 1) detail.push(mentions + " mentions");
     if (detail.length === 0) return;
