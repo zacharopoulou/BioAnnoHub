@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "totalannotator"
+name = "bioannohub"
 version = "0.1.0"
 description = "Config-first biomedical literature pipeline for corpora, annotators, and evaluation"
 readme = "README.md"
@@ -64,11 +64,11 @@ benchmarks = [
     "tabulate>=0.9",
 ]
 all = [
-    "totalannotator[flair,clinicalbert,biobert,apollo,d4data,stanza,scispacy,benchmarks]",
+    "bioannohub[flair,clinicalbert,biobert,apollo,d4data,stanza,scispacy,benchmarks]",
 ]
 
 [project.scripts]
-totalannotator = "bio_annotation.cli:main"
+bioannohub = "bio_annotation.cli:main"
 
 [dependency-groups]
 dev = [
