@@ -37,6 +37,9 @@ Install local Flair support when you want to use the `flair` annotator:
 uv sync --extra flair
 ```
 
+The Flair extra includes HunFlair2 plus the `pyab3p` abbreviation resolver used
+by the default HunFlair2 linker models.
+
 Install every optional feature:
 
 ```bash
