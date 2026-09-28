@@ -151,8 +151,56 @@ def build_parser() -> argparse.ArgumentParser:
         default=25,
         help="Print benchmark progress every N documents. Default: 25.",
     )
-    search_parser = subparsers.add_parser("search-pmids", help="Search PubMed and write matching PMIDs to a file.")
-    search_parser.add_argument("--query", required=True, help="PubMed query string.")
+    search_parser = subparsers.add_parser(
+        "search-pmids",
+        help="Search PubMed and write matching PMIDs to a file.",
+        description=(
+            "Search PubMed and write matching PMIDs to a file. "
+            "Queries use standard PubMed syntax, including Boolean operators "
+            "and field tags."
+        ),
+        epilog="""examples:
+  Free-text search:
+    totalannotator search-pmids \\
+      --query 'glioblastoma AND microRNA' \\
+      --output data/inputs/query_pmids.txt
+
+  MeSH search:
+    totalannotator search-pmids \\
+      --query '"Glioblastoma"[MeSH Terms] AND "MicroRNAs"[MeSH Terms]' \\
+      --output data/inputs/query_pmids.txt
+
+  Publication type filter:
+    totalannotator search-pmids \\
+      --query 'glioblastoma AND microRNA' \\
+      --filter '"Review"[Publication Type]' \\
+      --output data/inputs/query_pmids.txt
+
+  Multiple filters with dates:
+    totalannotator search-pmids \\
+      --query '"Glioblastoma"[MeSH Terms]' \\
+      --filter '"Review"[Publication Type]' \\
+      --filter 'english[Language]' \\
+      --date-from 2020 \\
+      --date-to 2024 \\
+      --output data/inputs/query_pmids.txt
+
+Notes:
+  --query and each --filter are passed to PubMed ESearch syntax.
+  Use PubMed field tags such as [MeSH Terms], [Publication Type],
+  [Language], and [Date - Publication]. Each --filter is appended
+  to the query with AND.
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    search_parser.add_argument(
+        "--query",
+        required=True,
+        help=(
+            "PubMed query string. Supports standard PubMed Boolean operators "
+            "and field tags, including [MeSH Terms] and [Publication Type]."
+        ),
+    )
     search_parser.add_argument(
         "--max-results",
         type=positive_int,
@@ -166,7 +214,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--filter",
         action="append",
         default=[],
-        help="Additional raw PubMed filter clause. Can be repeated.",
+        help=(
+            "Additional PubMed filter clause appended with AND. Supports the "
+            "same PubMed field tags as --query and can be repeated."
+        ),
     )
     search_parser.add_argument(
         "--output",
