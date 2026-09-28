@@ -365,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
                 date_to=args.date_to,
                 sort_by=args.sort_by,
                 filters=args.filter,
+                progress_callback=print_pubmed_search_progress,
             )
             write_pmids(args.output, pmids)
         except ValueError as exc:
@@ -385,6 +386,27 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+def print_pubmed_search_progress(event: dict[str, object]) -> None:
+    stage = event.get("stage")
+    start = event.get("start")
+    end = event.get("end")
+    count = event.get("count")
+    collected = int(event.get("collected") or 0)
+    window = f"{start} to {end}"
+    if stage == "searching":
+        print(f"Searching PubMed window {window}...", file=sys.stderr, flush=True)
+    elif stage == "window_complete":
+        print(f"PubMed window {window}: {count} result(s).", file=sys.stderr, flush=True)
+    elif stage == "splitting":
+        print(
+            f"Window {window} is above the PubMed request cap; splitting into smaller date ranges.",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif stage == "collected":
+        print(f"Collected {collected} PMID(s) so far.", file=sys.stderr, flush=True)
 
 
 def print_benchmark_progress(index: int, total: int, document_id: str) -> None:
