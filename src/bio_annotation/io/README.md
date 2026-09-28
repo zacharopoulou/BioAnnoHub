@@ -62,4 +62,4 @@ It also prints a JSON summary after the search completes. Progress messages are 
 
 ## Large Result Sets
 
-PubMed ESearch returns at most 10,000 PMIDs per request. When a query is larger than that cap, BioAnnoHub splits the publication-date range into smaller windows and merges the resulting PMIDs.
+PubMed ESearch returns at most 10,000 PMIDs per request. When a query is larger than that cap, BioAnnoHub splits the publication-date range into smaller windows and merges the resulting PMIDs. If `--date-to` is not provided, the search uses today's date as the upper bound.
