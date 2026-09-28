@@ -353,6 +353,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "search-pmids":
         try:
+            print(
+                "Searching PubMed; large result sets may be split by publication date...",
+                file=sys.stderr,
+                flush=True,
+            )
             pmids = search_pubmed_pmids(
                 args.query,
                 max_results=args.max_results,
