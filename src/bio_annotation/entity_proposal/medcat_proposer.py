@@ -233,7 +233,7 @@ def call_medcat(document: Document, endpoint: str | None = None, timeout: int = 
     http_request = request.Request(
         target,
         data=payload,
-        headers={"Content-Type": "application/json", "User-Agent": "TotalAnnotator/medcat-client"},
+        headers={"Content-Type": "application/json", "User-Agent": "BioAnnoHub/medcat-client"},
         method="POST",
     )
     try:
