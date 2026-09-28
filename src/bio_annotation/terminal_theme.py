@@ -15,7 +15,7 @@ from rich.text import Text
 
 
 THEME_WIDTH = 100
-TOTALANNOTATOR_THEME = Theme(
+BIOANNOHUB_THEME = Theme(
     {
         "brand": "bold cyan",
         "accent": "bold magenta",
@@ -41,7 +41,7 @@ def render_lines(renderable: Any) -> list[str]:
         color_system="truecolor",
         force_terminal=True,
         file=buffer,
-        theme=TOTALANNOTATOR_THEME,
+        theme=BIOANNOHUB_THEME,
     )
     console.print(renderable)
     return buffer.getvalue().rstrip("\n").splitlines()
@@ -53,7 +53,7 @@ def emit(output_fn, lines: Iterable[str]) -> None:
 
 
 def banner_lines() -> list[str]:
-    title = Text("TotalAnnotator", justify="center", style="brand")
+    title = Text("BioAnnoHub", justify="center", style="brand")
     subtitle = Text("Biomedical entity annotation workspace", justify="center", style="muted")
     body = Text.assemble(title, "\n", subtitle)
     return render_lines(
