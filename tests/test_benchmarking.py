@@ -422,7 +422,7 @@ def test_benchmark_annotator_options_include_runtime_defaults() -> None:
     assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
     assert options["flair"]["model"] == "hunflair2"
     assert options["flair"]["linking"] is True
-    assert options["flair"]["linkers"] == ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
+    assert options["flair"]["linkers"] == ["disease-linker"]
     assert options["pubtator3"]["mode"] == "publication_only"
 
 
@@ -454,9 +454,9 @@ def test_preflight_reports_remote_and_loads_flair_once() -> None:
     )
 
     assert loaded_models == ["hunflair2"]
-    assert loaded_linkers == ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
+    assert loaded_linkers == ["disease-linker"]
     assert resources["flair_tagger"] is sentinel_tagger
-    assert resources["flair_linkers"] == ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
+    assert resources["flair_linkers"] == ["disease-linker"]
     assert [result.name for result in results] == ["bern2", "flair"]
     assert results[0].status == "configured"
     assert results[1].status == "ready"
@@ -574,7 +574,7 @@ def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
     )
 
     assert loaded_models == ["hunflair2"]
-    assert loaded_linkers == ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
+    assert loaded_linkers == ["disease-linker"]
     assert payload["document_count"] == 2
     assert payload["preflight"][0]["status"] == "ready"
 
