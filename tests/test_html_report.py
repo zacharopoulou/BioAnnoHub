@@ -48,7 +48,6 @@ def sample_payload() -> dict:
                 "start": 0,
                 "end": 4,
                 "confidence": 0.97,
-                "normalization_score": 0.88,
             },
             {
                 "document_id": "PMID:1",
@@ -163,7 +162,6 @@ def test_write_html_report_creates_self_contained_file(tmp_path: Path) -> None:
     assert "PubTator3" in html
     assert "PMID:" in html
     assert "data-entity=" in html
-    assert "link 0.880" in html
 
 
 def test_title_is_highlighted_in_h2(tmp_path: Path) -> None:

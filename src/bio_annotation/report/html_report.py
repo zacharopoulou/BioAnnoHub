@@ -536,9 +536,6 @@ def _render_hits_cell(hits: list[dict[str, Any]]) -> str:
             line += f"<div>{code}</div>"
         if canonical_name:
             line += f"<div><small>{escape(str(canonical_name))}</small></div>"
-        score = hit.get("normalization_score")
-        if isinstance(score, (int, float)):
-            line += f'<div><small>link {score:.3f}</small></div>'
         if mentions and mentions > 1:
             line += f'<div><small>{mentions} mentions</small></div>'
         lines.append(line)
@@ -675,7 +672,6 @@ def _hit_record(annotation: dict[str, Any]) -> dict[str, Any]:
         "start": annotation.get("start"),
         "end": annotation.get("end"),
         "confidence": annotation.get("confidence"),
-        "normalization_score": annotation.get("normalization_score"),
     }
 
 
@@ -698,10 +694,4 @@ def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
             not isinstance(old_conf, (int, float)) or new_conf > old_conf
         ):
             existing["confidence"] = new_conf
-        new_score = hit.get("normalization_score")
-        old_score = existing.get("normalization_score")
-        if isinstance(new_score, (int, float)) and (
-            not isinstance(old_score, (int, float)) or new_score > old_score
-        ):
-            existing["normalization_score"] = new_score
     return list(deduped.values())
