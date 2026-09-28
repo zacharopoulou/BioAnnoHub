@@ -58,7 +58,7 @@ uv run totalannotator search-pmids \
 
 The command writes one PMID per line to the path passed with `--output`.
 
-It also prints a JSON summary after the search completes. Progress messages are written to stderr so stdout remains usable by scripts.
+It also prints a JSON summary after the search completes. Progress messages are written to stderr so stdout remains usable by scripts. During longer searches, the command reports each publication-date window, when a large window is split, and the number of PMIDs collected so far.
 
 ## Large Result Sets
 
