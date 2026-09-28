@@ -275,6 +275,37 @@ uv run totalannotator search-pmids \
   --output data/inputs/query_pmids.txt
 ```
 
+`search-pmids` passes the query to PubMed ESearch, so it supports standard PubMed Boolean syntax and field tags. BioAnnoHub does not define a separate query language.
+
+Use MeSH terms when you want PubMed's controlled vocabulary:
+
+```bash
+uv run totalannotator search-pmids \
+  --query '"Glioblastoma"[MeSH Terms] AND "MicroRNAs"[MeSH Terms]' \
+  --output data/inputs/query_pmids.txt
+```
+
+Use publication type filters to narrow the article type:
+
+```bash
+uv run totalannotator search-pmids \
+  --query 'glioblastoma AND microRNA' \
+  --filter '"Review"[Publication Type]' \
+  --output data/inputs/query_pmids.txt
+```
+
+Combine repeated filters with date bounds for more focused PMID sets:
+
+```bash
+uv run totalannotator search-pmids \
+  --query '"Glioblastoma"[MeSH Terms]' \
+  --filter '"Review"[Publication Type]' \
+  --filter 'english[Language]' \
+  --date-from 2020 \
+  --date-to 2024 \
+  --output data/inputs/query_pmids.txt
+```
+
 Useful options:
 
 - `--max-results`
@@ -282,6 +313,8 @@ Useful options:
 - `--date-to`
 - `--sort-by`
 - `--filter`
+
+Each `--filter` value is appended to the query with `AND`. Common PubMed field tags include `[MeSH Terms]`, `[Publication Type]`, `[Language]`, and `[Date - Publication]`.
 
 `search-pmids` handles large result sets by splitting the publication-date range when needed, then writing one PMID per line.
 
