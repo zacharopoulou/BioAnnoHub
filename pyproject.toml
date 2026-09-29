@@ -48,6 +48,7 @@ stanza = [
 ]
 scispacy = [
     # spaCy/thinc wheels used by scispaCy 0.5.x are not yet NumPy 2 ABI-safe.
+    "click>=8.0,<9",
     "numpy>=1.26,<2.0",
     "scispacy>=0.5.5",
     "en-core-sci-scibert @ https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz",

@@ -3217,6 +3217,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "click" },
     { name = "datasets" },
     { name = "en-core-sci-md" },
     { name = "en-core-sci-scibert" },
@@ -3262,6 +3263,7 @@ flair = [
     { name = "pyab3p" },
 ]
 scispacy = [
+    { name = "click" },
     { name = "en-core-sci-md" },
     { name = "en-core-sci-scibert" },
     { name = "en-ner-bc5cdr-md" },
@@ -3282,6 +3284,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "click", marker = "extra == 'scispacy'", specifier = ">=8.0,<9" },
     { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
     { name = "en-core-sci-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_md-0.5.4.tar.gz" },
     { name = "en-core-sci-scibert", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz" },
