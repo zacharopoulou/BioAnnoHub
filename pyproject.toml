@@ -16,6 +16,7 @@ dependencies = [
 [project.optional-dependencies]
 flair = [
     "flair==0.15.1",
+    "pyab3p>=0.1.0",
 ]
 clinicalbert = [
     # ClinicalBERT (samrawal/bert-base-uncased_clinical-ner) --> HuggingFace

@@ -88,6 +88,7 @@ def make_annotation(
     canonical_id: Any = None,
     canonical_name: Any = None,
     confidence: Any = None,
+    normalization_score: Any = None,
 ) -> Annotation:
     normalized_span = str(span_text).strip()
     resolved_start, resolved_end = resolve_offsets(document, normalized_span, start, end)
@@ -111,4 +112,5 @@ def make_annotation(
         canonical_id=sanitize_identifier(canonical_id),
         canonical_name=sanitize_identifier(canonical_name),
         confidence=coerce_float(confidence),
+        normalization_score=coerce_float(normalization_score),
     )

@@ -72,6 +72,8 @@ DEFAULT_BENCHMARK_ANNOTATOR_OPTIONS = {
     "flair": {
         "runtime": "local_model",
         "model": "hunflair2",
+        "linking": False,
+        "linkers": ["disease-linker"],
     },
     "pubtator3": {
         "runtime": "remote_api",
@@ -88,6 +90,10 @@ These defaults are copied into each review run and passed to the existing annota
 
 PubTator3 is intentionally configured as `publication_only` for this benchmark. NCBI Disease rows carry PubMed IDs, so PubTator3 should use the publication export API by PMID rather than raw-text annotation jobs. The PubTator3 adapter routes publication calls by available PMID/PMCID, not by `Document.source`, so benchmark documents such as `source="benchmark:ncbi_disease"` still use PMID export.
 
+The NCBI Disease benchmark is disease-only, so the benchmark default loads only
+HunFlair2's disease linker instead of the full corpus-pipeline linker set. This
+keeps preflight and runtime focused on resources needed for scoring this corpus.
+
 This separation is intentional: benchmark-review settings can evolve independently from the main corpus pipeline config.
 
 ## Preflight checks
@@ -98,7 +104,7 @@ Current checks:
 
 - BERN2: confirms that a benchmark endpoint is configured.
 - PubTator3: confirms benchmark endpoint and mode settings.
-- Flair: loads the configured local model once before document iteration.
+- Flair: loads the configured local model and benchmark linkers once before document iteration.
 
 This prevents repeated per-document failures such as:
 

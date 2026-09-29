@@ -37,6 +37,9 @@ Install local Flair support when you want to use the `flair` annotator:
 uv sync --extra flair
 ```
 
+The Flair extra includes HunFlair2 plus the `pyab3p` abbreviation resolver used
+by the default HunFlair2 linker models.
+
 Install every optional feature:
 
 ```bash
@@ -157,7 +160,11 @@ BERN2 supports:
 
 ### Flair / HunFlair
 
-Flair/HunFlair runs through the configured local Flair model.
+Flair/HunFlair runs through the configured local Flair model. With HunFlair2,
+TotalAnnotator also runs the configured `EntityMentionLinker` models and stores
+the single returned/top link in `canonical_id`, its preferred name in
+`canonical_name`, and the linker score in `normalization_score`. The NER model
+score remains in `confidence`.
 
 HunFlair supports:
 
@@ -166,6 +173,21 @@ HunFlair supports:
 - chemical/drug
 - species
 - cell line
+
+HunFlair2 linkers are opt-in because the full default linker set downloads large
+local resources. Enable linking with:
+
+```toml
+[annotators.flair]
+model = "hunflair2"
+linking = true
+linkers = ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
+```
+
+The returned identifier namespaces are type-specific: genes use NCBI Gene,
+diseases use MeSH or OMIM, chemicals/drugs use MeSH, and species use NCBI
+Taxonomy. Cell line NER is supported, but no default HunFlair2 cell-line linker
+is configured.
 
 HunFlair does not produce variants/mutations. If the terminal UI selection includes unsupported entity types for a selected annotator, it shows a compatibility warning before continuing.
 

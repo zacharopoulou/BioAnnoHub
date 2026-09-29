@@ -89,11 +89,11 @@ def parse_scispacy_response(
         end = getattr(entity, "end_char", None)
         canonical_id = None
         canonical_name = None
-        confidence = None
+        normalization_score = None
         if source in SCISPACY_LINKER_ANNOTATORS:
             candidates = _entity_kb_ents(entity)
             if candidates:
-                canonical_id, confidence = candidates[0]
+                canonical_id, normalization_score = candidates[0]
                 canonical_name = _linker_canonical_name(linker, str(canonical_id))
         if not span_text:
             continue
@@ -107,7 +107,7 @@ def parse_scispacy_response(
                 end=end,
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
-                confidence=confidence,
+                normalization_score=normalization_score,
             )
         )
     return annotations

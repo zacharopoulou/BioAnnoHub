@@ -2196,6 +2196,20 @@ wheels = [
 ]
 
 [[package]]
+name = "pyab3p"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/d7/770e9bec5edda36b752a56d25fd7744b427c924f770dbc541b1d24450e24/pyab3p-0.1.1.tar.gz", hash = "sha256:ad3ec6290c57106f95d0be51f5e4677a7caf52bc317fcc38ab8a229f8f5e19ae", size = 50826, upload-time = "2024-08-29T20:06:55.49Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6e/5e/fb2bba24e2eed549d85a2e8fbe5a6542e48dd0bb7b71569984e4aa7746c5/pyab3p-0.1.1-cp312-cp312-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:20283a856491bc1964871ab698ec620ddc57b2ffb25d4b7d02f8fc00a236c220", size = 10840691, upload-time = "2024-08-29T20:06:12.05Z" },
+    { url = "https://files.pythonhosted.org/packages/2b/8f/faf457822ab7c4325dcf0f2bd4170cfbf9288414ea8eaaebd2052d491060/pyab3p-0.1.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1f92767c227c91cb2fb123f5c06b06e6ce33810ffe73ffe7a1881f62fc0a8080", size = 10829304, upload-time = "2024-08-29T20:06:14.055Z" },
+    { url = "https://files.pythonhosted.org/packages/93/db/e9767f745b52302767d78f7ffb796130f79656afd3218db170c506f77dc1/pyab3p-0.1.1-cp312-cp312-musllinux_1_1_i686.whl", hash = "sha256:a061c481c3bf0c9253baf60574e2d508638d8a786921b4a487a8210913556f54", size = 11408653, upload-time = "2024-08-29T20:06:16.053Z" },
+    { url = "https://files.pythonhosted.org/packages/36/3b/b3c394716eaa261a4b9034e7a0cb8ddf815fb736224481d81e4badb96af1/pyab3p-0.1.1-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:58553240f883433a0e9a05d13cd796874e02b7578380c7910da0e46290f24346", size = 11344854, upload-time = "2024-08-29T20:06:18.593Z" },
+    { url = "https://files.pythonhosted.org/packages/50/db/eb3ec9982ddca7a5f2f3b8becfe5822061d58e7c1745e320fa99378455b7/pyab3p-0.1.1-cp312-cp312-win32.whl", hash = "sha256:f049aca4f374fad2c6b8a312465cb51a2d738b3c4fb3cf8b33a60a9024baa88e", size = 10739767, upload-time = "2024-08-29T20:06:21.267Z" },
+    { url = "https://files.pythonhosted.org/packages/e8/83/ecc580fc6955401d3a40c41fb35dff8e1d68f84d19ddc8afee142ce1a248/pyab3p-0.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:40fd649644b6b9d103f1087b579bf987d76cffbd1837457f142e340670a9bc5a", size = 10756642, upload-time = "2024-08-29T20:06:23.892Z" },
+]
+
+[[package]]
 name = "pyarrow"
 version = "24.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -3214,6 +3228,7 @@ all = [
     { name = "numpy" },
     { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "pyab3p" },
     { name = "scispacy" },
     { name = "stanza" },
     { name = "tabulate" },
@@ -3244,6 +3259,7 @@ d4data = [
 ]
 flair = [
     { name = "flair" },
+    { name = "pyab3p" },
 ]
 scispacy = [
     { name = "en-core-sci-md" },
@@ -3277,6 +3293,7 @@ requires-dist = [
     { name = "matplotlib", specifier = ">=3.8" },
     { name = "numpy", marker = "extra == 'scispacy'", specifier = ">=1.26,<2.0" },
     { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
+    { name = "pyab3p", marker = "extra == 'flair'", specifier = ">=0.1.0" },
     { name = "rich", specifier = ">=13.7" },
     { name = "scispacy", marker = "extra == 'scispacy'", specifier = ">=0.5.5" },
     { name = "stanza", marker = "extra == 'stanza'", specifier = ">=1.8" },

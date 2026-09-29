@@ -15,6 +15,8 @@ DEFAULT_BENCHMARK_ANNOTATOR_OPTIONS: dict[str, dict[str, Any]] = {
     "flair": {
         "runtime": "local_model",
         "model": "hunflair2",
+        "linking": False,
+        "linkers": ["disease-linker"],
     },
     "pubtator3": {
         "runtime": "remote_api",
