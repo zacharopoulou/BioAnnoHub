@@ -1,6 +1,6 @@
-# BioAnnoHUb
+# BioAnnoHub
 
-BioAnnoHUb is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
+BioAnnoHub is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
 
 The main workflow is:
 
