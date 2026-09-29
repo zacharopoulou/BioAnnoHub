@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from bio_annotation.entity_proposal.stanza_proposer import STANZA_ANNOTATORS
 from bio_annotation.entity_types import (
     ANNOTATOR_CAPABILITIES,
+    ANNOTATOR_CHOICES,
     ANNOTATOR_ENTITY_TYPE_SPECS,
     ANNOTATOR_ENTITY_TYPES,
     ENTITY_TYPE_DISPLAY_NAMES,
@@ -135,6 +137,17 @@ def test_annotator_capabilities_include_tasks_and_supported_entity_types() -> No
     assert ANNOTATOR_CAPABILITIES["scispacy_scibert"].label == "scispaCy en_core_sci_scibert"
     assert "bioprocess" in ANNOTATOR_ENTITY_TYPES["bent"]
     assert "cell_component" in ANNOTATOR_ENTITY_TYPES["bent"]
+
+
+def test_every_stanza_annotator_has_capability_and_ui_metadata() -> None:
+    ui_annotators = {annotator for annotator, _ in ANNOTATOR_CHOICES}
+
+    assert set(STANZA_ANNOTATORS) <= ANNOTATOR_CAPABILITIES.keys()
+    assert set(STANZA_ANNOTATORS) <= ui_annotators
+    assert ANNOTATOR_ENTITY_TYPES["stanza_bc4chemd"] == {"drug"}
+    assert ANNOTATOR_ENTITY_TYPES["stanza_linnaeus"] == {"species"}
+    assert ANNOTATOR_ENTITY_TYPES["stanza_ncbi_disease"] == {"disease"}
+    assert ANNOTATOR_ENTITY_TYPES["stanza_s800"] == {"species"}
 
 
 def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior() -> None:
