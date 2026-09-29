@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 from bio_annotation.fetch import FetchOrchestrator
@@ -112,6 +113,24 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
     payload = run_pipeline_from_config(config_path)
 
     assert payload["document_count"] == 1
-    written = sorted(output_path.parent.glob("*/pipeline.json"))
-    assert len(written) == 1
-    assert payload["output"]["path"] == written[0].as_posix()
+    (run_dir,) = sorted(output_path.parent.glob("2*"))
+    assert payload["output"]["path"] == (run_dir / "pipeline.json").as_posix()
+    for name in (
+        "pipeline.json",
+        "pipeline.keywords.tsv",
+        "pipeline.keyword_annotator_evidence.tsv",
+        "pipeline.annotations.tsv",
+        "pipeline.html",
+        "config.toml",
+        "documents.json",
+        "run_manifest.json",
+    ):
+        assert (run_dir / name).exists(), name
+    assert (output_path.parent / "latest").resolve() == run_dir.resolve()
+
+    manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["run_id"] == run_dir.name
+    assert manifest["input"]["mode"] == "corpus"
+    assert manifest["input"]["files"] == [(run_dir / "documents.json").as_posix()]
+    assert manifest["document_count"] == 1
+    assert manifest["files"]["html_report"] == (run_dir / "pipeline.html").as_posix()
