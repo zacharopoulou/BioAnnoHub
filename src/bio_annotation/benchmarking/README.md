@@ -1,6 +1,6 @@
 # Standalone Benchmark Review
 
-This package contains the benchmark-review implementation for TotalAnnotator. It is intentionally separate from the main pipeline runner.
+This package contains the benchmark-review implementation for BioAnnoHub. It is intentionally separate from the main pipeline runner.
 
 The goal is to evaluate annotator behavior against curated benchmark data while keeping the production-style annotation pipeline stable. Benchmark review code reuses the public `Document` and `Annotation` contracts, and it reuses the existing annotator runner, but benchmark loading, gold annotation handling, annotator runtime defaults, preflight checks, scoring, error analysis, plotting, and reporting live here.
 
@@ -126,7 +126,7 @@ When Flair preflight succeeds, the loaded tagger is reused across all benchmark 
 From the repository root:
 
 ```bash
-uv run totalannotator evaluate-ncbi-review
+uv run bioannohub evaluate-ncbi-review
 ```
 
 This loads the default NCBI Disease test split and evaluates the default annotator set.
@@ -134,7 +134,7 @@ This loads the default NCBI Disease test split and evaluates the default annotat
 A more explicit run:
 
 ```bash
-uv run totalannotator evaluate-ncbi-review \
+uv run bioannohub evaluate-ncbi-review \
   --benchmark-path benchmarks/data/ncbi/test.jsonl \
   --split test \
   --annotators bern2,pubtator3,flair \

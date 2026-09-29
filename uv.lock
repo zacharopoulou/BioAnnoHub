@@ -3207,7 +3207,7 @@ wheels = [
 ]
 
 [[package]]
-name = "totalannotator"
+name = "bioannohub"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -3302,7 +3302,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'biobert'", specifier = ">=2.0" },
     { name = "torch", marker = "extra == 'clinicalbert'", specifier = ">=2.0" },
     { name = "torch", marker = "extra == 'd4data'", specifier = ">=2.0" },
-    { name = "totalannotator", extras = ["flair", "clinicalbert", "biobert", "apollo", "d4data", "stanza", "scispacy", "benchmarks"], marker = "extra == 'all'" },
+    { name = "bioannohub", extras = ["flair", "clinicalbert", "biobert", "apollo", "d4data", "stanza", "scispacy", "benchmarks"], marker = "extra == 'all'" },
     { name = "transformers", marker = "extra == 'apollo'", specifier = ">=4.30,<5" },
     { name = "transformers", marker = "extra == 'biobert'", specifier = ">=4.30,<5" },
     { name = "transformers", marker = "extra == 'clinicalbert'", specifier = ">=4.30,<5" },

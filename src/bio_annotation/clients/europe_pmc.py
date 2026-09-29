@@ -37,7 +37,7 @@ class EuropePmcClient:
     timeout: int = 60
     opener: RequestOpener = _default_open
     page_size: int = DEFAULT_PAGE_SIZE
-    user_agent: str = "TotalAnnotator/0.1 (+https://github.com)"
+    user_agent: str = "BioAnnoHub/0.1 (+https://github.com)"
 
     def search(
         self,

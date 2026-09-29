@@ -1,6 +1,6 @@
 # BioAnnoHub
 
-BioAnnoHUb is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
+BioAnnoHub is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
 
 The main workflow is:
 
@@ -27,7 +27,7 @@ BioAnnoHub supports:
 
 ```bash
 git clone <YOUR_REPOSITORY_URL>
-cd TotalAnnotator
+cd BioAnnoHub
 uv sync
 ```
 
@@ -46,14 +46,14 @@ Install every optional feature:
 uv sync --extra all
 ```
 
-If a config enables `flair` but Flair is not installed, TotalAnnotator stops before the run starts and prints the install command.
+If a config enables `flair` but Flair is not installed, BioAnnoHub stops before the run starts and prints the install command.
 
 ## Run The Terminal UI
 
 Start a new annotation run:
 
 ```bash
-uv run totalannotator annotate
+uv run bioannohub annotate
 ```
 
 The UI asks for:
@@ -77,19 +77,19 @@ outputs/runs/
 Use a different run directory with:
 
 ```bash
-uv run totalannotator annotate --runs-dir outputs/my-run
+uv run bioannohub annotate --runs-dir outputs/my-run
 ```
 
 ## Benchmark Review
 
-BioAnnoHUb also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
+BioAnnoHub also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
 
 The first supported benchmark is NCBI Disease, focused on disease spans from `bern2`, `pubtator3`, and `flair`.
 
 Run the benchmark review with:
 
 ```bash
-uv run totalannotator evaluate-ncbi-review
+uv run bioannohub evaluate-ncbi-review
 ```
 
 The default output directory is:
@@ -131,7 +131,7 @@ The JSON file is the full pipeline payload. The top-level `annotations` array is
 
 PubTator3 uses the NCBI PubTator3 API.
 
-For PubMed-backed documents, TotalAnnotator uses the publication export API. For local text, TotalAnnotator uses PubTator3 raw-text annotation, which is asynchronous and may need polling.
+For PubMed-backed documents, BioAnnoHub uses the publication export API. For local text, BioAnnoHub uses PubTator3 raw-text annotation, which is asynchronous and may need polling.
 
 ### BERN2
 
@@ -193,7 +193,7 @@ HunFlair does not produce variants/mutations. If the terminal UI selection inclu
 
 ### MedCAT
 
-MedCAT runs as a separate service, CogStack MedCATservice, that TotalAnnotator calls over HTTP, like BERN2. Unlike BERN2 there is no public endpoint, so you run the service yourself and point TotalAnnotator at it. The generated terminal UI config uses:
+MedCAT runs as a separate service, CogStack MedCATservice, that BioAnnoHub calls over HTTP, like BERN2. Unlike BERN2 there is no public endpoint, so you run the service yourself and point BioAnnoHub at it. The generated terminal UI config uses:
 
 ```toml
 [annotators.medcat]
@@ -204,15 +204,15 @@ min_acc = 0.3
 
 The endpoint defaults to `http://localhost:5555` (the CogStack docker-compose default) and can be overridden with the `MEDCAT_API_URL` environment variable or the `endpoint` setting. `min_acc` (0..1) drops low-confidence concepts.
 
-To start the service: clone [CogStack/MedCATservice](https://github.com/CogStack/MedCATservice), download a model pack (the MedMen demo, or a clinical UMLS/SNOMED pack for real use), then run `docker compose up -d` from its `docker/` folder and check `http://localhost:5555/api/info`. If MedCAT is selected in the terminal UI and no service is reachable, TotalAnnotator warns before the run; if none is reachable at run time, the MedCAT step simply returns no annotations and the rest of the run continues.
+To start the service: clone [CogStack/MedCATservice](https://github.com/CogStack/MedCATservice), download a model pack (the MedMen demo, or a clinical UMLS/SNOMED pack for real use), then run `docker compose up -d` from its `docker/` folder and check `http://localhost:5555/api/info`. If MedCAT is selected in the terminal UI and no service is reachable, BioAnnoHub warns before the run; if none is reachable at run time, the MedCAT step simply returns no annotations and the rest of the run continues.
 
 MedCAT entity types are the model pack's semantic types (UMLS TUIs), so they pass through as returned rather than mapping to the canonical types below.
 
 ### scispaCy
 
-scispaCy runs local spaCy NER model packages. Install the Python dependency and TotalAnnotator-supported model packages with `uv sync --extra scispacy`.
+scispaCy runs local spaCy NER model packages. Install the Python dependency and BioAnnoHub-supported model packages with `uv sync --extra scispacy`.
 
-TotalAnnotator exposes the requested scispaCy models as separate annotators, labeled in the UI as scispaCy implementations with their exact model id:
+BioAnnoHub exposes the requested scispaCy models as separate annotators, labeled in the UI as scispaCy implementations with their exact model id:
 
 - `scispacy_jnlpba` -> `en_ner_jnlpba_md`
 - `scispacy_bc5cdr` -> `en_ner_bc5cdr_md`
@@ -225,7 +225,7 @@ TotalAnnotator exposes the requested scispaCy models as separate annotators, lab
 
 ## Entity Types
 
-TotalAnnotator normalizes annotator labels into canonical entity types:
+BioAnnoHub normalizes annotator labels into canonical entity types:
 
 | Canonical type | Display label |
 | --- | --- |
@@ -246,19 +246,19 @@ If no entity types are selected, the pipeline keeps all returned entity types.
 Every terminal UI run writes a TOML config. You can rerun that config directly:
 
 ```bash
-uv run totalannotator run-config --config outputs/runs/config.toml
+uv run bioannohub run-config --config outputs/runs/config.toml
 ```
 
 You can also inspect a config before running it:
 
 ```bash
-uv run totalannotator inspect-config --config outputs/runs/config.toml
+uv run bioannohub inspect-config --config outputs/runs/config.toml
 ```
 
 Preview documents for a config:
 
 ```bash
-uv run totalannotator load-documents --config outputs/runs/config.toml
+uv run bioannohub load-documents --config outputs/runs/config.toml
 ```
 
 ## Example Configs
@@ -266,25 +266,25 @@ uv run totalannotator load-documents --config outputs/runs/config.toml
 Inline PMID input:
 
 ```bash
-uv run totalannotator run-config --config configs/examples/pmid-single.toml
+uv run bioannohub run-config --config configs/examples/pmid-single.toml
 ```
 
 PMID file input:
 
 ```bash
-uv run totalannotator run-config --config configs/examples/pmid-file.toml
+uv run bioannohub run-config --config configs/examples/pmid-file.toml
 ```
 
 Local text table input:
 
 ```bash
-uv run totalannotator run-config --config configs/examples/corpus-file.toml
+uv run bioannohub run-config --config configs/examples/corpus-file.toml
 ```
 
 Merged PubMed fetch-source ingestion:
 
 ```bash
-uv run totalannotator run-config --config configs/examples/fetch-merge.toml
+uv run bioannohub run-config --config configs/examples/fetch-merge.toml
 ```
 
 ## PMID Search
@@ -292,7 +292,7 @@ uv run totalannotator run-config --config configs/examples/fetch-merge.toml
 Generate a PMID file from a PubMed query:
 
 ```bash
-uv run totalannotator search-pmids \
+uv run bioannohub search-pmids \
   --query 'glioblastoma AND microRNA' \
   --output data/inputs/query_pmids.txt
 ```
@@ -334,7 +334,7 @@ The TSV files are generated from the same payload and use the same output stem a
 Show diagnostic logs while running a command:
 
 ```bash
-uv run totalannotator --log-level INFO run-config
+uv run bioannohub --log-level INFO run-config
 ```
 
 Run the test suite:
@@ -346,5 +346,5 @@ uv run pytest
 Run the CLI demo:
 
 ```bash
-uv run totalannotator demo
+uv run bioannohub demo
 ```
