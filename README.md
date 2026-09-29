@@ -12,7 +12,7 @@ Each interactive run writes a stable run folder containing the generated config,
 
 ## What It Does
 
-BioAnnoHUb supports:
+BioAnnoHub supports:
 
 - PubMed articles from inline PMIDs or a PMID file
 - local plain text from a CSV/TSV table, raw text file, or manual terminal input
@@ -79,7 +79,7 @@ uv run bioannohub annotate --runs-dir outputs/my-run
 
 ## Benchmark Review
 
-BioAnnoHUb also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
+BioAnnoHub also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
 
 The first supported benchmark is NCBI Disease, focused on disease spans from `bern2`, `pubtator3`, and `flair`.
 
