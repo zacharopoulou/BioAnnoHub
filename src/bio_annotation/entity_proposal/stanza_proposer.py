@@ -14,6 +14,10 @@ STANZA_MODELS: tuple[str, ...] = (
     "i2b2",
     "radiology",
     "anatem",
+    "bc4chemd",
+    "linnaeus",
+    "ncbi_disease",
+    "s800",
 )
 DEFAULT_STANZA_PACKAGE = "craft"
 

@@ -129,6 +129,10 @@ STANZA_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str], ...] = (
     # Stanza AnatEM is a biomedical model (Anatomical Entity Mention corpus) with a
     # single anatomical entity type; it uses the default CRAFT biomedical tokenizer.
     ("stanza_anatem", "Stanza AnatEM", "Anatomy", "anatomical"),
+    ("stanza_bc4chemd", "Stanza BC4CHEMD", "Chemical", "drug"),
+    ("stanza_linnaeus", "Stanza Linnaeus", "Species", "species"),
+    ("stanza_ncbi_disease", "Stanza NCBI-Disease", "Disease", "disease"),
+    ("stanza_s800", "Stanza S800", "Species", "species"),
 )
 
 SCISPACY_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ...] = (
@@ -341,6 +345,22 @@ ENTITY_TYPE_ALIASES.update(
         "rna": "rna",
     }
 )
+
+
+def _stanza_capability(annotator: str, label: str) -> AnnotatorCapability:
+    specs = tuple(
+        spec for spec in ANNOTATOR_ENTITY_TYPE_SPECS if spec.annotator == annotator
+    )
+    return AnnotatorCapability(
+        label=label,
+        tasks=("NER",),
+        entity_types=tuple(dict.fromkeys(spec.canonical_entity_type for spec in specs)),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids for spec in specs
+        },
+        normalization_fields=(),
+    )
 
 
 ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
@@ -622,114 +642,14 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
         },
         normalization_fields=("BRAT N Reference lines",),
     ),
-    "stanza_bc5cdr": AnnotatorCapability(
-        label="Stanza BC5CDR",
-        tasks=("NER",),
-        entity_types=tuple(
-            dict.fromkeys(
-                spec.canonical_entity_type
-                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "stanza_bc5cdr"
-            )
-        ),
-        normalization_status="not_returned",
-        normalization_databases={
-            spec.canonical_entity_type: spec.database_ids
+    **{
+        annotator: _stanza_capability(annotator, label)
+        for annotator, label in dict(
+            (spec.annotator, spec.annotator_label)
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "stanza_bc5cdr"
-        },
-        normalization_fields=(),
-    ),
-    "stanza_bionlp13cg": AnnotatorCapability(
-        label="Stanza BioNLP13CG",
-        tasks=("NER",),
-        entity_types=tuple(
-            dict.fromkeys(
-                spec.canonical_entity_type
-                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "stanza_bionlp13cg"
-            )
-        ),
-        normalization_status="not_returned",
-        normalization_databases={
-            spec.canonical_entity_type: spec.database_ids
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "stanza_bionlp13cg"
-        },
-        normalization_fields=(),
-    ),
-    "stanza_jnlpba": AnnotatorCapability(
-        label="Stanza JNLPBA",
-        tasks=("NER",),
-        entity_types=tuple(
-            dict.fromkeys(
-                spec.canonical_entity_type
-                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "stanza_jnlpba"
-            )
-        ),
-        normalization_status="not_returned",
-        normalization_databases={
-            spec.canonical_entity_type: spec.database_ids
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "stanza_jnlpba"
-        },
-        normalization_fields=(),
-    ),
-    "stanza_i2b2": AnnotatorCapability(
-        label="Stanza i2b2",
-        tasks=("NER",),
-        entity_types=tuple(
-            dict.fromkeys(
-                spec.canonical_entity_type
-                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "stanza_i2b2"
-            )
-        ),
-        normalization_status="not_returned",
-        normalization_databases={
-            spec.canonical_entity_type: spec.database_ids
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "stanza_i2b2"
-        },
-        normalization_fields=(),
-    ),
-    "stanza_radiology": AnnotatorCapability(
-        label="Stanza radiology",
-        tasks=("NER",),
-        entity_types=tuple(
-            dict.fromkeys(
-                spec.canonical_entity_type
-                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "stanza_radiology"
-            )
-        ),
-        normalization_status="not_returned",
-        normalization_databases={
-            spec.canonical_entity_type: spec.database_ids
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "stanza_radiology"
-        },
-        normalization_fields=(),
-    ),
-    "stanza_anatem": AnnotatorCapability(
-        label="Stanza AnatEM",
-        tasks=("NER",),
-        entity_types=tuple(
-            dict.fromkeys(
-                spec.canonical_entity_type
-                for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-                if spec.annotator == "stanza_anatem"
-            )
-        ),
-        normalization_status="not_returned",
-        normalization_databases={
-            spec.canonical_entity_type: spec.database_ids
-            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
-            if spec.annotator == "stanza_anatem"
-        },
-        normalization_fields=(),
-    ),
+            if spec.annotator.startswith("stanza_")
+        ).items()
+    },
 }
 
 ANNOTATOR_CHOICES: tuple[tuple[str, str], ...] = tuple(
