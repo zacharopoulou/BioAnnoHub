@@ -297,15 +297,7 @@ uv run bioannohub search-pmids \
   --output data/inputs/query_pmids.txt
 ```
 
-Useful options:
-
-- `--max-results`
-- `--date-from`
-- `--date-to`
-- `--sort-by`
-- `--filter`
-
-`search-pmids` handles large result sets by splitting the publication-date range when needed, then writing one PMID per line.
+`search-pmids` supports standard PubMed syntax, including MeSH terms, publication types, Boolean operators, repeated filters, and date bounds. For the full usage guide and examples, see [src/bio_annotation/io/README.md](src/bio_annotation/io/README.md).
 
 ## Pipeline Output Shape
 
