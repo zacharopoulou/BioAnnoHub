@@ -115,5 +115,9 @@ benchmarks/data/medmentions/st21pv_validation.jsonl
 benchmarks/data/medmentions/full_train.jsonl
 benchmarks/data/medmentions/full_validation.jsonl
 
+# Can be regenerated locally with benchmarks/scripts/europepmc.py
+benchmarks/data/europepmc/train.jsonl
+benchmarks/data/europepmc/validation.jsonl
+
 # AIONER repository and downloaded models
 AIONER/
