@@ -93,6 +93,7 @@ DEFAULT_FLAIR_LINKERS = {
 }
 RUN_CONFIG_NAME = "config.toml"
 RUN_MANIFEST_NAME = "run_manifest.json"
+RUN_INPUTS_DIR = "inputs"
 logger = logging.getLogger(__name__)
 
 
@@ -426,8 +427,10 @@ def copy_run_inputs(config: PipelineConfig, config_path: Path, run_dir: Path) ->
     config_copy = run_dir / RUN_CONFIG_NAME
     if config_path.resolve() != config_copy.resolve():
         shutil.copyfile(config_path, config_copy)
+    inputs_dir = run_dir / RUN_INPUTS_DIR
+    inputs_dir.mkdir(exist_ok=True)
     if config.input_mode == "pmids":
-        pmids_path = run_dir / "pmids.txt"
+        pmids_path = inputs_dir / "pmids.txt"
         pmids_path.write_text("".join(f"{pmid}\n" for pmid in config.pmids), encoding="utf-8")
         return [pmids_path.as_posix()]
     source = {
@@ -437,7 +440,7 @@ def copy_run_inputs(config: PipelineConfig, config_path: Path, run_dir: Path) ->
     }.get(config.input_mode)
     if source is None or not source.is_file():
         return []
-    target = run_dir / source.name
+    target = inputs_dir / source.name
     if source.resolve() != target.resolve():
         shutil.copyfile(source, target)
     return [target.as_posix()]

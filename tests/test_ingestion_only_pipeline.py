@@ -122,7 +122,7 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
         "pipeline.annotations.tsv",
         "pipeline.html",
         "config.toml",
-        "documents.json",
+        "inputs/documents.json",
         "run_manifest.json",
     ):
         assert (run_dir / name).exists(), name
@@ -131,6 +131,6 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
     manifest = json.loads((run_dir / "run_manifest.json").read_text(encoding="utf-8"))
     assert manifest["run_id"] == run_dir.name
     assert manifest["input"]["mode"] == "corpus"
-    assert manifest["input"]["files"] == [(run_dir / "documents.json").as_posix()]
+    assert manifest["input"]["files"] == [(run_dir / "inputs" / "documents.json").as_posix()]
     assert manifest["document_count"] == 1
     assert manifest["files"]["html_report"] == (run_dir / "pipeline.html").as_posix()

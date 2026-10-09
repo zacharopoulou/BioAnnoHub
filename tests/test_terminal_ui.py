@@ -71,6 +71,7 @@ def test_build_terminal_ui_config_for_plain_text(tmp_path) -> None:
 
     config_path = paths.run_dir / "config.toml"
     config_path.write_text(build_terminal_ui_config_text(answers, paths), encoding="utf-8")
+    paths.plain_text_path.parent.mkdir()
     paths.plain_text_path.write_text(
         "document_id\ttitle\tabstract\n"
         "doc1\tPTEN regulates glioblastoma\tPTEN is important in glioblastoma.\n",
@@ -201,7 +202,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
             "document_annotations": [],
         }
         assert config_path == run_dir / "config.toml"
-        assert config.text_file == run_dir / "plain_text.tsv"
+        assert config.text_file == run_dir / "inputs" / "plain_text.tsv"
         return payload
 
     payload = run_terminal_annotation_ui(
@@ -213,7 +214,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
 
     (run_dir,) = output_dir.iterdir()
     assert (run_dir / "config.toml").exists()
-    assert (run_dir / "plain_text.tsv").exists()
+    assert (run_dir / "inputs" / "plain_text.tsv").exists()
     assert payload["document_count"] == 2
     assert any("Run complete" in message for message in messages)
     assert any("Keywords TSV" in message for message in messages)
@@ -262,7 +263,7 @@ def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path
     )
 
     (run_dir,) = output_dir.iterdir()
-    assert (run_dir / "plain_text.tsv").read_text(encoding="utf-8").count("text-") == 2
+    assert (run_dir / "inputs" / "plain_text.tsv").read_text(encoding="utf-8").count("text-") == 2
 
 
 def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:

@@ -37,6 +37,7 @@ from bio_annotation.entity_types import (
 )
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import (
+    RUN_INPUTS_DIR,
     SUPPORTED_ANNOTATORS,
     create_run_dir,
     run_pipeline_from_config,
@@ -212,8 +213,8 @@ def create_run_paths(runs_dir: Path, *, now: datetime | None = None) -> RunPaths
         run_dir / "config.toml",
         run_dir / "results.json",
         run_dir / "run_manifest.json",
-        run_dir / "pmids.txt",
-        run_dir / "plain_text.tsv",
+        run_dir / RUN_INPUTS_DIR / "pmids.txt",
+        run_dir / RUN_INPUTS_DIR / "plain_text.tsv",
     )
 
 
