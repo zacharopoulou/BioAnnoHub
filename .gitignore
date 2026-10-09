@@ -119,5 +119,9 @@ benchmarks/data/medmentions/full_validation.jsonl
 benchmarks/data/europepmc/train.jsonl
 benchmarks/data/europepmc/validation.jsonl
 
+# Can be regenerated locally with benchmarks/scripts/biored.py
+benchmarks/data/biored/train.jsonl
+benchmarks/data/biored/validation.jsonl
+
 # AIONER repository and downloaded models
 AIONER/
