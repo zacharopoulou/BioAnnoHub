@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+import logging
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -8,10 +10,13 @@ from typing import Any
 from rich import box
 from rich.align import Align
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 from rich.theme import Theme
 from rich.text import Text
+
+from bio_annotation.progress import ProgressEvent, ProgressReporter, describe
 
 
 THEME_WIDTH = 100
@@ -30,6 +35,31 @@ BIOANNOHUB_THEME = Theme(
         "path": "bright_blue",
     }
 )
+
+
+@contextmanager
+def annotator_spinner(console: Console | None = None) -> Iterator[ProgressReporter]:
+    console = console or Console(theme=BIOANNOHUB_THEME)
+    status = console.status("Running annotation...", spinner="dots")
+    root = logging.getLogger()
+    previous_handlers = root.handlers[:]
+    handler = RichHandler(console=console, show_path=False)
+    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
+    root.handlers = [handler]
+    status.start()
+    try:
+
+        def report(event: ProgressEvent) -> None:
+            if event.event == "start":
+                status.update(Text(describe(event), style="muted"))
+            elif event.event == "error":
+                # Printed above the spinner so failures survive the run.
+                console.print(Text(describe(event), style="warning"))
+
+        yield report
+    finally:
+        status.stop()
+        root.handlers = previous_handlers
 
 
 def render_lines(renderable: Any) -> list[str]:

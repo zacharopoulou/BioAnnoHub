@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from bio_annotation.entity_proposal.aioner_proposer import (
     DEFAULT_AIONER_ENTITY,
@@ -40,6 +40,7 @@ from bio_annotation.pipeline_runner import (
     run_pipeline_from_config,
     write_pipeline_tsv_outputs,
 )
+from bio_annotation.progress import ProgressReporter
 from bio_annotation.terminal_text_input import (
     GENERATED_TEXT_DOCUMENT_ID,
     is_text_table_file,
@@ -50,6 +51,7 @@ from bio_annotation.terminal_text_input import (
     write_generated_text_table_from_raw_text_file,
 )
 from bio_annotation.terminal_theme import (
+    annotator_spinner,
     banner_lines,
     choice_lines,
     emit,
@@ -61,7 +63,15 @@ from bio_annotation.terminal_theme import (
 
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
-PipelineRunFn = Callable[[Path], dict[str, Any]]
+
+
+class PipelineRunFn(Protocol):
+    def __call__(
+        self,
+        config_path: Path,
+        *,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, Any]: ...
 
 
 @dataclass(frozen=True)
@@ -136,8 +146,8 @@ def run_terminal_annotation_ui(
                 "annotations this run."
             )
     output_fn("")
-    output_fn("Running annotation...")
-    payload = pipeline_run_fn(paths.config_path)
+    with annotator_spinner() as progress:
+        payload = pipeline_run_fn(paths.config_path, progress=progress)
     write_pipeline_tsv_outputs(payload, paths.results_path)
     write_json(paths.manifest_path, build_run_manifest(answers, paths, payload))
     output_info = payload.get("output") if isinstance(payload.get("output"), dict) else None
