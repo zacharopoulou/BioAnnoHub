@@ -56,11 +56,5 @@ def test_tsv_outputs_include_normalization_score(tmp_path) -> None:
     ) as handle:
         annotation_row = next(csv.DictReader(handle, delimiter="\t"))
 
-    with (tmp_path / "results.keyword_annotator_evidence.tsv").open(
-        encoding="utf-8", newline=""
-    ) as handle:
-        evidence_row = next(csv.DictReader(handle, delimiter="\t"))
-
-    for row in (annotation_row, evidence_row):
-        assert row["confidence"] == "0.99"
-        assert row["normalization_score"] == "211.5"
+    assert annotation_row["confidence"] == "0.99"
+    assert annotation_row["normalization_score"] == "211.5"

@@ -121,14 +121,15 @@ Every run (terminal UI or `run-config` with an `[output] path`) gets its own tim
 
 ```text
 config.toml
-results.json
-results.keywords.tsv
-results.keyword_annotator_evidence.tsv
-results.annotations.tsv
-results.html
 run_manifest.json
-pmids.txt                   # inline PMIDs input
-<input file>                # copy of the PMID file, text table, or corpus used
+inputs/
+  pmids.txt                 # inline PMIDs input
+  <input file>              # copy of the PMID file, text table, or corpus used
+results/
+  results.json
+  results.keywords.tsv
+  results.annotations.tsv
+  results.html
 ```
 
 The file names follow the configured output path, so `path = "outputs/runs/results.json"` produces `results.*` files.
@@ -137,8 +138,6 @@ The JSON file is the full pipeline payload. The top-level `annotations` array is
 
 - `results.keywords.tsv`
   One row per grouped keyword/entity mention.
-- `results.keyword_annotator_evidence.tsv`
-  Evidence rows showing which annotator produced each mention.
 - `results.annotations.tsv`
   One row per raw annotation.
 - `run_manifest.json`

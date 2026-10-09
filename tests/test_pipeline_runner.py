@@ -351,7 +351,7 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     output = stream.getvalue()
     assert exit_code == 0
     assert "Pipeline completed." in output
-    written = sorted((tmp_path / "outputs").glob("2*/test.json"))
+    written = sorted((tmp_path / "outputs").glob("2*/results/test.json"))
     assert len(written) == 1
     assert f"Output written to: {written[0].as_posix()}" in output
     assert "Annotations: 0" in output
@@ -795,19 +795,14 @@ def test_pipeline_tsv_outputs_resolve_keyword_annotation_ids(tmp_path) -> None:
 
     write_pipeline_tsv_outputs(payload, tmp_path / "results.json")
 
-    with (tmp_path / "results.keyword_annotator_evidence.tsv").open(
+    with (tmp_path / "results.keywords.tsv").open(
         encoding="utf-8",
         newline="",
     ) as handle:
         rows = list(csv.DictReader(handle, delimiter="\t"))
 
-    assert [
-        (row["annotation_id"], row["source"], row["label"], row["canonical_id"])
-        for row in rows
-    ] == [
-        ("bern2:1", "bern2", "disease", "BERN:glioblastoma"),
-        ("pubtator3:1", "pubtator3", "disease", "MESH:D005909"),
-    ]
+    assert [(row["keyword"], row["sources"]) for row in rows] == [("GBM", "bern2|pubtator3")]
+    assert not (tmp_path / "results.keyword_annotator_evidence.tsv").exists()
 
 
 def test_filter_annotations_by_type_normalizes_entity_labels() -> None:

@@ -38,6 +38,7 @@ from bio_annotation.entity_types import (
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import (
     RUN_INPUTS_DIR,
+    RUN_RESULTS_DIR,
     SUPPORTED_ANNOTATORS,
     create_run_dir,
     run_pipeline_from_config,
@@ -93,7 +94,7 @@ class TerminalUIAnswers:
 
 def run_terminal_annotation_ui(
     *,
-    runs_dir: Path = Path("outputs"),
+    runs_dir: Path = Path("outputs/runs"),
     input_fn: InputFn = input,
     output_fn: OutputFn = print,
     pipeline_run_fn: PipelineRunFn = run_pipeline_from_config,
@@ -211,7 +212,7 @@ def create_run_paths(runs_dir: Path, *, now: datetime | None = None) -> RunPaths
         run_dir.name,
         run_dir,
         run_dir / "config.toml",
-        run_dir / "results.json",
+        run_dir / RUN_RESULTS_DIR / "results.json",
         run_dir / "run_manifest.json",
         run_dir / RUN_INPUTS_DIR / "pmids.txt",
         run_dir / RUN_INPUTS_DIR / "plain_text.tsv",
@@ -342,9 +343,6 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
 def terminal_ui_tsv_paths(paths: RunPaths) -> dict[str, Path]:
     return {
         "Keywords TSV": paths.results_path.with_name(f"{paths.results_path.stem}.keywords.tsv"),
-        "Keyword evidence TSV": paths.results_path.with_name(
-            f"{paths.results_path.stem}.keyword_annotator_evidence.tsv"
-        ),
         "Annotations TSV": paths.results_path.with_name(f"{paths.results_path.stem}.annotations.tsv"),
     }
 

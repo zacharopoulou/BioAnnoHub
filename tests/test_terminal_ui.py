@@ -218,7 +218,6 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     assert payload["document_count"] == 2
     assert any("Run complete" in message for message in messages)
     assert any("Keywords TSV" in message for message in messages)
-    assert any("Keyword evidence TSV" in message for message in messages)
     assert any("Annotations TSV" in message for message in messages)
 
 

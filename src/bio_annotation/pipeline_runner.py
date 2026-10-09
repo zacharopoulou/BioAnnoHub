@@ -95,6 +95,7 @@ DEFAULT_FLAIR_LINKERS = {
 RUN_CONFIG_NAME = "config.toml"
 RUN_MANIFEST_NAME = "run_manifest.json"
 RUN_INPUTS_DIR = "inputs"
+RUN_RESULTS_DIR = "results"
 logger = logging.getLogger(__name__)
 
 
@@ -167,7 +168,7 @@ def run_pipeline_from_config(
     )
     if config.output_path is not None:
         run_dir = run_dir or create_run_dir(config.output_path.parent)
-        actual_output_path = run_dir / config.output_path.name
+        actual_output_path = run_dir / RUN_RESULTS_DIR / config.output_path.name
         payload["output"] = {
             "configured_path": config.output_path.as_posix(),
             "path": actual_output_path.as_posix(),
@@ -544,9 +545,6 @@ def update_latest_run_link(run_dir: Path) -> None:
 def pipeline_tsv_output_paths(output_path: Path) -> dict[str, Path]:
     return {
         "keywords_tsv": output_path.with_name(f"{output_path.stem}.keywords.tsv"),
-        "keyword_evidence_tsv": output_path.with_name(
-            f"{output_path.stem}.keyword_annotator_evidence.tsv"
-        ),
         "annotations_tsv": output_path.with_name(f"{output_path.stem}.annotations.tsv"),
     }
 
@@ -555,7 +553,6 @@ def write_pipeline_tsv_outputs(payload: dict[str, Any], output_path: Path) -> No
     output_path.parent.mkdir(parents=True, exist_ok=True)
     paths = pipeline_tsv_output_paths(output_path)
     write_keywords_tsv(payload, paths["keywords_tsv"])
-    write_keyword_annotator_evidence_tsv(payload, paths["keyword_evidence_tsv"])
     write_annotations_tsv(payload, paths["annotations_tsv"])
 
 
@@ -614,68 +611,6 @@ def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
             "labels",
             "canonical_ids",
             "sources",
-        ],
-        rows,
-    )
-
-
-def write_keyword_annotator_evidence_tsv(
-    payload: dict[str, Any],
-    output_path: Path,
-) -> None:
-    documents = _documents_by_id(payload)
-    annotations = _annotations_by_id(payload)
-    rows: list[dict[str, Any]] = []
-
-    for keyword in payload.get("keywords", []):
-        if not isinstance(keyword, dict):
-            continue
-
-        document_id = str(keyword.get("document_id") or "")
-        document = documents.get(document_id, {})
-
-        for mention in keyword.get("mentions", []):
-            if not isinstance(mention, dict):
-                continue
-            for annotation in _resolve_annotations(
-                annotations,
-                mention.get("annotation_ids"),
-            ):
-
-                rows.append(
-                    {
-                        "document_id": document_id,
-                        "pmid": document.get("pmid"),
-                        "title": document.get("title"),
-                        "keyword": keyword.get("keyword"),
-                        "start": mention.get("start"),
-                        "end": mention.get("end"),
-                        "source": annotation.get("source"),
-                        "label": annotation.get("entity_type"),
-                        "annotation_id": annotation.get("annotation_id"),
-                        "canonical_id": _join_values(annotation.get("canonical_id")),
-                        "canonical_name": annotation.get("canonical_name"),
-                        "confidence": annotation.get("confidence"),
-                        "normalization_score": annotation.get("normalization_score"),
-                    }
-                )
-
-    _write_tsv(
-        output_path,
-        [
-            "document_id",
-            "pmid",
-            "title",
-            "keyword",
-            "start",
-            "end",
-            "source",
-            "label",
-            "annotation_id",
-            "canonical_id",
-            "canonical_name",
-            "confidence",
-            "normalization_score",
         ],
         rows,
     )

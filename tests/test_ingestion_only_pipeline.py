@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
+from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
 from bio_annotation.schemas.document import Document
 
@@ -114,13 +115,12 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
 
     assert payload["document_count"] == 1
     (run_dir,) = sorted(output_path.parent.glob("2*"))
-    assert payload["output"]["path"] == (run_dir / "pipeline.json").as_posix()
+    assert payload["output"]["path"] == (run_dir / "results" / "pipeline.json").as_posix()
     for name in (
-        "pipeline.json",
-        "pipeline.keywords.tsv",
-        "pipeline.keyword_annotator_evidence.tsv",
-        "pipeline.annotations.tsv",
-        "pipeline.html",
+        "results/pipeline.json",
+        "results/pipeline.keywords.tsv",
+        "results/pipeline.annotations.tsv",
+        "results/pipeline.html",
         "config.toml",
         "inputs/documents.json",
         "run_manifest.json",
@@ -132,5 +132,7 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
     assert manifest["run_id"] == run_dir.name
     assert manifest["input"]["mode"] == "corpus"
     assert manifest["input"]["files"] == [(run_dir / "inputs" / "documents.json").as_posix()]
+    run_config = load_pipeline_config(run_dir / "config.toml")
+    assert run_config.corpus_path == (run_dir / "inputs" / "documents.json").resolve()
     assert manifest["document_count"] == 1
-    assert manifest["files"]["html_report"] == (run_dir / "pipeline.html").as_posix()
+    assert manifest["files"]["html_report"] == (run_dir / "results" / "pipeline.html").as_posix()
