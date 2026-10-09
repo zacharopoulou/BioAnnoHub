@@ -4,6 +4,7 @@ import ast
 import csv
 import json
 import logging
+import re
 import shutil
 import time
 from datetime import datetime, timezone
@@ -424,26 +425,42 @@ def create_run_dir(base_dir: Path, *, now: datetime | None = None) -> Path:
 
 def copy_run_inputs(config: PipelineConfig, config_path: Path, run_dir: Path) -> list[str]:
     """Copy the config and input files into the run folder so the run is self-contained."""
-    config_copy = run_dir / RUN_CONFIG_NAME
-    if config_path.resolve() != config_copy.resolve():
-        shutil.copyfile(config_path, config_copy)
+    config_text = config_path.read_text(encoding="utf-8")
     inputs_dir = run_dir / RUN_INPUTS_DIR
     inputs_dir.mkdir(exist_ok=True)
+    input_files: list[str] = []
     if config.input_mode == "pmids":
         pmids_path = inputs_dir / "pmids.txt"
         pmids_path.write_text("".join(f"{pmid}\n" for pmid in config.pmids), encoding="utf-8")
-        return [pmids_path.as_posix()]
-    source = {
-        "pmid_file": config.pmid_file,
-        "text_table": config.text_file,
-        "corpus": config.corpus_path,
-    }.get(config.input_mode)
-    if source is None or not source.is_file():
-        return []
-    target = inputs_dir / source.name
-    if source.resolve() != target.resolve():
-        shutil.copyfile(source, target)
-    return [target.as_posix()]
+        input_files = [pmids_path.as_posix()]
+    else:
+        key, source = {
+            "pmid_file": ("pmid_file", config.pmid_file),
+            "text_table": ("text_file", config.text_file),
+            "corpus": ("corpus_path", config.corpus_path),
+        }.get(config.input_mode, (None, None))
+        if source is not None and source.is_file():
+            target = inputs_dir / source.name
+            if source.resolve() != target.resolve():
+                shutil.copyfile(source, target)
+            config_text = _point_config_input_at(config_text, key, target)
+            input_files = [target.as_posix()]
+    (run_dir / RUN_CONFIG_NAME).write_text(config_text, encoding="utf-8")
+    return input_files
+
+
+def _point_config_input_at(config_text: str, key: str, path: Path) -> str:
+    """Rewrite the `[input]` path key so the run's config.toml references the copied input."""
+    lines = config_text.splitlines(keepends=True)
+    section = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("["):
+            section = stripped
+        elif section == "[input]" and re.match(rf"{key}\s*=", stripped):
+            lines[index] = f"{key} = {json.dumps(path.resolve().as_posix())}\n"
+            break
+    return "".join(lines)
 
 
 def build_run_manifest(
