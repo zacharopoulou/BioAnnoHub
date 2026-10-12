@@ -123,5 +123,14 @@ benchmarks/data/europepmc/validation.jsonl
 benchmarks/data/biored/train.jsonl
 benchmarks/data/biored/validation.jsonl
 
+# Can be regenerated locally with benchmarks/scripts/rate_ner.py
+benchmarks/data/rate_ner/train.jsonl
+benchmarks/data/rate_ner/validation.jsonl
+
+# RadGraph-XL is PhysioNet credentialed data and must not be shared: only the
+# README is committed. Regenerate locally with benchmarks/scripts/radgraph_xl.py
+benchmarks/data/radgraph_xl/*
+!benchmarks/data/radgraph_xl/README.md
+
 # AIONER repository and downloaded models
 AIONER/
