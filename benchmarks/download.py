@@ -1,16 +1,4 @@
-"""Download the benchmark corpora: all of them, or the ones picked from a list.
-
-    uv run --extra benchmarks python benchmarks/download.py            # pick from a list
-    uv run --extra benchmarks python benchmarks/download.py --all      # everything public
-    uv run python benchmarks/download.py --list                        # just shows the table
-
-Each benchmark has its own script in benchmarks/scripts/. This script runs them one
-after the other and prints a little summary. A benchmark whose files are already on
-disk is skipped by its script, so running this again is safe.
-
-RadGraph-XL is never part of --all: it is PhysioNet credentialed data that
-each user downloads by hand. 
-"""
+"""Download the benchmark corpora. How to run it: see benchmarks/BENCHMARKS.md."""
 
 from __future__ import annotations
 
@@ -33,7 +21,7 @@ from rich.text import Text
 from rich.theme import Theme
 
 try:
-    from bio_annotation.terminal_theme import TOTALANNOTATOR_THEME as THEME
+    from bio_annotation.terminal_theme import BIOANNOHUB_THEME as THEME
 except ImportError:  # running without the package installed
     THEME = Theme(
         {
