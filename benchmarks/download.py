@@ -2,9 +2,9 @@
 
     uv run --extra benchmarks python benchmarks/download.py            # pick from a list
     uv run --extra benchmarks python benchmarks/download.py --all      # everything public
-    uv run python benchmarks/download.py --list                        # just show the table
+    uv run python benchmarks/download.py --list                        # just shows the table
 
-Each benchmark has its own script in benchmarks/scripts/; this runs them one
+Each benchmark has its own script in benchmarks/scripts/. This script runs them one
 after the other and prints a little summary. A benchmark whose files are already on
 disk is skipped by its script, so running this again is safe.
 
