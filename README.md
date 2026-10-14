@@ -149,7 +149,7 @@ The JSON file is the full pipeline payload. The top-level `annotations` array is
 
 PubTator3 uses the NCBI PubTator3 API.
 
-For PubMed-backed documents, BioAnnoHub uses the publication export API. For local text, BioAnnoHub uses PubTator3 raw-text annotation, which is asynchronous and may need polling.
+BioAnnoHub uses the publication export API, so PubTator3 only annotates documents with a PMID or PMCID. It is not available for plain-text input.
 
 ### BERN2
 

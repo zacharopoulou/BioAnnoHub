@@ -750,36 +750,6 @@ def run_selected_annotators_with_status(
                     format=pubtator3_options.get("format", "biocjson")
                     if pubtator3_options
                     else "biocjson",
-                    mode=pubtator3_options.get("mode", "auto")
-                    if pubtator3_options
-                    else "auto",
-                    bioconcept=pubtator3_options.get("bioconcept", "All")
-                    if pubtator3_options
-                    else "All",
-                    poll_interval_seconds=pubtator3_options.get(
-                        "poll_interval_seconds",
-                        2.0,
-                    )
-                    if pubtator3_options
-                    else 2.0,
-                    poll_backoff=pubtator3_options.get("poll_backoff", 1.5)
-                    if pubtator3_options
-                    else 1.5,
-                    max_poll_interval_seconds=(
-                        pubtator3_options.get(
-                            "max_poll_interval_seconds",
-                            15.0,
-                        )
-                        if pubtator3_options
-                        else 15.0
-                    ),
-                    max_poll_attempts=pubtator3_options.get("max_poll_attempts", 15)
-                    if pubtator3_options
-                    else 15,
-                    max_poll_seconds=pubtator3_options.get("max_poll_seconds", 180.0)
-                    if pubtator3_options
-                    else 180.0,
-                    progress_callback=_pubtator3_progress,
                 )
             elif annotator == "aioner":
                 results[annotator] = annotate_with_aioner(
@@ -1099,8 +1069,8 @@ def _no_annotations_reason(annotator: str) -> str:
         )
     if annotator == "pubtator3":
         return (
-            "No annotations returned. Verify PubTator3 is reachable and "
-            "returned entities for this document."
+            "No annotations returned. PubTator3 only annotates documents with a "
+            "PMID or PMCID; otherwise verify it is reachable and returned entities."
         )
     if annotator == "aioner":
         return (
@@ -1136,22 +1106,6 @@ def _no_annotations_reason(annotator: str) -> str:
             "downloaded, or it found no entities."
         )
     return "No annotations returned."
-
-
-def _pubtator3_progress(
-    session_id: str,
-    attempt: int,
-    max_attempts: int,
-    sleep_seconds: float,
-) -> None:
-    logger.info(
-        "pubtator3 pending: "
-        "session=%s attempt=%s/%s; sleeping %.1fs",
-        session_id,
-        attempt,
-        max_attempts,
-        sleep_seconds,
-    )
 
 
 def _finalize_mention(
@@ -1498,50 +1452,9 @@ def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
     endpoint = settings.get("endpoint")
     timeout = settings.get("timeout")
     export_format = settings.get("format")
-    mode = settings.get("mode")
-    bioconcept = settings.get("bioconcept")
-    poll_interval_seconds = settings.get("poll_interval_seconds")
-    poll_backoff = settings.get("poll_backoff")
-    max_poll_interval_seconds = settings.get("max_poll_interval_seconds")
-    max_poll_attempts = settings.get("max_poll_attempts")
-    max_poll_seconds = settings.get("max_poll_seconds")
-
-    cleaned_mode = mode.strip().lower() if isinstance(mode, str) and mode.strip() else "auto"
-    if cleaned_mode not in {"auto", "publication_only", "text_only"}:
-        raise ValueError(
-            "annotators.pubtator3.mode must be one of: "
-            "'auto', 'publication_only', 'text_only'."
-        )
 
     return {
         "endpoint": endpoint if isinstance(endpoint, str) and endpoint.strip() else None,
         "timeout": timeout if isinstance(timeout, int) and timeout > 0 else 60,
         "format": export_format if isinstance(export_format, str) and export_format.strip() else "biocjson",
-        "mode": cleaned_mode,
-        "bioconcept": bioconcept if isinstance(bioconcept, str) and bioconcept.strip() else "All",
-        "poll_interval_seconds": (
-            float(poll_interval_seconds)
-            if isinstance(poll_interval_seconds, (int, float)) and poll_interval_seconds > 0
-            else 2.0
-        ),
-        "poll_backoff": (
-            float(poll_backoff)
-            if isinstance(poll_backoff, (int, float)) and float(poll_backoff) >= 1.0
-            else 1.5
-        ),
-        "max_poll_interval_seconds": (
-            float(max_poll_interval_seconds)
-            if isinstance(max_poll_interval_seconds, (int, float)) and float(max_poll_interval_seconds) > 0
-            else 15.0
-        ),
-        "max_poll_attempts": (
-            int(max_poll_attempts)
-            if isinstance(max_poll_attempts, int) and max_poll_attempts > 0
-            else 15
-        ),
-        "max_poll_seconds": (
-            float(max_poll_seconds)
-            if isinstance(max_poll_seconds, (int, float)) and float(max_poll_seconds) > 0
-            else 180.0
-        ),
     }

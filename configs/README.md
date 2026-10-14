@@ -40,9 +40,6 @@ runtime = "remote_api"
 endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
 timeout = 60
-mode = "text_only"
-bioconcept = "All"
-poll_interval_seconds = 2.0
 ```
 
 The pipeline reads these settings and uses them at runtime for the matching annotator.
@@ -54,6 +51,6 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 - `examples/pmid-file.toml`
   PMID batch input using the default PubTator3 fetch source. Commented options show Entrez, Europe PMC, merged fetch, field filtering, and PubTator3 full text.
 - `examples/corpus-file.toml`
-  Local text-table input with PubTator3 raw-text annotation.
+  Local text-table input annotated with Flair (PubTator3 only annotates PubMed/PMC publications).
 - `examples/fetch-merge.toml`
   Advanced multi-source fetch example. Fetches from PubTator3, Entrez, and Europe PMC, then merges results into one canonical document per PMID.

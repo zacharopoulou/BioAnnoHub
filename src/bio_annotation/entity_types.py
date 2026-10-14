@@ -373,7 +373,6 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             "BioC infons.identifier",
             "annotation.identifier",
             "annotation.id",
-            "PubAnnotation denotations[].obj suffix",
             "PubTator text column 6",
         ),
     ),

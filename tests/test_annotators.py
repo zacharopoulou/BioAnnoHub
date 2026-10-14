@@ -357,26 +357,6 @@ def test_pubtator3_adapter_parses_pubtator3_wrapped_bioc_json() -> None:
     assert annotations[0].canonical_id == "5728"
 
 
-def test_pubtator3_adapter_parses_pubannotation_json() -> None:
-    document = sample_document()
-    response = {
-        "text": document.text,
-        "sourcedb": "PubMed",
-        "sourceid": document.document_id,
-        "denotations": [
-            {"obj": "Gene:5728", "span": {"begin": 0, "end": 4}},
-            {"obj": "Disease:D005909", "span": {"begin": 15, "end": 27}},
-        ],
-    }
-
-    annotations = annotate_with_pubtator3(document, response=response)
-
-    assert len(annotations) == 2
-    assert annotations[0].source == "pubtator3"
-    assert annotations[0].entity_type == "gene"
-    assert annotations[1].canonical_id == "D005909"
-
-
 def test_pubtator3_adapter_parses_pubtator_text_format() -> None:
     document = sample_document()
     response = (
@@ -394,37 +374,7 @@ def test_pubtator3_adapter_parses_pubtator_text_format() -> None:
     assert annotations[1].entity_type == "disease"
 
 
-def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
-    document = Document(
-        document_id="CORPUS:doc1",
-        pmid="12345678",
-        title="PTEN regulates glioblastoma",
-        abstract="PTEN is important in glioblastoma.",
-        source="corpus",
-    )
-
-    class FakeClient:
-        def __init__(self) -> None:
-            self.payloads: list[str] = []
-            self.options: list[dict[str, object]] = []
-
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.payloads.append(payload)
-            self.options.append(kwargs)
-            return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[{"obj":"Gene:5728","span":{"begin":0,"end":4}}]}'
-
-    client = FakeClient()
-    annotations = annotate_with_pubtator3(document, client=client, mode="text_only")
-
-    assert len(annotations) == 1
-    assert annotations[0].source == "pubtator3"
-    assert annotations[0].entity_type == "gene"
-    assert annotations[0].canonical_id == "5728"
-    assert client.payloads == [document.text]
-    assert client.options[0]["bioconcept"] == "All"
-
-
-def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
+def test_pubtator3_uses_pmid_for_benchmark_documents() -> None:
     document = Document(
         document_id="9949209",
         pmid="9949209",
@@ -436,7 +386,6 @@ def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
     class FakeClient:
         def __init__(self) -> None:
             self.pmids: list[list[str]] = []
-            self.text_payloads: list[str] = []
 
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             self.pmids.append(pmids)
@@ -445,19 +394,14 @@ def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMCID lookup should not be used when PMID is present")
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for benchmark PMID documents")
-
     client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="publication_only")
+    payload = call_pubtator3(document, client=client)
 
     assert payload == {"documents": []}
     assert client.pmids == [["9949209"]]
-    assert client.text_payloads == []
 
 
-def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -> None:
+def test_pubtator3_uses_publication_export_for_pubtator3_pmid_documents() -> None:
     document = Document(
         document_id="PMID:12345678",
         pmid="12345678",
@@ -469,7 +413,6 @@ def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -
     class FakeClient:
         def __init__(self) -> None:
             self.pmids: list[list[str]] = []
-            self.text_payloads: list[str] = []
 
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             self.pmids.append(pmids)
@@ -478,19 +421,14 @@ def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMCID lookup should not be used when PMID is present")
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for PMID documents in auto mode")
-
     client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="auto")
+    payload = call_pubtator3(document, client=client)
 
     assert payload == {"documents": []}
     assert client.pmids == [["12345678"]]
-    assert client.text_payloads == []
 
 
-def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -> None:
+def test_pubtator3_uses_publication_export_for_metadata_pmcid_documents() -> None:
     document = Document(
         document_id="PMC:PMC1234567",
         title="PTEN regulates glioblastoma",
@@ -502,7 +440,6 @@ def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -
     class FakeClient:
         def __init__(self) -> None:
             self.pmcids: list[list[str]] = []
-            self.text_payloads: list[str] = []
 
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMID lookup should not be used when no PMID is present")
@@ -511,19 +448,14 @@ def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -
             self.pmcids.append(pmcids)
             return {"documents": []}
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for PMCID documents in auto mode")
-
     client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="auto")
+    payload = call_pubtator3(document, client=client)
 
     assert payload == {"documents": []}
     assert client.pmcids == [["PMC1234567"]]
-    assert client.text_payloads == []
 
 
-def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers() -> None:
+def test_pubtator3_returns_nothing_without_publication_identifiers() -> None:
     document = Document(
         document_id="CORPUS:doc1",
         title="PTEN regulates glioblastoma",
@@ -532,24 +464,13 @@ def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers()
     )
 
     class FakeClient:
-        def __init__(self) -> None:
-            self.payloads: list[str] = []
-
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMID lookup should not be used without a PMID")
 
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMCID lookup should not be used without a PMCID")
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.payloads.append(payload)
-            return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
-
-    client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="auto")
-
-    assert payload == '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
-    assert client.payloads == [document.text]
+    assert call_pubtator3(document, client=FakeClient()) is None
 
 
 def test_aioner_adapter_parses_pubtator_output_and_normalizes_types() -> None:

@@ -10,20 +10,10 @@ abstract_column = "abstract"
 sources = []
 
 [annotators]
-enabled = ["pubtator3"]
+enabled = ["flair"]
 
-[annotators.pubtator3]
-runtime = "remote_api"
-endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
-format = "biocjson"
-timeout = 45
-mode = "text_only"
-bioconcept = "All"
-poll_interval_seconds = 2.0
-poll_backoff = 1.25
-max_poll_interval_seconds = 5.0
-max_poll_attempts = 12
-max_poll_seconds = 45.0
+[annotators.flair]
+model = "hunflair2"
 
 [filters]
 entity_types = []
