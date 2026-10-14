@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from bio_annotation.entity_proposal.apollo_proposer import APOLLO_INSTALL_HINT
-from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT
+from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, DEFAULT_BENT_TYPES
 from bio_annotation.entity_proposal.clinicalbert_proposer import CLINICALBERT_INSTALL_HINT
 from bio_annotation.entity_proposal.d4data_proposer import D4DATA_INSTALL_HINT
 from bio_annotation.entity_proposal.flair_proposer import FLAIR_INSTALL_HINT
@@ -154,6 +154,16 @@ def bent_root(project: str) -> Path | None:
     return roots[0] if roots else None
 
 
+def bent_required_kbs(settings: dict[str, object]) -> list[str]:
+    """KB dictionaries the configured BENT types link against; none in NER-only mode."""
+
+    if settings.get("mode") == "ner":
+        return []
+    types = settings.get("types")
+    kbs = [kb.strip() for kb in types.values() if isinstance(kb, str) and kb.strip()] if isinstance(types, dict) else []
+    return list(dict.fromkeys(kbs or DEFAULT_BENT_TYPES.values()))
+
+
 def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
     """Whether a setup-script annotator has its environment and resources in place."""
 
@@ -169,8 +179,7 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
             (root / "data" / "NILINKER").exists()
             and (root / "data" / "overlapping_entities").exists()
             and (root / "abbreviation_detector" / "Ab3P" / "identify_abbr").exists()
-            and dicts.is_dir()
-            and any(dicts.iterdir())
+            and all((dicts / kb).is_dir() for kb in bent_required_kbs(settings))
         )
     return True
 
@@ -210,5 +219,9 @@ def ensure_tool_environments(
         if input_fn("Run it now? [Y/n] ").strip().lower() not in ("", "y", "yes"):
             output_fn(f"Skipping setup. {skipped}")
             continue
-        if subprocess.run(["bash", str(script)], check=False).returncode != 0:
+        env = None
+        if annotator == "bent" and (kbs := bent_required_kbs(settings_by_annotator.get(annotator, {}))):
+            # setup.sh downloads only the KBs in BENT_KBS, so pass the configured ones.
+            env = {**os.environ, "BENT_KBS": ",".join(kbs)}
+        if subprocess.run(["bash", str(script)], check=False, env=env).returncode != 0:
             output_fn(f"{script} failed. {skipped}")
