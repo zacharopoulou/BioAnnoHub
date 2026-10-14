@@ -19,7 +19,6 @@ from typing import Callable, Iterable
 
 from bio_annotation.entity_proposal.apollo_proposer import APOLLO_INSTALL_HINT
 from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT
-from bio_annotation.entity_proposal.biobert_proposer import BIOBERT_INSTALL_HINT
 from bio_annotation.entity_proposal.clinicalbert_proposer import CLINICALBERT_INSTALL_HINT
 from bio_annotation.entity_proposal.d4data_proposer import D4DATA_INSTALL_HINT
 from bio_annotation.entity_proposal.flair_proposer import FLAIR_INSTALL_HINT
@@ -37,7 +36,6 @@ DISABLE_ENV_VAR = "TOTALANNOTATOR_NO_AUTO_INSTALL"
 EXTRA_MODULES: dict[str, tuple[str, ...]] = {
     "flair": ("flair",),
     "clinicalbert": ("transformers", "torch"),
-    "biobert": ("transformers", "torch"),
     "apollo": ("transformers", "torch"),
     "d4data": ("transformers", "torch"),
     "stanza": ("stanza",),
@@ -48,7 +46,6 @@ EXTRA_MODULES: dict[str, tuple[str, ...]] = {
 ANNOTATOR_EXTRAS: dict[str, str] = {
     "flair": "flair",
     "clinicalbert": "clinicalbert",
-    "biobert": "biobert",
     "apollo": "apollo",
     "d4data": "d4data",
     **{annotator: "scispacy" for annotator in SCISPACY_MODEL_BY_ANNOTATOR},
@@ -58,7 +55,6 @@ ANNOTATOR_EXTRAS: dict[str, str] = {
 EXTRA_INSTALL_HINTS: dict[str, str] = {
     "flair": FLAIR_INSTALL_HINT,
     "clinicalbert": CLINICALBERT_INSTALL_HINT,
-    "biobert": BIOBERT_INSTALL_HINT,
     "apollo": APOLLO_INSTALL_HINT,
     "d4data": D4DATA_INSTALL_HINT,
     "stanza": STANZA_INSTALL_HINT,

@@ -182,14 +182,14 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators, or press Enter for default annotators",
         choices=ANNOTATOR_CHOICES,
-        # AIONER and BENT need separate environments + models, BioBERT/apollo/d4data
+        # AIONER and BENT need separate environments + models, ClinicalBERT/apollo/d4data
         # download local models, MedCAT needs a running MedCATservice, and
         # Stanza/scispaCy require separate local model resources, so none are
         # pre-selected.
         default_values=[
             value
             for value, _ in ANNOTATOR_CHOICES
-            if value not in {"aioner", "bent", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
+            if value not in {"aioner", "bent", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
         ],
         validate_values=_validate_selected_annotators,
     )

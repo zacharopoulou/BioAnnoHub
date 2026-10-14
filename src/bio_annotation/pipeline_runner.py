@@ -20,10 +20,6 @@ from bio_annotation.annotators.apollo import (
 )
 from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
-from bio_annotation.annotators.biobert import (
-    annotate_with_biobert,
-    load_biobert_pipelines,
-)
 from bio_annotation.annotators.clinicalbert import (
     DEFAULT_CLINICALBERT_MODEL,
     _load_clinicalbert_pipeline,
@@ -79,7 +75,6 @@ SUPPORTED_ANNOTATORS = {
     "aioner",
     "bent",
     "clinicalbert",
-    "biobert",
     "apollo",
     "d4data",
     "medcat",
@@ -110,7 +105,6 @@ def run_pipeline_from_config(
     aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
-    biobert_responses_by_document: dict[str, dict[str, Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
@@ -125,7 +119,6 @@ def run_pipeline_from_config(
         config,
         flair_spans_by_document=flair_spans_by_document,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
-        biobert_responses_by_document=biobert_responses_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
         scispacy_responses_by_document=scispacy_responses_by_document,
@@ -159,7 +152,6 @@ def run_pipeline_from_config(
         aioner_request_fn=aioner_request_fn,
         bent_request_fn=bent_request_fn,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
-        biobert_responses_by_document=biobert_responses_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
         medcat_request_fn=medcat_request_fn,
@@ -200,7 +192,6 @@ def build_pipeline_output(
     aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
-    biobert_responses_by_document: dict[str, dict[str, Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
@@ -254,12 +245,6 @@ def build_pipeline_output(
             clinicalbert_pipeline = _load_clinicalbert_pipeline(clinicalbert_options["model"])
         except Exception as exc:
             logger.warning("clinicalbert unavailable: %s", exc)
-    biobert_pipelines = None
-    if "biobert" in enabled_annotators and biobert_responses_by_document is None:
-        try:
-            biobert_pipelines = load_biobert_pipelines()
-        except Exception as exc:
-            logger.warning("biobert unavailable: %s", exc)
     apollo_pipeline = None
     if "apollo" in enabled_annotators and apollo_responses_by_document is None:
         try:
@@ -327,12 +312,6 @@ def build_pipeline_output(
             ),
             clinicalbert_pipeline=clinicalbert_pipeline,
             clinicalbert_options=clinicalbert_options,
-            biobert_response=(
-                biobert_responses_by_document.get(document.document_id)
-                if biobert_responses_by_document is not None
-                else None
-            ),
-            biobert_pipelines=biobert_pipelines,
             apollo_response=(
                 apollo_responses_by_document.get(document.document_id)
                 if apollo_responses_by_document is not None
@@ -688,8 +667,6 @@ def run_selected_annotators(
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
     clinicalbert_options: dict[str, Any] | None = None,
-    biobert_response: Any = None,
-    biobert_pipelines: Any = None,
     apollo_response: Any = None,
     apollo_pipeline: Any = None,
     apollo_options: dict[str, Any] | None = None,
@@ -722,8 +699,6 @@ def run_selected_annotators(
         clinicalbert_response=clinicalbert_response,
         clinicalbert_pipeline=clinicalbert_pipeline,
         clinicalbert_options=clinicalbert_options,
-        biobert_response=biobert_response,
-        biobert_pipelines=biobert_pipelines,
         apollo_response=apollo_response,
         apollo_pipeline=apollo_pipeline,
         apollo_options=apollo_options,
@@ -760,8 +735,6 @@ def run_selected_annotators_with_status(
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
     clinicalbert_options: dict[str, Any] | None = None,
-    biobert_response: Any = None,
-    biobert_pipelines: Any = None,
     apollo_response: Any = None,
     apollo_pipeline: Any = None,
     apollo_options: dict[str, Any] | None = None,
@@ -881,12 +854,6 @@ def run_selected_annotators_with_status(
                     pipeline=clinicalbert_pipeline,
                     model=clinicalbert_options.get("model") if clinicalbert_options else None,
                 )
-            elif annotator == "biobert":
-                results[annotator] = annotate_with_biobert(
-                    document,
-                    response=biobert_response,
-                    pipelines=biobert_pipelines,
-                )
             elif annotator == "apollo":
                 results[annotator] = annotate_with_apollo(
                     document,
@@ -976,7 +943,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "bent",
         "apollo",
         "clinicalbert",
-        "biobert",
         "d4data",
         "medcat",
         *SCISPACY_ANNOTATORS,
@@ -1188,11 +1154,6 @@ def _no_annotations_reason(annotator: str) -> str:
             "No annotations returned. The ClinicalBERT model may be unavailable/not "
             "downloaded (uv sync --extra clinicalbert), or it found no entities."
         )
-    if annotator == "biobert":
-        return (
-            "No annotations returned. The BioBERT models may be unavailable/not "
-            "downloaded (uv sync --extra biobert), or they found no entities."
-        )
     if annotator == "apollo":
         return (
             "No annotations returned. The apollo model may be unavailable/not "
@@ -1378,7 +1339,6 @@ def validate_optional_annotator_dependencies(
     *,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
-    biobert_responses_by_document: dict[str, dict[str, Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
@@ -1387,7 +1347,6 @@ def validate_optional_annotator_dependencies(
     injected = {
         "flair": flair_spans_by_document,
         "clinicalbert": clinicalbert_responses_by_document,
-        "biobert": biobert_responses_by_document,
         "apollo": apollo_responses_by_document,
         "d4data": d4data_responses_by_document,
         "scispacy": scispacy_responses_by_document,
