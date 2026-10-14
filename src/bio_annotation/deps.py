@@ -133,32 +133,18 @@ def ensure_extras(
 # Annotators provisioned by a setup script instead of a pip extra: they need an
 # external repo, their own interpreter, or downloaded resources.
 TOOL_SETUP_SCRIPTS: dict[str, str] = {
-    "aioner": "tools/aioner/setup.sh",
     "bent": "tools/bent/setup.sh",
 }
 TOOL_SETUP_NOTES: dict[str, str] = {
-    "aioner": (
-        "Clones the AIONER repo, downloads ~1.5 GB of pretrained models, and provisions "
-        "a separate Python 3.8 environment."
-    ),
     "bent": (
         "Provisions a separate Python <=3.10 environment and downloads BENT's resources. "
         "Needs wget, git, make, g++ and javac on PATH."
     ),
 }
-AIONER_DEFAULT_MODEL_RELPATH = "pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
-
-
-def aioner_config_paths() -> tuple[str, str]:
-    """Resolve AIONER repo/model paths for the generated config."""
-
-    repo = os.environ.get("AIONER_REPO") or str(repo_root() / "AIONER")
-    model = os.environ.get("AIONER_MODEL") or str(Path(repo) / AIONER_DEFAULT_MODEL_RELPATH)
-    return repo, model
 
 
 def bent_root(project: str) -> Path | None:
@@ -171,12 +157,6 @@ def bent_root(project: str) -> Path | None:
 def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
     """Whether a setup-script annotator has its environment and resources in place."""
 
-    if annotator == "aioner":
-        _, model = aioner_config_paths()
-        configured = settings.get("model")
-        if isinstance(configured, str) and configured.strip():
-            model = configured.strip()
-        return Path(model).exists() and (repo_root() / "tools" / "aioner" / ".venv").exists()
     if annotator == "bent":
         project = settings.get("project")
         directory = project.strip() if isinstance(project, str) and project.strip() else DEFAULT_BENT_PROJECT
