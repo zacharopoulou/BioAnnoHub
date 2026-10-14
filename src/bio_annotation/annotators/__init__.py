@@ -8,7 +8,6 @@ from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import annotate_with_apollo
 from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
-from bio_annotation.annotators.clinicalbert import annotate_with_clinicalbert
 from bio_annotation.annotators.d4data import annotate_with_d4data
 from bio_annotation.annotators.flair import annotate_with_flair
 from bio_annotation.annotators.medcat import annotate_with_medcat
@@ -46,9 +45,6 @@ def run_all_annotators(
     aioner_request_fn: Any = None,
     bent_response: Any = None,
     bent_request_fn: Any = None,
-    clinicalbert_response: Any = None,
-    clinicalbert_request_fn: Any = None,
-    clinicalbert_pipeline: Any = None,
     apollo_response: Any = None,
     apollo_request_fn: Any = None,
     apollo_pipeline: Any = None,
@@ -114,19 +110,6 @@ def run_all_annotators(
             document,
             response=bent_response,
             request_fn=bent_request_fn,
-        )
-    # ClinicalBERT loads a local HuggingFace model, so only invoke it when an
-    # explicit response, request function, or loaded pipeline is supplied.
-    if (
-        clinicalbert_response is not None
-        or clinicalbert_request_fn is not None
-        or clinicalbert_pipeline is not None
-    ):
-        results["clinicalbert"] = annotate_with_clinicalbert(
-            document,
-            response=clinicalbert_response,
-            request_fn=clinicalbert_request_fn,
-            pipeline=clinicalbert_pipeline,
         )
     # apollo loads a local HuggingFace model, so only invoke it when an explicit
     # response, request function, or loaded pipeline is supplied (avoids loading
@@ -252,7 +235,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "pubtator3",
         "aioner",
         "bent",
-        "clinicalbert",
         "apollo",
         "d4data",
         "medcat",
@@ -272,7 +254,6 @@ __all__ = [
     "annotate_with_apollo",
     "annotate_with_bent",
     "annotate_with_bern2",
-    "annotate_with_clinicalbert",
     "annotate_with_d4data",
     "annotate_with_flair",
     "annotate_with_medcat",
