@@ -46,6 +46,7 @@ from bio_annotation.deps import (
     ensure_tool_environments,
     extra_installed,
 )
+from bio_annotation.entity_proposal.medcat_proposer import reset_reported_endpoints
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
     stanza_model_for_annotator,
@@ -196,6 +197,7 @@ def build_pipeline_output(
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
     _validate_annotators(enabled_annotators)
+    reset_reported_endpoints()
     input_description = resolve_input_description(config)
     corpus_documents = [document_to_dict(document) for document in documents]
     bern2_options = _read_bern2_options(annotator_settings.get("bern2", {}))
