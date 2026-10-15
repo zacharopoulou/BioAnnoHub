@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/mlee"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/mlee (its latest commit when it was pinned).
+HF_REVISION = "e83ef1dba6092f84581c3d6a57b72bcec86811ac"
 HF_CONFIG = "mlee_bigbio_kb"
 SPLITS = ("train", "validation", "test")
 
@@ -55,6 +58,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=HF_CONFIG,
         split=split,
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (dict(row) for row in ds))

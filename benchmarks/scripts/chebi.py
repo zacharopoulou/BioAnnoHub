@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/chebi_nactem"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/chebi_nactem (its latest commit when it was pinned).
+HF_REVISION = "1edad51fe17c6e0321a7aaebfefecda9347783c6"
 # Output file name -> Hugging Face config. The loader puts everything in "train".
 SPLITS = ("chebi_fullpaper", "chebi_abstracts_ann1", "chebi_abstracts_ann2")
 HF_CONFIGS = {
@@ -89,6 +92,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=HF_CONFIGS[split],
         split=HF_SPLIT,
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (_trim_offsets(dict(row)) for row in ds))

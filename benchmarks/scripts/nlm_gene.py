@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/nlm_gene"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/nlm_gene (its latest commit when it was pinned).
+HF_REVISION = "c03750c25daa63162664ac6e92b6b0ca59bebf6e"
 HF_CONFIG = "nlm_gene_bigbio_kb"
 SPLITS = ("train", "test")  # NLM-Gene has no validation split
 
@@ -55,6 +58,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=HF_CONFIG,
         split=split,
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (dict(row) for row in ds))

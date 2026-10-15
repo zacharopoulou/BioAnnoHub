@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/tmvar_v3"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/tmvar_v3 (its latest commit when it was pinned).
+HF_REVISION = "288f10ee20212d03e0e070bbf7c4008c21410797"
 HF_CONFIG = "tmvar_v3_bigbio_kb"
 SPLITS = ("tmvar_v3",)  # tmVar3 has no splits: the whole corpus is one file, tmvar_v3.jsonl
 # The HF loader still has to name a split and puts all 500 docs under "test".
@@ -57,6 +60,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=HF_CONFIG,
         split=HF_SPLITS[split],
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (dict(row) for row in ds))

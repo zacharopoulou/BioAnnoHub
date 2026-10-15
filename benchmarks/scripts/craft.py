@@ -32,6 +32,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/craft"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/craft (its latest commit when it was pinned).
+HF_REVISION = "b29f3d477f898522f3a55ddcab66229377ad2f35"
 HF_CONFIG = "craft_bigbio_kb"
 SPLITS = ("train", "validation", "test")
 CRAFT_URL = "https://github.com/UCDenver-ccp/CRAFT/archive/refs/tags/v5.0.2.zip"
@@ -94,7 +97,7 @@ def _prepared_builder():
             "Install with: uv sync --extra benchmarks"
         ) from exc
 
-    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True)
+    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True, revision=HF_REVISION)
     module = sys.modules[type(builder).__module__]
 
     def _open_utf8(file, mode="r", *args, **kwargs):

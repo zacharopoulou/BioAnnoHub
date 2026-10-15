@@ -24,7 +24,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_REPO = "Angelakeke/RaTE-NER"
-HF_REVISION = "7327bf066d997713245ae61815a3b973406ea7b9"  # pinned for reproducibility
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/Angelakeke/RaTE-NER (its latest commit when it was pinned).
+HF_REVISION = "7327bf066d997713245ae61815a3b973406ea7b9"
 SUBSET = "Radiopaedia"
 SPLITS = {"train": "train", "validation": "dev", "test": "test"}  # our name -> file name
 

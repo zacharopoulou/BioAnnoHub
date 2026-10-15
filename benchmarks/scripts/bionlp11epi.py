@@ -32,6 +32,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/bionlp_st_2011_epi"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/bionlp_st_2011_epi (its latest commit when it was pinned).
+HF_REVISION = "e70d21156918fd00eed1f61f6cdb19c91f258043"
 HF_CONFIG = "bionlp_st_2011_epi_bigbio_kb"
 SPLITS = ("train", "validation", "test")
 SOURCE_COMMIT = "9e9b686175015e1adc629d3ee3857be004dcd923"
@@ -102,7 +105,7 @@ def _prepared_builder():
             "Install with: uv sync --extra benchmarks"
         ) from exc
 
-    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True)
+    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True, revision=HF_REVISION)
     split_generators = type(builder)._split_generators
 
     with tempfile.TemporaryDirectory() as tmp:

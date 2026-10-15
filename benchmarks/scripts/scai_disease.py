@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/scai_disease"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/scai_disease (its latest commit when it was pinned).
+HF_REVISION = "f6c472901388e52ccf5d5a7a24da403951eff5bb"
 HF_CONFIG = "scai_disease_bigbio_kb"
 SPLITS = ("scai_disease",)  # no splits: the whole corpus is one file, scai_disease.jsonl
 # The HF loader still has to name a split and puts all 400 docs under "train".
@@ -57,6 +60,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=HF_CONFIG,
         split=HF_SPLITS[split],
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (dict(row) for row in ds))

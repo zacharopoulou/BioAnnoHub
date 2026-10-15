@@ -32,6 +32,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/mantra_gsc"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/mantra_gsc (its latest commit when it was pinned).
+HF_REVISION = "babc253e90d3c0c63b6f676f4021473623bf4f00"
 # Output file name -> Hugging Face config. The loader puts everything in "train".
 SPLITS = ("mantra_en_medline", "mantra_en_emea", "mantra_en_patents")
 HF_CONFIGS = {
@@ -111,6 +114,7 @@ def download_split(split: str, data_dir: Path) -> Path:
             split=HF_SPLIT,
             trust_remote_code=True,
             download_mode="force_redownload",
+            revision=HF_REVISION,
         )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (_map_types(dict(row)) for row in ds))

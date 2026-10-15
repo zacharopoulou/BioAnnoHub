@@ -25,6 +25,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/linnaeus"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/linnaeus (its latest commit when it was pinned).
+HF_REVISION = "296f506a445246476178df0d6e749a04cb29aafd"
 HF_CONFIG = "linnaeus_bigbio_kb"
 SPLITS = ("linnaeus",)  # LINNAEUS has no splits: the whole corpus is one file, linnaeus.jsonl
 # The HF loader still has to name a split and puts all docs under "train".
@@ -67,7 +70,7 @@ def download_split(split: str, data_dir: Path) -> Path:
             "Install with: uv sync --extra benchmarks"
         ) from exc
 
-    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True)
+    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True, revision=HF_REVISION)
     load_tags = type(builder)._load_tags
 
     def _load_tags_all_docs(path: Path) -> dict:

@@ -21,6 +21,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/ddi_corpus"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/ddi_corpus (its latest commit when it was pinned).
+HF_REVISION = "da8e94986a0c689095b22bed134248b11f9311c7"
 HF_CONFIG = "ddi_corpus_bigbio_kb"
 SPLITS = ("train", "test")  # the DDI corpus has no validation split
 SOURCE_COMMIT = "819b0fa538ed83ab2a8b4f5417bba3c03249b7f3"
@@ -82,6 +85,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=HF_CONFIG,
         split=split,
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     rows: Iterable[dict[str, Any]] = (dict(row) for row in ds)
     if split == "test":

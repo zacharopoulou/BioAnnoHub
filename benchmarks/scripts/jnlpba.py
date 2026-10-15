@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "jnlpba/jnlpba"  # same data as bigbio/jnlpba's jnlpba_source config
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/jnlpba/jnlpba (its latest commit when it was pinned).
+HF_REVISION = "282eba950020b54bfc7c29b70aed6431a0723217"
 HF_CONFIG: str | None = None  # this dataset has no config name
 SPLITS = ("train", "test")  # JNLPBA has no validation split
 # Hugging Face calls the official test set "validation".
@@ -133,7 +136,13 @@ def download_split(split: str, data_dir: Path) -> Path:
             "Install with: uv sync --extra benchmarks"
         ) from exc
 
-    ds = load_dataset(HF_DATASET, name=HF_CONFIG, split=HF_SPLITS[split])
+    ds = load_dataset(
+        HF_DATASET,
+        name=HF_CONFIG,
+        split=HF_SPLITS[split],
+        trust_remote_code=True,
+        revision=HF_REVISION,
+    )
     tag_names = ds.features["ner_tags"].feature.names
     target = _split_file(data_dir, split)
     _write_jsonl(target, (_to_bigbio_kb(i, dict(row), tag_names) for i, row in enumerate(ds)))

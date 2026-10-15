@@ -31,6 +31,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/bioid"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/bioid (its latest commit when it was pinned).
+HF_REVISION = "bac84af4fe88dddd3ac5867e4d67e76924b28659"
 HF_CONFIG = "bioid_bigbio_kb"
 SPLITS = ("bioid",)  # BioID has no splits: the whole released corpus is one file, bioid.jsonl
 # The HF loader still has to name a split and puts all captions under "train".
@@ -94,7 +97,7 @@ def download_split(split: str, data_dir: Path) -> Path:
 
     pd.set_option("future.infer_string", False)
 
-    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True)
+    builder = load_dataset_builder(HF_DATASET, name=HF_CONFIG, trust_remote_code=True, revision=HF_REVISION)
     module = sys.modules[type(builder).__module__]
     module._URLS["bioid"] = ARCHIVE_URL
     type(builder).load_annotations = _load_annotations_fixed

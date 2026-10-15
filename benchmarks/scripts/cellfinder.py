@@ -10,6 +10,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/cellfinder"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/cellfinder (its latest commit when it was pinned).
+HF_REVISION = "6f0dbdfff00869acca7865a6defdefa1c63397bc"
 HF_CONFIG = "cellfinder_bigbio_kb"
 SPLITS = ("train", "test")  # CellFinder has no validation split
 
@@ -55,6 +58,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=HF_CONFIG,
         split=split,
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (dict(row) for row in ds))

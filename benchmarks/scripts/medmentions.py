@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "bigbio/medmentions"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/bigbio/medmentions (its latest commit when it was pinned).
+HF_REVISION = "c8de447c7fb7241ef37538644107a6a5e1d95e43"
 VERSIONS = ("st21pv", "full")
 HF_SPLITS = ("train", "validation", "test")
 # Output file name -> (Hugging Face config, Hugging Face split).
@@ -67,6 +70,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         name=f"medmentions_{version}_bigbio_kb",
         split=hf_split,
         trust_remote_code=True,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (dict(row) for row in ds))
