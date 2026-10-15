@@ -1,19 +1,19 @@
 # Benchmarks download
 
-`benchmarks/download.py` downloads the benchmark corpora into
+`bioannohub download-benchmarks` downloads the benchmark corpora into
 `benchmarks/data/`: all of them, or the ones picked from a list. Run it from
-the repository root:
+the repository:
 
 ```
-uv run --extra benchmarks python benchmarks/download.py            # pick from a list
-uv run --extra benchmarks python benchmarks/download.py --all      # everything public
-uv run python benchmarks/download.py --list                        # just shows the table
+uv run --extra benchmarks bioannohub download-benchmarks            # pick from a list
+uv run --extra benchmarks bioannohub download-benchmarks --all      # everything public
+uv run bioannohub download-benchmarks --list                        # just shows the table
 ```
 
 At the prompt, choose by number (`1,3,5-8`), by name (`biored ncbi`) or
 `all`. Press Enter to quit.
 
-Each benchmark has its own script in `benchmarks/scripts/`. `download.py`
+Each benchmark has its own script in `benchmarks/scripts/`. The command
 runs them one after the other and prints a short summary. A benchmark whose
 files are already on disk is skipped by its script, so running it again is
 safe.
