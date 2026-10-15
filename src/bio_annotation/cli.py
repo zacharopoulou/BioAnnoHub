@@ -151,8 +151,56 @@ def build_parser() -> argparse.ArgumentParser:
         default=25,
         help="Print benchmark progress every N documents. Default: 25.",
     )
-    search_parser = subparsers.add_parser("search-pmids", help="Search PubMed and write matching PMIDs to a file.")
-    search_parser.add_argument("--query", required=True, help="PubMed query string.")
+    search_parser = subparsers.add_parser(
+        "search-pmids",
+        help="Search PubMed and write matching PMIDs to a file.",
+        description=(
+            "Search PubMed and write matching PMIDs to a file. "
+            "Queries use standard PubMed syntax, including Boolean operators "
+            "and field tags."
+        ),
+        epilog="""examples:
+  Free-text search:
+    totalannotator search-pmids \\
+      --query 'glioblastoma AND microRNA' \\
+      --output data/inputs/query_pmids.txt
+
+  MeSH search:
+    totalannotator search-pmids \\
+      --query '"Glioblastoma"[MeSH Terms] AND "MicroRNAs"[MeSH Terms]' \\
+      --output data/inputs/query_pmids.txt
+
+  Publication type filter:
+    totalannotator search-pmids \\
+      --query 'glioblastoma AND microRNA' \\
+      --filter '"Review"[Publication Type]' \\
+      --output data/inputs/query_pmids.txt
+
+  Multiple filters with dates:
+    totalannotator search-pmids \\
+      --query '"Glioblastoma"[MeSH Terms]' \\
+      --filter '"Review"[Publication Type]' \\
+      --filter 'english[Language]' \\
+      --date-from 2020 \\
+      --date-to 2024 \\
+      --output data/inputs/query_pmids.txt
+
+Notes:
+  --query and each --filter are passed to PubMed ESearch syntax.
+  Use PubMed field tags such as [MeSH Terms], [Publication Type],
+  [Language], and [Date - Publication]. Each --filter is appended
+  to the query with AND.
+""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    search_parser.add_argument(
+        "--query",
+        required=True,
+        help=(
+            "PubMed query string. Supports standard PubMed Boolean operators "
+            "and field tags, including [MeSH Terms] and [Publication Type]."
+        ),
+    )
     search_parser.add_argument(
         "--max-results",
         type=positive_int,
@@ -166,7 +214,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--filter",
         action="append",
         default=[],
-        help="Additional raw PubMed filter clause. Can be repeated.",
+        help=(
+            "Additional PubMed filter clause appended with AND. Supports the "
+            "same PubMed field tags as --query and can be repeated."
+        ),
     )
     search_parser.add_argument(
         "--output",
@@ -302,6 +353,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "search-pmids":
         try:
+            print(
+                "Searching PubMed; large result sets may be split by publication date...",
+                file=sys.stderr,
+                flush=True,
+            )
             pmids = search_pubmed_pmids(
                 args.query,
                 max_results=args.max_results,
@@ -309,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
                 date_to=args.date_to,
                 sort_by=args.sort_by,
                 filters=args.filter,
+                progress_callback=print_pubmed_search_progress,
             )
             write_pmids(args.output, pmids)
         except ValueError as exc:
@@ -329,6 +386,30 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.print_help()
     return 1
+
+
+def print_pubmed_search_progress(event: dict[str, object]) -> None:
+    stage = event.get("stage")
+    start = event.get("start")
+    end = event.get("end")
+    count = event.get("count")
+    collected = int(event.get("collected") or 0)
+    max_results = event.get("max_results")
+    cap_reached = isinstance(max_results, int) and collected >= max_results
+    window = f"{start} to {end}"
+    if stage == "searching":
+        print(f"Searching PubMed window {window}...", file=sys.stderr, flush=True)
+    elif stage == "window_complete":
+        print(f"PubMed window {window}: {count} result(s).", file=sys.stderr, flush=True)
+    elif stage == "splitting":
+        print(
+            f"Window {window} is above the PubMed request cap; splitting into smaller date ranges.",
+            file=sys.stderr,
+            flush=True,
+        )
+    elif stage == "collected":
+        suffix = " (output cap reached)" if cap_reached else ""
+        print(f"Collected {collected} PMID(s) so far{suffix}.", file=sys.stderr, flush=True)
 
 
 def print_benchmark_progress(index: int, total: int, document_id: str) -> None:
