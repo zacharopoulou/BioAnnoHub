@@ -16,6 +16,7 @@ from bio_annotation.entity_proposal.aioner_proposer import (
 from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, DEFAULT_BENT_TYPES
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
+from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
 from bio_annotation.deps import aioner_config_paths
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
@@ -187,14 +188,14 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         output_fn=output_fn,
         title="Choose annotators, or press Enter for default annotators",
         choices=annotator_choices,
-        # AIONER and BENT need separate environments + models, apollo/d4data
+        # AIONER and BENT need separate environments + models, ClinicalBERT/apollo/d4data
         # download local models, MedCAT needs a running MedCATservice, and
         # Stanza/scispaCy require separate local model resources, so none are
         # pre-selected.
         default_values=[
             value
             for value, _ in annotator_choices
-            if value not in {"aioner", "bent", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
+            if value not in {"aioner", "bent", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
         ],
         validate_values=_validate_selected_annotators,
     )
@@ -302,6 +303,8 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
     if "bent" in answers.annotators:
         lines += ["", "[annotators.bent]", 'runtime = "local_subprocess"', 'mode = "ner_nel"', f"project = {_toml_string(DEFAULT_BENT_PROJECT)}", "timeout = 900", "", "[annotators.bent.types]"]
         lines += [f"{entity_type} = {_toml_string(kb)}" for entity_type, kb in DEFAULT_BENT_TYPES.items()]
+    if "clinicalbert" in answers.annotators:
+        lines += ["", "[annotators.clinicalbert]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_CLINICALBERT_MODEL)}"]
     if "apollo" in answers.annotators:
         lines += ["", "[annotators.apollo]", 'runtime = "local_model"', f"model = {_toml_string(DEFAULT_APOLLO_MODEL)}"]
     if "d4data" in answers.annotators:
@@ -363,7 +366,7 @@ def find_unsupported_entity_types(annotators: list[str], entity_types: list[str]
 
 def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ...]:
     # Offer the entity types the selected annotators actually produce, so a
-    # clinical annotator like Stanza i2b2 adds its own categories (problem /
+    # clinical annotator like ClinicalBERT adds its own categories (problem /
     # test / treatment) to the menu. Canonical types stay first, in their usual
     # order; extra annotator-specific types follow.
     available: set[str] = set()

@@ -20,6 +20,11 @@ from bio_annotation.annotators.apollo import (
 )
 from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
+from bio_annotation.annotators.clinicalbert import (
+    DEFAULT_CLINICALBERT_MODEL,
+    _load_clinicalbert_pipeline,
+    annotate_with_clinicalbert,
+)
 from bio_annotation.annotators.d4data import (
     DEFAULT_D4DATA_MODEL,
     _load_d4data_pipeline,
@@ -69,6 +74,7 @@ SUPPORTED_ANNOTATORS = {
     "pubtator3",
     "aioner",
     "bent",
+    "clinicalbert",
     "apollo",
     "d4data",
     "medcat",
@@ -98,6 +104,7 @@ def run_pipeline_from_config(
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
+    clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
@@ -111,6 +118,7 @@ def run_pipeline_from_config(
     validate_optional_annotator_dependencies(
         config,
         flair_spans_by_document=flair_spans_by_document,
+        clinicalbert_responses_by_document=clinicalbert_responses_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
         scispacy_responses_by_document=scispacy_responses_by_document,
@@ -143,6 +151,7 @@ def run_pipeline_from_config(
         flair_spans_by_document=flair_spans_by_document,
         aioner_request_fn=aioner_request_fn,
         bent_request_fn=bent_request_fn,
+        clinicalbert_responses_by_document=clinicalbert_responses_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
         medcat_request_fn=medcat_request_fn,
@@ -182,6 +191,7 @@ def build_pipeline_output(
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
+    clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
@@ -198,6 +208,7 @@ def build_pipeline_output(
     flair_options = _read_flair_options(annotator_settings.get("flair", {}))
     aioner_options = _read_aioner_options(annotator_settings.get("aioner", {}))
     bent_options = _read_bent_options(annotator_settings.get("bent", {}))
+    clinicalbert_options = _read_clinicalbert_options(annotator_settings.get("clinicalbert", {}))
     apollo_options = _read_apollo_options(annotator_settings.get("apollo", {}))
     d4data_options = _read_d4data_options(annotator_settings.get("d4data", {}))
     medcat_options = _read_medcat_options(annotator_settings.get("medcat", {}))
@@ -228,6 +239,12 @@ def build_pipeline_output(
                     flair_linkers.append(_load_flair_linker(linker_name))
                 except Exception as exc:
                     logger.warning("flair linker %s unavailable: %s", linker_name, exc)
+    clinicalbert_pipeline = None
+    if "clinicalbert" in enabled_annotators and clinicalbert_responses_by_document is None:
+        try:
+            clinicalbert_pipeline = _load_clinicalbert_pipeline(clinicalbert_options["model"])
+        except Exception as exc:
+            logger.warning("clinicalbert unavailable: %s", exc)
     apollo_pipeline = None
     if "apollo" in enabled_annotators and apollo_responses_by_document is None:
         try:
@@ -288,6 +305,13 @@ def build_pipeline_output(
             flair_tagger=flair_tagger,
             flair_linkers=flair_linkers,
             flair_options=flair_options,
+            clinicalbert_response=(
+                clinicalbert_responses_by_document.get(document.document_id)
+                if clinicalbert_responses_by_document is not None
+                else None
+            ),
+            clinicalbert_pipeline=clinicalbert_pipeline,
+            clinicalbert_options=clinicalbert_options,
             apollo_response=(
                 apollo_responses_by_document.get(document.document_id)
                 if apollo_responses_by_document is not None
@@ -640,6 +664,9 @@ def run_selected_annotators(
     flair_tagger: Any = None,
     flair_linkers: list[Any] | None = None,
     flair_options: dict[str, Any] | None = None,
+    clinicalbert_response: Any = None,
+    clinicalbert_pipeline: Any = None,
+    clinicalbert_options: dict[str, Any] | None = None,
     apollo_response: Any = None,
     apollo_pipeline: Any = None,
     apollo_options: dict[str, Any] | None = None,
@@ -669,6 +696,9 @@ def run_selected_annotators(
         flair_tagger=flair_tagger,
         flair_linkers=flair_linkers,
         flair_options=flair_options,
+        clinicalbert_response=clinicalbert_response,
+        clinicalbert_pipeline=clinicalbert_pipeline,
+        clinicalbert_options=clinicalbert_options,
         apollo_response=apollo_response,
         apollo_pipeline=apollo_pipeline,
         apollo_options=apollo_options,
@@ -702,6 +732,9 @@ def run_selected_annotators_with_status(
     flair_tagger: Any = None,
     flair_linkers: list[Any] | None = None,
     flair_options: dict[str, Any] | None = None,
+    clinicalbert_response: Any = None,
+    clinicalbert_pipeline: Any = None,
+    clinicalbert_options: dict[str, Any] | None = None,
     apollo_response: Any = None,
     apollo_pipeline: Any = None,
     apollo_options: dict[str, Any] | None = None,
@@ -783,6 +816,13 @@ def run_selected_annotators_with_status(
                     timeout=bent_options.get("timeout", 900)
                     if bent_options
                     else 900,
+                )
+            elif annotator == "clinicalbert":
+                results[annotator] = annotate_with_clinicalbert(
+                    document,
+                    response=clinicalbert_response,
+                    pipeline=clinicalbert_pipeline,
+                    model=clinicalbert_options.get("model") if clinicalbert_options else None,
                 )
             elif annotator == "apollo":
                 results[annotator] = annotate_with_apollo(
@@ -872,6 +912,7 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "aioner",
         "bent",
         "apollo",
+        "clinicalbert",
         "d4data",
         "medcat",
         *SCISPACY_ANNOTATORS,
@@ -1078,6 +1119,11 @@ def _no_annotations_reason(annotator: str) -> str:
             "(tools/aioner/setup.sh) and annotators.aioner.repo/model are set, "
             "or it found no entities."
         )
+    if annotator == "clinicalbert":
+        return (
+            "No annotations returned. The ClinicalBERT model may be unavailable/not "
+            "downloaded (uv sync --extra clinicalbert), or it found no entities."
+        )
     if annotator == "apollo":
         return (
             "No annotations returned. The apollo model may be unavailable/not "
@@ -1246,6 +1292,7 @@ def validate_optional_annotator_dependencies(
     config: PipelineConfig,
     *,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
+    clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
@@ -1253,6 +1300,7 @@ def validate_optional_annotator_dependencies(
 ) -> None:
     injected = {
         "flair": flair_spans_by_document,
+        "clinicalbert": clinicalbert_responses_by_document,
         "apollo": apollo_responses_by_document,
         "d4data": d4data_responses_by_document,
         "scispacy": scispacy_responses_by_document,
@@ -1428,6 +1476,15 @@ def _load_flair_linker(model: str) -> Any:
 
     flair.logger.setLevel(logging.WARNING)
     return EntityMentionLinker.load(model)
+
+
+def _read_clinicalbert_options(settings: dict[str, object]) -> dict[str, Any]:
+    model = settings.get("model")
+    return {
+        "model": model.strip()
+        if isinstance(model, str) and model.strip()
+        else DEFAULT_CLINICALBERT_MODEL,
+    }
 
 
 def _read_apollo_options(settings: dict[str, object]) -> dict[str, Any]:

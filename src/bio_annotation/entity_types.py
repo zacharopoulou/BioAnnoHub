@@ -114,10 +114,7 @@ STANZA_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str], ...] = (
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell line", "cell_line"),
     ("stanza_jnlpba", "Stanza JNLPBA", "Cell type", "cell_type"),
     # Stanza i2b2 is a clinical model (2010 i2b2/VA) emitting problem / test /
-    # treatment. These are clinical categories with no exact match in the
-    # canonical biomedical set (problem is broader than disease, treatment broader
-    # than drug), so they are kept as their own types rather than forced into
-    # disease/drug.
+    # treatment, the same clinical categories ClinicalBERT uses.
     ("stanza_i2b2", "Stanza i2b2", "Problem", "problem"),
     ("stanza_i2b2", "Stanza i2b2", "Test", "test"),
     ("stanza_i2b2", "Stanza i2b2", "Treatment", "treatment"),
@@ -223,6 +220,13 @@ ANNOTATOR_ENTITY_TYPE_SPECS: tuple[AnnotatorEntityTypeSpec, ...] = (
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Species", "species", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "Variant", "variant", ()),
     AnnotatorEntityTypeSpec("aioner", "AIONER", "CellLine", "cell_line", ()),
+    # ClinicalBERT (i2b2) emits problem / test / treatment. These are clinical
+    # categories with no exact match in the canonical biomedical set (problem is
+    # broader than disease, treatment broader than drug), so they are kept as their
+    # own types rather than forced into disease/drug.
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "problem", "problem", ()),
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "test", "test", ()),
+    AnnotatorEntityTypeSpec("clinicalbert", "ClinicalBERT", "treatment", "treatment", ()),
     # Clinical-AI-Apollo/Medical-NER entity types are generated from the shared
     # MACCROBAT_LABELS: DISEASE_DISORDER/MEDICATION map to canonical disease/drug,
     # every other clinical label becomes its own first-class type.
@@ -421,6 +425,22 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             spec.canonical_entity_type: spec.database_ids
             for spec in ANNOTATOR_ENTITY_TYPE_SPECS
             if spec.annotator == "aioner"
+        },
+        normalization_fields=(),
+    ),
+    "clinicalbert": AnnotatorCapability(
+        label="ClinicalBERT",
+        tasks=("NER",),
+        entity_types=tuple(
+            spec.canonical_entity_type
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
+        ),
+        normalization_status="not_returned",
+        normalization_databases={
+            spec.canonical_entity_type: spec.database_ids
+            for spec in ANNOTATOR_ENTITY_TYPE_SPECS
+            if spec.annotator == "clinicalbert"
         },
         normalization_fields=(),
     ),
