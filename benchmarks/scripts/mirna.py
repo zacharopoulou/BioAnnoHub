@@ -21,6 +21,10 @@ We also leave out the "Relation_Trigger" annotations (words such as
 "regulate" that signal a relation), because they are not named entities.
 The XML end offsets are inclusive (the last character is part of the
 mention), so 1 is added to every end offset.
+
+Documents with only a title get no abstract passage. Entity IDs are made
+unique per document as {pmid}_{source id}, because the source repeats an ID
+for two different mentions in one document; a repeat gets a _2, _3 suffix.
 """
 
 from __future__ import annotations
@@ -75,6 +79,7 @@ def _to_bigbio_kb(document: ET.Element) -> dict[str, Any]:
     pieces: list[str] = []  # stripped sentence texts
     starts: list[int] = []  # where each stripped sentence starts in the document text
     entities: list[dict[str, Any]] = []
+    id_counts: dict[str, int] = {}  # source ID -> times seen in this document
     position = 0
     for sentence in sentences:
         raw = sentence.get("text")
@@ -92,9 +97,12 @@ def _to_bigbio_kb(document: ET.Element) -> dict[str, Any]:
             for fragment in entity.get("charOffset").split(","):
                 start, end = (int(x) for x in fragment.split("-"))
                 offsets.append([position + start - shift, position + end + 1 - shift])
+            source_id = entity.get("id")
+            id_counts[source_id] = id_counts.get(source_id, 0) + 1
+            suffix = f"_{id_counts[source_id]}" if id_counts[source_id] > 1 else ""
             entities.append(
                 {
-                    "id": entity.get("id"),
+                    "id": f"{pmid}_{source_id}{suffix}",
                     "type": entity.get("type"),
                     "text": [entity.get("text")],
                     "offsets": offsets,
@@ -110,18 +118,20 @@ def _to_bigbio_kb(document: ET.Element) -> dict[str, Any]:
             raise ValueError(f"PMID {pmid}: {entity['text'][0]!r} vs {found!r}")
 
     title_end = len(pieces[0])
-    return {
-        "id": pmid,
-        "document_id": pmid,
-        "passages": [
-            {"id": f"{pmid}_title", "type": "title", "text": [pieces[0]], "offsets": [[0, title_end]]},
+    passages = [{"id": f"{pmid}_title", "type": "title", "text": [pieces[0]], "offsets": [[0, title_end]]}]
+    if len(text) > title_end:  # documents with only a title get no (empty) abstract passage
+        passages.append(
             {
                 "id": f"{pmid}_abstract",
                 "type": "abstract",
                 "text": [text[title_end + 1 :]],
                 "offsets": [[title_end + 1, len(text)]],
-            },
-        ],
+            }
+        )
+    return {
+        "id": pmid,
+        "document_id": pmid,
+        "passages": passages,
         "entities": entities,
         "events": [],
         "coreferences": [],
