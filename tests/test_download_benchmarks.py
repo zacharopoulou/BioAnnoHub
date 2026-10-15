@@ -30,17 +30,21 @@ def test_load_benchmarks_sorts_by_name_with_umls_list_last(tmp_path: Path) -> No
     assert keys == ["biored", "ncbi", "umls_semantic_types"]
 
 
-def test_parse_choice_numbers_ranges_names_and_all(tmp_path: Path) -> None:
+def test_parse_choice_numbers_ranges_and_all(tmp_path: Path) -> None:
     scripts = _fake_repo(tmp_path, ["biored", "ddi", "ncbi", "radgraph_xl"])
     benchmarks = download.load_benchmarks(scripts)  # BioRED, DDI, NCBI Disease, RadGraph-XL
 
     assert [b.key for b in download.parse_choice("1, 3", benchmarks)] == ["biored", "ncbi"]
     assert [b.key for b in download.parse_choice("1-3 2", benchmarks)] == ["biored", "ddi", "ncbi"]
-    assert [b.key for b in download.parse_choice("ddi", benchmarks)] == ["ddi"]
     # RadGraph-XL is credentialed data: never part of "all".
     assert [b.key for b in download.parse_choice("all", benchmarks)] == ["biored", "ddi", "ncbi"]
+
+
+@pytest.mark.parametrize("answer", ["ddi", "NCBI Disease", "99", "nonsense"])
+def test_parse_choice_rejects_names_and_unknown_numbers(tmp_path: Path, answer: str) -> None:
+    benchmarks = download.load_benchmarks(_fake_repo(tmp_path, ["biored", "ddi", "ncbi"]))
     with pytest.raises(ValueError):
-        download.parse_choice("nonsense", benchmarks)
+        download.parse_choice(answer, benchmarks)
 
 
 def test_cli_download_benchmarks_passes_flags(monkeypatch: pytest.MonkeyPatch) -> None:

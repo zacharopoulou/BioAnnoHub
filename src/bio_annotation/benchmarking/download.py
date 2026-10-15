@@ -180,12 +180,10 @@ def banner() -> None:
 
 
 def parse_choice(answer: str, benchmarks: list[Benchmark]) -> list[Benchmark]:
-    """Turn '1,3,5-8', 'biored ncbi' or 'all' into benchmarks."""
+    """Turn numbers and ranges ('1,3,5-8') or 'all' into benchmarks."""
     answer = answer.strip().lower()
     if answer == "all":
         return [b for b in benchmarks if b.key not in LOCAL_ONLY]
-    by_key = {b.key: b for b in benchmarks}
-    by_name = {b.name.lower(): b for b in benchmarks}
     chosen: list[Benchmark] = []
     for token in answer.replace(",", " ").split():
         if "-" in token and all(part.isdigit() for part in token.split("-", 1)):
@@ -193,8 +191,6 @@ def parse_choice(answer: str, benchmarks: list[Benchmark]) -> list[Benchmark]:
             chosen.extend(benchmarks[i - 1] for i in range(first, last + 1) if 1 <= i <= len(benchmarks))
         elif token.isdigit() and 1 <= int(token) <= len(benchmarks):
             chosen.append(benchmarks[int(token) - 1])
-        elif token in by_key or token in by_name:
-            chosen.append(by_key.get(token) or by_name[token])
         else:
             raise ValueError(token)
     return list({b.key: b for b in chosen}.values())  # keep order, drop repeats
@@ -204,7 +200,6 @@ def ask(benchmarks: list[Benchmark]) -> list[Benchmark]:
     console.print(
         Text.assemble(
             ("Choose by number ", "muted"), ("1,3,5-8", "field"),
-            (", by name ", "muted"), ("biored ncbi", "field"),
             (" or ", "muted"), ("all", "field"),
             (". Press Enter to quit.", "muted"),
         )
@@ -216,7 +211,7 @@ def ask(benchmarks: list[Benchmark]) -> list[Benchmark]:
         try:
             return parse_choice(answer, benchmarks)
         except ValueError as exc:
-            console.print(f"[warning]Not a number, name or group:[/] {exc}")
+            console.print(f"[warning]Not a number from the list or 'all':[/] {exc}")
 
 
 def datasets_available() -> bool:

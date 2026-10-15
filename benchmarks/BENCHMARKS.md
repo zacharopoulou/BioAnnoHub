@@ -10,8 +10,7 @@ uv run --extra benchmarks bioannohub download-benchmarks --all      # everything
 uv run bioannohub download-benchmarks --list                        # just shows the table
 ```
 
-At the prompt, choose by number (`1,3,5-8`), by name (`biored ncbi`) or
-`all`. Press Enter to quit.
+At the prompt, choose by number (`1,3,5-8`) or `all`. Press Enter to quit.
 
 Each benchmark has its own script in `benchmarks/scripts/`. The command
 runs them one after the other and prints a short summary. A benchmark whose
