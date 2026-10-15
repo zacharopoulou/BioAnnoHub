@@ -2,31 +2,23 @@
 
     uv run python benchmarks/scripts/mantra.py
 
-The Mantra Gold Standard Corpus has 5 languages and 3 kinds of text, and no
-train/test split. Only the English texts are used here (the annotators in
-this project work on English), and each kind of text is written to its own
-file:
+English texts only (no train/test split), one file per kind of text:
+mantra_en_medline (Medline titles), mantra_en_emea (drug label sentences)
+and mantra_en_patents (patent claims).
 
-- mantra_en_medline.jsonl:  titles of Medline abstracts
-- mantra_en_emea.jsonl:     sentences from EMEA drug labels
-- mantra_en_patents.jsonl:  claims from biomedical patents
-
-The Hugging Face loader (bigbio/mantra_gsc) reads the text files with the
-computer's default encoding instead of UTF-8. On a Greek Windows PC that is
-cp1253, which garbles characters such as the é in México (and shifts every
-offset after it) or crashes. We make the loader read them as UTF-8 while it
-runs (_utf8_path_open).
-
-Entity types are UMLS semantic groups (DISO, CHEM, ANAT, ...). A few
-annotations in the original data use a UMLS semantic type name instead (for
-example "Manufactured Object"). Each of those belongs to one semantic group,
-so we replace it with that group (TYPE_TO_GROUP).
+- The loader reads files with the system encoding, which garbles non-ASCII
+  text on Windows; _utf8_path_open makes it read UTF-8.
+- The three parts share one fresh temporary HF cache: the source is
+  downloaded once, and no wrongly encoded copy can be reused.
+- A few entity types are UMLS semantic type names; TYPE_TO_GROUP maps them to
+  their semantic group (DISO, CHEM, ...).
 """
 
 from __future__ import annotations
 
 import json
 import pathlib
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable
@@ -96,8 +88,12 @@ def _utf8_path_open():
         pathlib.Path.open = path_open
 
 
-def download_split(split: str, data_dir: Path) -> Path:
-    """Build one part with the HF loader (reading UTF-8) and persist it as JSONL."""
+def download_split(split: str, data_dir: Path, cache_dir: str | None = None) -> Path:
+    """Build one part with the HF loader (reading UTF-8) and persist it as JSONL.
+
+    cache_dir must be a fresh folder (shared between the parts of one run); without
+    it, a temporary one is used for this part alone.
+    """
     try:
         from datasets import load_dataset
     except ImportError as exc:
@@ -106,15 +102,18 @@ def download_split(split: str, data_dir: Path) -> Path:
             "Install with: uv sync --extra benchmarks"
         ) from exc
 
+    if cache_dir is None:
+        with tempfile.TemporaryDirectory() as fresh_cache:
+            return download_split(split, data_dir, fresh_cache)
+
     with _utf8_path_open():
-        # Rebuild even if a version read with the wrong encoding is in the HF cache.
         ds = load_dataset(
             HF_DATASET,
             name=HF_CONFIGS[split],
             split=HF_SPLIT,
             trust_remote_code=True,
-            download_mode="force_redownload",
             revision=HF_REVISION,
+            cache_dir=cache_dir,
         )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (_map_types(dict(row)) for row in ds))
@@ -131,16 +130,17 @@ def main() -> None:
     data_dir = _default_data_dir()
     print(f"Mantra target directory: {data_dir}")
 
-    for split in SPLITS:
-        target = _split_file(data_dir, split)
-        if target.exists():
-            count = sum(1 for _ in target.open(encoding="utf-8"))
-            print(f"  {split:18s} already present ({count} docs) at {target}")
-            continue
-        print(f"  {split:18s} downloading from {HF_DATASET} ...")
-        path = download_split(split, data_dir)
-        count = sum(1 for _ in path.open(encoding="utf-8"))
-        print(f"  {split:18s} wrote {count} docs to {path}")
+    with tempfile.TemporaryDirectory() as cache_dir:  # one fresh cache for all three parts
+        for split in SPLITS:
+            target = _split_file(data_dir, split)
+            if target.exists():
+                count = sum(1 for _ in target.open(encoding="utf-8"))
+                print(f"  {split:18s} already present ({count} docs) at {target}")
+                continue
+            print(f"  {split:18s} downloading from {HF_DATASET} ...")
+            path = download_split(split, data_dir, cache_dir)
+            count = sum(1 for _ in path.open(encoding="utf-8"))
+            print(f"  {split:18s} wrote {count} docs to {path}")
 
     print("Done.")
 
