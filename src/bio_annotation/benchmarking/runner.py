@@ -37,6 +37,7 @@ def run_ncbi_review_evaluation(
     pubtator3_options: dict[str, Any] | None = None,
     flair_options: dict[str, Any] | None = None,
     flair_tagger_loader: Callable[[str], Any] | None = None,
+    flair_linker_loader: Callable[[str], Any] | None = None,
     progress_callback: ProgressCallback | None = None,
     progress_interval: int = 25,
 ) -> dict[str, Any]:
@@ -59,6 +60,7 @@ def run_ncbi_review_evaluation(
         selected_annotators,
         runtime_options,
         flair_tagger_loader=flair_tagger_loader,
+        flair_linker_loader=flair_linker_loader,
     )
     cases = load_ncbi_cases(benchmark_path, split=split)
     predictions_by_annotator: dict[str, list[dict[str, Any]]] = {
@@ -80,6 +82,7 @@ def run_ncbi_review_evaluation(
             bern2_options=runtime_options.get("bern2"),
             pubtator3_options=runtime_options.get("pubtator3"),
             flair_tagger=preflight_resources.get("flair_tagger"),
+            flair_linkers=preflight_resources.get("flair_linkers"),
             flair_options=runtime_options.get("flair"),
         )
         for status in case_statuses:

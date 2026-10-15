@@ -53,7 +53,7 @@ def emit(output_fn, lines: Iterable[str]) -> None:
 
 
 def banner_lines() -> list[str]:
-    title = Text("TotalAnnotator", justify="center", style="brand")
+    title = Text("BioAnnoHub", justify="center", style="brand")
     subtitle = Text("Biomedical entity annotation workspace", justify="center", style="muted")
     body = Text.assemble(title, "\n", subtitle)
     return render_lines(

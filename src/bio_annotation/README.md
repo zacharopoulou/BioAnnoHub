@@ -1,6 +1,6 @@
 # Source Package
 
-This package contains the current implementation of the TotalAnnotator pipeline.
+This package contains the current implementation of the BioAnnoHub pipeline.
 
 ## Implemented areas
 

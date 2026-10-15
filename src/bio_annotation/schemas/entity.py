@@ -17,6 +17,7 @@ class Annotation:
     canonical_id: str | None = None
     canonical_name: str | None = None
     confidence: float | None = None
+    normalization_score: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

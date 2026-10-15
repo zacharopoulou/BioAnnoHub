@@ -9,11 +9,17 @@ from io import StringIO
 
 import pytest
 
+
+def _without_durations(statuses):
+    return [{k: v for k, v in status.items() if k != "duration_seconds"} for status in statuses]
+
 from bio_annotation.cli import main
 from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
+from bio_annotation.deps import DISABLE_ENV_VAR
 from bio_annotation.schemas.document import Document
 from bio_annotation.pipeline_runner import (
+    _aggregate_annotator_statuses,
     _load_flair_tagger,
     _read_bern2_options,
     _read_flair_options,
@@ -148,7 +154,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert payload["annotator_summary"]["produced"] == ["bern2", "pubtator3"]
     assert payload["annotator_summary"]["not_produced"] == []
     assert payload["document_annotations"][0]["sources"] == ["bern2", "pubtator3"]
-    assert payload["document_annotations"][0]["annotators"] == [
+    assert _without_durations(payload["document_annotations"][0]["annotators"]) == [
         {
             "name": "bern2",
             "status": "produced_annotations",
@@ -212,7 +218,7 @@ def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
     assert payload["annotator_summary"]["configured"] == ["bern2", "flair"]
     assert payload["annotator_summary"]["produced"] == []
     assert payload["annotator_summary"]["not_produced"] == ["bern2", "flair"]
-    assert payload["document_annotations"][0]["annotators"] == [
+    assert _without_durations(payload["document_annotations"][0]["annotators"]) == [
         {
             "name": "bern2",
             "status": "no_annotations",
@@ -345,7 +351,7 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     output = stream.getvalue()
     assert exit_code == 0
     assert "Pipeline completed." in output
-    written = sorted((tmp_path / "outputs").glob("*/test.json"))
+    written = sorted((tmp_path / "outputs").glob("2*/results/test.json"))
     assert len(written) == 1
     assert f"Output written to: {written[0].as_posix()}" in output
     assert "Annotations: 0" in output
@@ -414,8 +420,21 @@ def test_run_selected_annotators_passes_bern2_endpoint(monkeypatch) -> None:
 
 
 def test_read_flair_options_reads_model() -> None:
-    assert _read_flair_options({"model": "hunflair2"}) == {"model": "hunflair2"}
-    assert _read_flair_options({}) == {"model": None}
+    assert _read_flair_options({"model": "hunflair2"}) == {
+        "model": "hunflair2",
+        "linking": False,
+        "linkers": ("gene-linker", "disease-linker", "chemical-linker", "species-linker"),
+    }
+    assert _read_flair_options({"linking": False}) == {
+        "model": None,
+        "linking": False,
+        "linkers": ("gene-linker", "disease-linker", "chemical-linker", "species-linker"),
+    }
+    assert _read_flair_options({"linkers": {"disease": "custom-disease-linker", "cell_line": "ignored"}}) == {
+        "model": None,
+        "linking": False,
+        "linkers": ("custom-disease-linker",),
+    }
 
 
 def test_load_flair_tagger_reports_optional_dependency(monkeypatch) -> None:
@@ -456,12 +475,13 @@ def test_run_pipeline_preflights_missing_flair_dependency(tmp_path, monkeypatch)
         checked_modules.append(name)
         return None
 
-    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
+    monkeypatch.setenv(DISABLE_ENV_VAR, "1")
 
     with pytest.raises(ValueError, match="uv sync --extra flair"):
         run_pipeline_from_config(config_path)
 
-    assert checked_modules == ["flair"]
+    assert "flair" in checked_modules
 
 
 def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
@@ -471,10 +491,11 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
         abstract="PTEN is important.",
         source="corpus",
     )
-    calls: list[str | None] = []
+    fake_linkers = [object()]
+    calls: list[tuple[str | None, object]] = []
 
     def fake_flair(document: Document, **kwargs: object) -> list[Annotation]:
-        calls.append(kwargs.get("model"))
+        calls.append((kwargs.get("model"), kwargs.get("linkers")))
         return []
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", fake_flair)
@@ -483,9 +504,72 @@ def test_run_selected_annotators_passes_flair_model(monkeypatch) -> None:
         document,
         ["flair"],
         flair_options={"model": "hunflair2"},
+        flair_linkers=fake_linkers,
     )
 
-    assert calls == ["hunflair2"]
+    assert calls == [("hunflair2", fake_linkers)]
+
+
+def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[annotators]",
+                'enabled = ["flair"]',
+                "",
+                "[annotators.flair]",
+                'model = "hunflair2"',
+                "linking = true",
+                'linkers = ["gene-linker", "disease-linker"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    loaded_taggers: list[str] = []
+    loaded_linkers: list[str] = []
+    seen_linkers: list[object] = []
+
+    def fake_find_spec(name: str) -> object | None:
+        assert name == "flair"
+        return object()
+
+    def fake_tagger_loader(model: str) -> object:
+        loaded_taggers.append(model)
+        return object()
+
+    def fake_linker_loader(model: str) -> object:
+        loaded_linkers.append(model)
+        return model
+
+    def fake_flair(document: Document, **kwargs: object) -> list[Annotation]:
+        seen_linkers.extend(kwargs.get("linkers") or [])
+        return []
+
+    monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_tagger", fake_tagger_loader)
+    monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_linker", fake_linker_loader)
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", fake_flair)
+
+    run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    assert loaded_taggers == ["hunflair2"]
+    assert loaded_linkers == ["gene-linker", "disease-linker"]
+    assert seen_linkers == ["gene-linker", "disease-linker"]
 
 
 def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
@@ -546,12 +630,13 @@ def test_run_pipeline_preflights_missing_scispacy_dependency(tmp_path, monkeypat
         checked_modules.append(name)
         return None
 
-    monkeypatch.setattr("bio_annotation.pipeline_runner.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
+    monkeypatch.setenv(DISABLE_ENV_VAR, "1")
 
     with pytest.raises(ValueError, match="uv sync --extra scispacy"):
         run_pipeline_from_config(config_path)
 
-    assert checked_modules == ["scispacy"]
+    assert "scispacy" in checked_modules
 
 
 def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
@@ -575,7 +660,7 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
         )
 
     assert results == {"flair": []}
-    assert statuses == [
+    assert _without_durations(statuses) == [
         {
             "name": "flair",
             "status": "failed",
@@ -710,19 +795,14 @@ def test_pipeline_tsv_outputs_resolve_keyword_annotation_ids(tmp_path) -> None:
 
     write_pipeline_tsv_outputs(payload, tmp_path / "results.json")
 
-    with (tmp_path / "results.keyword_annotator_evidence.tsv").open(
+    with (tmp_path / "results.keywords.tsv").open(
         encoding="utf-8",
         newline="",
     ) as handle:
         rows = list(csv.DictReader(handle, delimiter="\t"))
 
-    assert [
-        (row["annotation_id"], row["source"], row["label"], row["canonical_id"])
-        for row in rows
-    ] == [
-        ("bern2:1", "bern2", "disease", "BERN:glioblastoma"),
-        ("pubtator3:1", "pubtator3", "disease", "MESH:D005909"),
-    ]
+    assert [(row["keyword"], row["sources"]) for row in rows] == [("GBM", "bern2|pubtator3")]
+    assert not (tmp_path / "results.keyword_annotator_evidence.tsv").exists()
 
 
 def test_filter_annotations_by_type_normalizes_entity_labels() -> None:
@@ -762,3 +842,17 @@ def test_read_stanza_options_omitted_package_defaults_to_none():
 def test_read_stanza_options_explicit_package_is_kept():
     assert _read_stanza_options({"package": "mimic"})["package"] == "mimic"
     assert _read_stanza_options({"package": " craft "})["package"] == "craft"
+
+
+def test_aggregate_annotator_statuses_sums_counts_timing_and_errors() -> None:
+    statuses = [
+        {"name": "bern2", "status": "produced_annotations", "annotation_count": 2, "reason": None, "duration_seconds": 0.5},
+        {"name": "medcat", "status": "failed", "annotation_count": 0, "reason": "Connection refused", "duration_seconds": 0.25},
+        {"name": "bern2", "status": "failed", "annotation_count": 0, "reason": "timeout", "duration_seconds": 1.0},
+        {"name": "medcat", "status": "failed", "annotation_count": 0, "reason": "Connection refused", "duration_seconds": 0.25},
+    ]
+
+    assert _aggregate_annotator_statuses(statuses) == [
+        {"name": "bern2", "status": "produced_annotations", "annotation_count": 2, "duration_seconds": 1.5, "failed_documents": 1, "errors": ["timeout"]},
+        {"name": "medcat", "status": "failed", "annotation_count": 0, "duration_seconds": 0.5, "failed_documents": 2, "errors": ["Connection refused"]},
+    ]

@@ -15,6 +15,8 @@ endpoint = "http://bern2.korea.ac.kr/plain"
 
 [annotators.flair]
 model = "hunflair2"
+linking = false
+linkers = ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
 
 [annotators.pubtator3]
 runtime = "remote_api"
@@ -87,4 +89,4 @@ cell_type = "cell_ontology"
 entity_types = []
 
 [output]
-path = "outputs/annotators_result.json"
+path = "outputs/runs/results.json"

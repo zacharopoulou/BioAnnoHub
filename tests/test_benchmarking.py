@@ -421,6 +421,8 @@ def test_benchmark_annotator_options_include_runtime_defaults() -> None:
 
     assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
     assert options["flair"]["model"] == "hunflair2"
+    assert options["flair"]["linking"] is False
+    assert options["flair"]["linkers"] == ["disease-linker"]
     assert options["pubtator3"]["mode"] == "publication_only"
 
 
@@ -433,23 +435,49 @@ def test_benchmark_annotator_options_allow_targeted_overrides() -> None:
 
 def test_preflight_reports_remote_and_loads_flair_once() -> None:
     loaded_models: list[str] = []
+    loaded_linkers: list[str] = []
     sentinel_tagger = object()
 
     def fake_loader(model: str) -> object:
         loaded_models.append(model)
         return sentinel_tagger
 
+    def fake_linker_loader(model: str) -> object:
+        loaded_linkers.append(model)
+        return model
+
     results, resources = preflight_benchmark_annotators(
         ["bern2", "flair"],
         benchmark_annotator_options(),
         flair_tagger_loader=fake_loader,
+        flair_linker_loader=fake_linker_loader,
     )
 
     assert loaded_models == ["hunflair2"]
+    assert loaded_linkers == []
     assert resources["flair_tagger"] is sentinel_tagger
+    assert "flair_linkers" not in resources
     assert [result.name for result in results] == ["bern2", "flair"]
     assert results[0].status == "configured"
     assert results[1].status == "ready"
+
+
+def test_preflight_loads_flair_linkers_when_linking_enabled() -> None:
+    loaded_linkers: list[str] = []
+
+    def fake_linker_loader(model: str) -> object:
+        loaded_linkers.append(model)
+        return model
+
+    _, resources = preflight_benchmark_annotators(
+        ["flair"],
+        benchmark_annotator_options({"flair": {"linking": True}}),
+        flair_tagger_loader=lambda model: object(),
+        flair_linker_loader=fake_linker_loader,
+    )
+
+    assert loaded_linkers == ["disease-linker"]
+    assert resources["flair_linkers"] == ["disease-linker"]
 
 
 def test_preflight_reports_pubtator3_publication_mode() -> None:
@@ -542,6 +570,7 @@ def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
         encoding="utf-8",
     )
     loaded_models: list[str] = []
+    loaded_linkers: list[str] = []
 
     class FakeTagger:
         def predict(self, sentence):
@@ -551,13 +580,20 @@ def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
         loaded_models.append(model)
         return FakeTagger()
 
+    def fake_linker_loader(model: str) -> str:
+        loaded_linkers.append(model)
+        return model
+
     payload = run_ncbi_review_evaluation(
         benchmark_path=benchmark_path,
         annotators=["flair"],
+        flair_options={"linking": True},
         flair_tagger_loader=fake_loader,
+        flair_linker_loader=fake_linker_loader,
     )
 
     assert loaded_models == ["hunflair2"]
+    assert loaded_linkers == ["disease-linker"]
     assert payload["document_count"] == 2
     assert payload["preflight"][0]["status"] == "ready"
 

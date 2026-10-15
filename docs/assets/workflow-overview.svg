@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
-  <title id="title">TotalAnnotator workflow overview</title>
+  <title id="title">BioAnnoHub workflow overview</title>
   <desc id="desc">A left-to-right flow chart showing config and document inputs, validation, annotator execution, harmonization, agreement scoring, and exported outputs.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
@@ -22,7 +22,7 @@
   </defs>
 
   <rect x="0" y="0" width="1200" height="430" fill="url(#bg)"/>
-  <text x="60" y="55" class="title">TotalAnnotator Near-Term Workflow</text>
+  <text x="60" y="55" class="title">BioAnnoHub Near-Term Workflow</text>
 
   <rect x="40" y="95" width="180" height="120" class="box"/>
   <text x="62" y="128" class="label">Inputs</text>

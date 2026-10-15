@@ -11,8 +11,8 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.skipif(
-    os.environ.get("TOTALANNOTATOR_RUN_LIVE_PUBMED") != "1",
-    reason="Set TOTALANNOTATOR_RUN_LIVE_PUBMED=1 to run live PubMed ingestion tests.",
+    os.environ.get("BIOANNOHUB_RUN_LIVE_PUBMED") != "1",
+    reason="Set BIOANNOHUB_RUN_LIVE_PUBMED=1 to run live PubMed ingestion tests.",
 )
 def test_fetch_pubmed_record_live() -> None:
     record = fetch_pubmed_record("38123456")

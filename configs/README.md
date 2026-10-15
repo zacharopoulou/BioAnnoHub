@@ -1,6 +1,6 @@
 # Configuration Guide
 
-This directory contains runnable pipeline configurations for TotalAnnotator.
+This directory contains runnable pipeline configurations for BioAnnoHub.
 
 ## Files
 
