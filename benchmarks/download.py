@@ -1,4 +1,3 @@
-"""Download the benchmark corpora. How to run it: see benchmarks/BENCHMARKS.md."""
 
 from __future__ import annotations
 
