@@ -12,7 +12,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable
 
-from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import (
     DEFAULT_APOLLO_MODEL,
     _load_apollo_pipeline,
@@ -47,6 +46,7 @@ from bio_annotation.deps import (
     ensure_tool_environments,
     extra_installed,
 )
+from bio_annotation.entity_proposal.medcat_proposer import reset_reported_endpoints
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
     stanza_model_for_annotator,
@@ -72,7 +72,6 @@ SUPPORTED_ANNOTATORS = {
     "bern2",
     "flair",
     "pubtator3",
-    "aioner",
     "bent",
     "clinicalbert",
     "apollo",
@@ -102,7 +101,6 @@ def run_pipeline_from_config(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
-    aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
@@ -149,7 +147,6 @@ def run_pipeline_from_config(
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
         flair_spans_by_document=flair_spans_by_document,
-        aioner_request_fn=aioner_request_fn,
         bent_request_fn=bent_request_fn,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
@@ -189,7 +186,6 @@ def build_pipeline_output(
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
-    aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
@@ -201,12 +197,12 @@ def build_pipeline_output(
     enabled_annotators = list(config.annotators)
     annotator_settings = dict(config.annotator_settings)
     _validate_annotators(enabled_annotators)
+    reset_reported_endpoints()
     input_description = resolve_input_description(config)
     corpus_documents = [document_to_dict(document) for document in documents]
     bern2_options = _read_bern2_options(annotator_settings.get("bern2", {}))
     pubtator3_options = _read_pubtator3_options(annotator_settings.get("pubtator3", {}))
     flair_options = _read_flair_options(annotator_settings.get("flair", {}))
-    aioner_options = _read_aioner_options(annotator_settings.get("aioner", {}))
     bent_options = _read_bent_options(annotator_settings.get("bent", {}))
     clinicalbert_options = _read_clinicalbert_options(annotator_settings.get("clinicalbert", {}))
     apollo_options = _read_apollo_options(annotator_settings.get("apollo", {}))
@@ -288,12 +284,10 @@ def build_pipeline_output(
             enabled_annotators,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
-            aioner_request_fn=aioner_request_fn,
             bent_request_fn=bent_request_fn,
             medcat_request_fn=medcat_request_fn,
             bern2_options=bern2_options,
             pubtator3_options=pubtator3_options,
-            aioner_options=aioner_options,
             bent_options=bent_options,
             medcat_options=medcat_options,
             stanza_options=stanza_options,
@@ -651,12 +645,10 @@ def run_selected_annotators(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
-    aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
-    aioner_options: dict[str, Any] | None = None,
     bent_options: dict[str, Any] | None = None,
     medcat_options: dict[str, Any] | None = None,
     stanza_options: dict[str, dict[str, Any]] | None = None,
@@ -683,12 +675,10 @@ def run_selected_annotators(
         annotators,
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
-        aioner_request_fn=aioner_request_fn,
         bent_request_fn=bent_request_fn,
         medcat_request_fn=medcat_request_fn,
         bern2_options=bern2_options,
         pubtator3_options=pubtator3_options,
-        aioner_options=aioner_options,
         bent_options=bent_options,
         medcat_options=medcat_options,
         stanza_options=stanza_options,
@@ -719,12 +709,10 @@ def run_selected_annotators_with_status(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
-    aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
     pubtator3_options: dict[str, Any] | None = None,
-    aioner_options: dict[str, Any] | None = None,
     bent_options: dict[str, Any] | None = None,
     medcat_options: dict[str, Any] | None = None,
     stanza_options: dict[str, dict[str, Any]] | None = None,
@@ -783,24 +771,6 @@ def run_selected_annotators_with_status(
                     format=pubtator3_options.get("format", "biocjson")
                     if pubtator3_options
                     else "biocjson",
-                )
-            elif annotator == "aioner":
-                results[annotator] = annotate_with_aioner(
-                    document,
-                    request_fn=aioner_request_fn,
-                    repo=aioner_options.get("repo") if aioner_options else None,
-                    model=aioner_options.get("model") if aioner_options else None,
-                    vocab=aioner_options.get("vocab") if aioner_options else None,
-                    entity=aioner_options.get("entity", "ALL")
-                    if aioner_options
-                    else "ALL",
-                    project=aioner_options.get("project", "tools/aioner")
-                    if aioner_options
-                    else "tools/aioner",
-                    python=aioner_options.get("python") if aioner_options else None,
-                    timeout=aioner_options.get("timeout", 600)
-                    if aioner_options
-                    else 600,
                 )
             elif annotator == "bent":
                 results[annotator] = annotate_with_bent(
@@ -909,7 +879,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "bern2",
         "flair",
         "pubtator3",
-        "aioner",
         "bent",
         "apollo",
         "clinicalbert",
@@ -1112,12 +1081,6 @@ def _no_annotations_reason(annotator: str) -> str:
         return (
             "No annotations returned. PubTator3 only annotates documents with a "
             "PMID or PMCID; otherwise verify it is reachable and returned entities."
-        )
-    if annotator == "aioner":
-        return (
-            "No annotations returned. Ensure AIONER is installed "
-            "(tools/aioner/setup.sh) and annotators.aioner.repo/model are set, "
-            "or it found no entities."
         )
     if annotator == "clinicalbert":
         return (
@@ -1379,25 +1342,6 @@ def _read_flair_options(settings: dict[str, object]) -> dict[str, Any]:
         else None,
         "linking": linking if isinstance(linking, bool) else False,
         "linkers": tuple(dict.fromkeys(linkers)),
-    }
-
-
-def _read_aioner_options(settings: dict[str, object]) -> dict[str, Any]:
-    def _clean_str(key: str, default: str | None = None) -> str | None:
-        value = settings.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-        return default
-
-    timeout = settings.get("timeout")
-    return {
-        "repo": _clean_str("repo"),
-        "model": _clean_str("model"),
-        "vocab": _clean_str("vocab"),
-        "entity": _clean_str("entity", "ALL"),
-        "project": _clean_str("project", "tools/aioner"),
-        "python": _clean_str("python"),
-        "timeout": int(timeout) if isinstance(timeout, int) and timeout > 0 else 600,
     }
 
 
