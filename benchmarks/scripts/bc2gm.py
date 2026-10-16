@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Any, Iterable
 
 HF_DATASET = "spyysalo/bc2gm_corpus"
+# Pinned dataset version: the commit sha of the Hugging Face repo, i.e. the "sha" field of
+# https://huggingface.co/api/datasets/spyysalo/bc2gm_corpus (its latest commit when it was pinned).
+HF_REVISION = "dc0640510665bb3de7c88416ede4708cf6481b61"
 HF_CONFIG: str | None = None  # this dataset has no config name
 SPLITS = ("train", "validation", "test")
 
@@ -58,6 +61,7 @@ def download_split(split: str, data_dir: Path) -> Path:
         HF_DATASET,
         name=HF_CONFIG,
         split=split,
+        revision=HF_REVISION,
     )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (dict(row) for row in ds))
