@@ -168,6 +168,8 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
     """Whether a setup-script annotator has its environment and resources in place."""
 
     if annotator == "bent":
+        if any(isinstance(settings.get(key), str) and settings[key].strip() for key in ("python", "script")):
+            return True
         project = settings.get("project")
         directory = project.strip() if isinstance(project, str) and project.strip() else DEFAULT_BENT_PROJECT
 
