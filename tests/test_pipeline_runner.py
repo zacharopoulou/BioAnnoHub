@@ -531,7 +531,7 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     seen_linkers: list[object] = []
 
     def fake_find_spec(name: str) -> object | None:
-        assert name == "flair"
+        assert name in {"flair", "pyab3p"}
         return object()
 
     def fake_tagger_loader(model: str) -> object:

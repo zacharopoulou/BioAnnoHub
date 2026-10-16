@@ -34,7 +34,7 @@ from bio_annotation.entity_proposal.stanza_proposer import (
 DISABLE_ENV_VAR = "TOTALANNOTATOR_NO_AUTO_INSTALL"
 
 EXTRA_MODULES: dict[str, tuple[str, ...]] = {
-    "flair": ("flair",),
+    "flair": ("flair", "pyab3p"),
     "clinicalbert": ("transformers", "torch"),
     "apollo": ("transformers", "torch"),
     "d4data": ("transformers", "torch"),
