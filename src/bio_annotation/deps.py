@@ -154,6 +154,15 @@ def bent_root(project: str) -> Path | None:
     return roots[0] if roots else None
 
 
+BENT_KB_FILES = ("id_to_info.json", "id_to_name.json", "name_to_id.json", "node_to_node.json", "synonym_to_id.json")
+
+
+def bent_kb_complete(kb_dir: Path) -> bool:
+    """Whether a KB folder holds every dictionary BENT links against, e.g. not an interrupted extraction."""
+
+    return all((kb_dir / name).is_file() and (kb_dir / name).stat().st_size > 0 for name in BENT_KB_FILES)
+
+
 def bent_required_kbs(settings: dict[str, object]) -> list[str]:
     """KB dictionaries the configured BENT types link against; none in NER-only mode."""
 
@@ -181,7 +190,7 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
             (root / "data" / "NILINKER").exists()
             and (root / "data" / "overlapping_entities").exists()
             and (root / "abbreviation_detector" / "Ab3P" / "identify_abbr").exists()
-            and all((dicts / kb).is_dir() for kb in bent_required_kbs(settings))
+            and all(bent_kb_complete(dicts / kb) for kb in bent_required_kbs(settings))
         )
     return True
 
