@@ -86,7 +86,7 @@ fi
 
 # BENT base setup installs medic and chebi. Include them here because this script
 # replaces the upstream bent_setup shell script to keep Python/pip paths correct.
-BENT_KBS="${BENT_KBS:-medic,chebi,ncbi_gene,ncbi_taxon,uberon,cellosaurus,go_bp,go_cc,cell_ontology}"
+BENT_KBS="${BENT_KBS-medic,chebi,ncbi_gene,ncbi_taxon,uberon,cellosaurus,go_bp,go_cc,cell_ontology}"
 DOWNLOAD_KBS="$BENT_KBS"
 # BENT 0.0.80 documents cell_ontology, but its shell downloader names that
 # archive cl. Download cl and then expose it under the documented name.

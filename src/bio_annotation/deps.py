@@ -222,8 +222,9 @@ def ensure_tool_environments(
             output_fn(f"Skipping setup. {skipped}")
             continue
         env = None
-        if annotator == "bent" and (kbs := bent_required_kbs(settings_by_annotator.get(annotator, {}))):
-            # setup.sh downloads only the KBs in BENT_KBS, so pass the configured ones.
+        if annotator == "bent":
+            # setup.sh downloads only the KBs in BENT_KBS; NER-only mode passes "" to skip them.
+            kbs = bent_required_kbs(settings_by_annotator.get(annotator, {}))
             env = {**os.environ, "BENT_KBS": ",".join(kbs)}
         if subprocess.run(["bash", str(script)], check=False, env=env).returncode != 0:
             output_fn(f"{script} failed. {skipped}")
