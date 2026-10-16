@@ -124,14 +124,12 @@ def preflight_benchmark_annotators(
 
         elif annotator == "pubtator3":
             endpoint = options.get("endpoint")
-            mode = options.get("mode", "auto")
             results.append(
                 PreflightResult(
                     name="pubtator3",
                     status="configured",
                     message=(
-                        "PubTator3 benchmark runtime configured: "
-                        f"endpoint={endpoint}, mode={mode}"
+                        f"PubTator3 benchmark runtime configured: endpoint={endpoint}"
                     ),
                 )
             )

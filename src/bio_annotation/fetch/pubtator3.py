@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from bio_annotation.clients.pubtator3 import (
-    DEFAULT_BIOCONCEPT,
     DEFAULT_EXPORT_FORMAT,
     PubTator3Client,
 )
@@ -32,7 +31,6 @@ class PubTator3Source:
     client: PubTator3Client = field(default_factory=PubTator3Client)
     format: str = DEFAULT_EXPORT_FORMAT
     full_text: bool = False
-    bioconcept: str = DEFAULT_BIOCONCEPT
 
     def fetch(self, request: FetchInput) -> list[Document]:
         check_supports(self, request)

@@ -360,27 +360,20 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     assert not output.lstrip().startswith("{")
 
 
-def test_read_pubtator3_options_parses_text_mode_settings() -> None:
+def test_read_pubtator3_options_parses_settings() -> None:
     options = _read_pubtator3_options(
         {
             "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
             "timeout": 45,
             "format": "biocjson",
-            "mode": "text_only",
-            "bioconcept": "Gene",
-            "poll_interval_seconds": 3.0,
-            "poll_backoff": 2.0,
-            "max_poll_interval_seconds": 12.0,
-            "max_poll_attempts": 25,
         }
     )
 
-    assert options["mode"] == "text_only"
-    assert options["bioconcept"] == "Gene"
-    assert options["max_poll_attempts"] == 25
-    assert options["poll_interval_seconds"] == 3.0
-    assert options["poll_backoff"] == 2.0
-    assert options["max_poll_interval_seconds"] == 12.0
+    assert options == {
+        "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
+        "timeout": 45,
+        "format": "biocjson",
+    }
 
 
 def test_read_bern2_options_prefers_endpoint_then_base_url() -> None:

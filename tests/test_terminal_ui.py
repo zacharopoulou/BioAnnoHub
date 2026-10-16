@@ -65,7 +65,7 @@ def test_build_terminal_ui_config_for_plain_text(tmp_path) -> None:
         plain_text_file=source_text,
         plain_text_document_id="doc1",
         plain_text_title="PTEN regulates glioblastoma",
-        annotators=["pubtator3"],
+        annotators=["bern2"],
         entity_types=["gene", "disease"],
     )
 
@@ -83,10 +83,8 @@ def test_build_terminal_ui_config_for_plain_text(tmp_path) -> None:
     assert config.input_mode == "text_table"
     assert config.text_file == paths.plain_text_path
     assert config.text_format == "tsv"
-    assert config.annotators == ["pubtator3"]
+    assert config.annotators == ["bern2"]
     assert config.entity_types == ["gene", "disease"]
-    assert config.annotator_settings["pubtator3"]["mode"] == "text_only"
-    assert config.annotator_settings["pubtator3"]["max_poll_attempts"] == 30
     assert paths.run_dir.parent == (tmp_path / "out").resolve()
     assert config.output_path == paths.run_dir.parent / "results.json"
 
@@ -111,7 +109,7 @@ def test_build_terminal_ui_config_for_pmid_file(tmp_path) -> None:
     assert config.input_mode == "pmid_file"
     assert config.pmid_file == pmid_file
     assert config.annotators == ["pubtator3"]
-    assert config.annotator_settings["pubtator3"]["mode"] == "auto"
+    assert config.annotator_settings["pubtator3"]["format"] == "biocjson"
 
 
 def test_build_terminal_ui_config_includes_bern2_endpoint(tmp_path) -> None:
@@ -167,7 +165,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
             "3",  # plain text
             "2",  # raw text file
             str(source_text),
-            "1",  # pubtator3
+            "1",  # BERN2 (PubTator3 is not offered for plain text)
             "1,2",  # Gene, Disease
         ]
     )
@@ -182,7 +180,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "text_table"
-        assert config.annotators == ["pubtator3"]
+        assert config.annotators == ["bern2"]
         assert config.entity_types == ["gene", "disease"]
         assert config.text_file is not None
         assert config.text_file.read_text(encoding="utf-8") == (
@@ -193,7 +191,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
         payload = {
             "document_count": 2,
             "annotation_summary": {
-                "annotators_enabled": ["pubtator3"],
+                "annotators_enabled": ["bern2"],
                 "document_count": 2,
                 "annotation_count": 2,
             },
@@ -216,6 +214,7 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     assert (run_dir / "config.toml").exists()
     assert (run_dir / "inputs" / "plain_text.tsv").exists()
     assert payload["document_count"] == 2
+    assert not any("PubTator3" in message for message in messages)
     assert any("Run complete" in message for message in messages)
     assert any("Keywords TSV" in message for message in messages)
     assert any("Annotations TSV" in message for message in messages)
@@ -351,7 +350,7 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
             "3",  # plain text
             "2",  # raw text file
             str(source_text),
-            "2,3",  # BERN2, Flair
+            "1,2",  # BERN2, Flair
             "5,6",  # Variant / mutation, Cell line
             "y",
         ]

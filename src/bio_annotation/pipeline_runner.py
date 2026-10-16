@@ -20,10 +20,6 @@ from bio_annotation.annotators.apollo import (
 )
 from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
-from bio_annotation.annotators.biobert import (
-    annotate_with_biobert,
-    load_biobert_pipelines,
-)
 from bio_annotation.annotators.clinicalbert import (
     DEFAULT_CLINICALBERT_MODEL,
     _load_clinicalbert_pipeline,
@@ -79,7 +75,6 @@ SUPPORTED_ANNOTATORS = {
     "aioner",
     "bent",
     "clinicalbert",
-    "biobert",
     "apollo",
     "d4data",
     "medcat",
@@ -110,7 +105,6 @@ def run_pipeline_from_config(
     aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
-    biobert_responses_by_document: dict[str, dict[str, Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
@@ -125,7 +119,6 @@ def run_pipeline_from_config(
         config,
         flair_spans_by_document=flair_spans_by_document,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
-        biobert_responses_by_document=biobert_responses_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
         scispacy_responses_by_document=scispacy_responses_by_document,
@@ -159,7 +152,6 @@ def run_pipeline_from_config(
         aioner_request_fn=aioner_request_fn,
         bent_request_fn=bent_request_fn,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
-        biobert_responses_by_document=biobert_responses_by_document,
         apollo_responses_by_document=apollo_responses_by_document,
         d4data_responses_by_document=d4data_responses_by_document,
         medcat_request_fn=medcat_request_fn,
@@ -200,7 +192,6 @@ def build_pipeline_output(
     aioner_request_fn: Callable[[Document], Any] | None = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
-    biobert_responses_by_document: dict[str, dict[str, Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
@@ -254,12 +245,6 @@ def build_pipeline_output(
             clinicalbert_pipeline = _load_clinicalbert_pipeline(clinicalbert_options["model"])
         except Exception as exc:
             logger.warning("clinicalbert unavailable: %s", exc)
-    biobert_pipelines = None
-    if "biobert" in enabled_annotators and biobert_responses_by_document is None:
-        try:
-            biobert_pipelines = load_biobert_pipelines()
-        except Exception as exc:
-            logger.warning("biobert unavailable: %s", exc)
     apollo_pipeline = None
     if "apollo" in enabled_annotators and apollo_responses_by_document is None:
         try:
@@ -327,12 +312,6 @@ def build_pipeline_output(
             ),
             clinicalbert_pipeline=clinicalbert_pipeline,
             clinicalbert_options=clinicalbert_options,
-            biobert_response=(
-                biobert_responses_by_document.get(document.document_id)
-                if biobert_responses_by_document is not None
-                else None
-            ),
-            biobert_pipelines=biobert_pipelines,
             apollo_response=(
                 apollo_responses_by_document.get(document.document_id)
                 if apollo_responses_by_document is not None
@@ -688,8 +667,6 @@ def run_selected_annotators(
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
     clinicalbert_options: dict[str, Any] | None = None,
-    biobert_response: Any = None,
-    biobert_pipelines: Any = None,
     apollo_response: Any = None,
     apollo_pipeline: Any = None,
     apollo_options: dict[str, Any] | None = None,
@@ -722,8 +699,6 @@ def run_selected_annotators(
         clinicalbert_response=clinicalbert_response,
         clinicalbert_pipeline=clinicalbert_pipeline,
         clinicalbert_options=clinicalbert_options,
-        biobert_response=biobert_response,
-        biobert_pipelines=biobert_pipelines,
         apollo_response=apollo_response,
         apollo_pipeline=apollo_pipeline,
         apollo_options=apollo_options,
@@ -760,8 +735,6 @@ def run_selected_annotators_with_status(
     clinicalbert_response: Any = None,
     clinicalbert_pipeline: Any = None,
     clinicalbert_options: dict[str, Any] | None = None,
-    biobert_response: Any = None,
-    biobert_pipelines: Any = None,
     apollo_response: Any = None,
     apollo_pipeline: Any = None,
     apollo_options: dict[str, Any] | None = None,
@@ -810,36 +783,6 @@ def run_selected_annotators_with_status(
                     format=pubtator3_options.get("format", "biocjson")
                     if pubtator3_options
                     else "biocjson",
-                    mode=pubtator3_options.get("mode", "auto")
-                    if pubtator3_options
-                    else "auto",
-                    bioconcept=pubtator3_options.get("bioconcept", "All")
-                    if pubtator3_options
-                    else "All",
-                    poll_interval_seconds=pubtator3_options.get(
-                        "poll_interval_seconds",
-                        2.0,
-                    )
-                    if pubtator3_options
-                    else 2.0,
-                    poll_backoff=pubtator3_options.get("poll_backoff", 1.5)
-                    if pubtator3_options
-                    else 1.5,
-                    max_poll_interval_seconds=(
-                        pubtator3_options.get(
-                            "max_poll_interval_seconds",
-                            15.0,
-                        )
-                        if pubtator3_options
-                        else 15.0
-                    ),
-                    max_poll_attempts=pubtator3_options.get("max_poll_attempts", 15)
-                    if pubtator3_options
-                    else 15,
-                    max_poll_seconds=pubtator3_options.get("max_poll_seconds", 180.0)
-                    if pubtator3_options
-                    else 180.0,
-                    progress_callback=_pubtator3_progress,
                 )
             elif annotator == "aioner":
                 results[annotator] = annotate_with_aioner(
@@ -880,12 +823,6 @@ def run_selected_annotators_with_status(
                     response=clinicalbert_response,
                     pipeline=clinicalbert_pipeline,
                     model=clinicalbert_options.get("model") if clinicalbert_options else None,
-                )
-            elif annotator == "biobert":
-                results[annotator] = annotate_with_biobert(
-                    document,
-                    response=biobert_response,
-                    pipelines=biobert_pipelines,
                 )
             elif annotator == "apollo":
                 results[annotator] = annotate_with_apollo(
@@ -976,7 +913,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "bent",
         "apollo",
         "clinicalbert",
-        "biobert",
         "d4data",
         "medcat",
         *SCISPACY_ANNOTATORS,
@@ -1174,8 +1110,8 @@ def _no_annotations_reason(annotator: str) -> str:
         )
     if annotator == "pubtator3":
         return (
-            "No annotations returned. Verify PubTator3 is reachable and "
-            "returned entities for this document."
+            "No annotations returned. PubTator3 only annotates documents with a "
+            "PMID or PMCID; otherwise verify it is reachable and returned entities."
         )
     if annotator == "aioner":
         return (
@@ -1187,11 +1123,6 @@ def _no_annotations_reason(annotator: str) -> str:
         return (
             "No annotations returned. The ClinicalBERT model may be unavailable/not "
             "downloaded (uv sync --extra clinicalbert), or it found no entities."
-        )
-    if annotator == "biobert":
-        return (
-            "No annotations returned. The BioBERT models may be unavailable/not "
-            "downloaded (uv sync --extra biobert), or they found no entities."
         )
     if annotator == "apollo":
         return (
@@ -1221,22 +1152,6 @@ def _no_annotations_reason(annotator: str) -> str:
             "downloaded, or it found no entities."
         )
     return "No annotations returned."
-
-
-def _pubtator3_progress(
-    session_id: str,
-    attempt: int,
-    max_attempts: int,
-    sleep_seconds: float,
-) -> None:
-    logger.info(
-        "pubtator3 pending: "
-        "session=%s attempt=%s/%s; sleeping %.1fs",
-        session_id,
-        attempt,
-        max_attempts,
-        sleep_seconds,
-    )
 
 
 def _finalize_mention(
@@ -1378,7 +1293,6 @@ def validate_optional_annotator_dependencies(
     *,
     flair_spans_by_document: dict[str, list[Any]] | None = None,
     clinicalbert_responses_by_document: dict[str, list[Any]] | None = None,
-    biobert_responses_by_document: dict[str, dict[str, Any]] | None = None,
     apollo_responses_by_document: dict[str, list[Any]] | None = None,
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
@@ -1387,7 +1301,6 @@ def validate_optional_annotator_dependencies(
     injected = {
         "flair": flair_spans_by_document,
         "clinicalbert": clinicalbert_responses_by_document,
-        "biobert": biobert_responses_by_document,
         "apollo": apollo_responses_by_document,
         "d4data": d4data_responses_by_document,
         "scispacy": scispacy_responses_by_document,
@@ -1596,50 +1509,9 @@ def _read_pubtator3_options(settings: dict[str, object]) -> dict[str, Any]:
     endpoint = settings.get("endpoint")
     timeout = settings.get("timeout")
     export_format = settings.get("format")
-    mode = settings.get("mode")
-    bioconcept = settings.get("bioconcept")
-    poll_interval_seconds = settings.get("poll_interval_seconds")
-    poll_backoff = settings.get("poll_backoff")
-    max_poll_interval_seconds = settings.get("max_poll_interval_seconds")
-    max_poll_attempts = settings.get("max_poll_attempts")
-    max_poll_seconds = settings.get("max_poll_seconds")
-
-    cleaned_mode = mode.strip().lower() if isinstance(mode, str) and mode.strip() else "auto"
-    if cleaned_mode not in {"auto", "publication_only", "text_only"}:
-        raise ValueError(
-            "annotators.pubtator3.mode must be one of: "
-            "'auto', 'publication_only', 'text_only'."
-        )
 
     return {
         "endpoint": endpoint if isinstance(endpoint, str) and endpoint.strip() else None,
         "timeout": timeout if isinstance(timeout, int) and timeout > 0 else 60,
         "format": export_format if isinstance(export_format, str) and export_format.strip() else "biocjson",
-        "mode": cleaned_mode,
-        "bioconcept": bioconcept if isinstance(bioconcept, str) and bioconcept.strip() else "All",
-        "poll_interval_seconds": (
-            float(poll_interval_seconds)
-            if isinstance(poll_interval_seconds, (int, float)) and poll_interval_seconds > 0
-            else 2.0
-        ),
-        "poll_backoff": (
-            float(poll_backoff)
-            if isinstance(poll_backoff, (int, float)) and float(poll_backoff) >= 1.0
-            else 1.5
-        ),
-        "max_poll_interval_seconds": (
-            float(max_poll_interval_seconds)
-            if isinstance(max_poll_interval_seconds, (int, float)) and float(max_poll_interval_seconds) > 0
-            else 15.0
-        ),
-        "max_poll_attempts": (
-            int(max_poll_attempts)
-            if isinstance(max_poll_attempts, int) and max_poll_attempts > 0
-            else 15
-        ),
-        "max_poll_seconds": (
-            float(max_poll_seconds)
-            if isinstance(max_poll_seconds, (int, float)) and float(max_poll_seconds) > 0
-            else 180.0
-        ),
     }
