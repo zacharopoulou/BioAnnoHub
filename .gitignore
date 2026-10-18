@@ -62,11 +62,14 @@ benchmarks/data/mtor/README.md
 benchmarks/data/ncbi/README.md
 benchmarks/data/nlm_gene/README.md
 benchmarks/data/nlmchem/README.md
+benchmarks/data/osiris/README.md
 benchmarks/data/pgxcorpus/README.md
 benchmarks/data/phaedra/README.md
 benchmarks/data/radgraph_xl/README.md
 benchmarks/data/rate_ner/README.md
 benchmarks/data/scai_disease/README.md
+benchmarks/data/scai_snp/README.md
+benchmarks/data/seth/README.md
 benchmarks/data/snpphena/README.md
 benchmarks/data/species_800/README.md
 benchmarks/data/tmvar_v3/README.md

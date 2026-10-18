@@ -27,7 +27,7 @@ def _rows_then_crash(good_rows: int):
 
 
 def test_every_corpus_script_is_covered() -> None:
-    assert len(WRITING_SCRIPTS) == 40
+    assert len(WRITING_SCRIPTS) == 43
 
 
 @pytest.mark.parametrize("script", WRITING_SCRIPTS, ids=lambda p: p.stem)
