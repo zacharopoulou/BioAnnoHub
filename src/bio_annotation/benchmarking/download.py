@@ -1,8 +1,6 @@
 """Download the benchmark corpora: all of them, or the ones picked from a list.
 
-Used by ``bioannohub download-benchmarks``. Each benchmark has its own script in
-``benchmarks/scripts/`` of the repository; this module lists them and runs the
-chosen ones one after the other, so it works from a repository checkout.
+Used by ``bioannohub download-benchmarks``. 
 """
 
 from __future__ import annotations
@@ -214,8 +212,13 @@ def ask(benchmarks: list[Benchmark]) -> list[Benchmark]:
             console.print(f"[warning]Not a number from the list or 'all':[/] {exc}")
 
 
-def datasets_available() -> bool:
-    return importlib.util.find_spec("datasets") is not None
+# Packages every Hugging Face benchmark needs (all from the `benchmarks` extra): the loaders use
+# `datasets`, most BigBIO loaders import `bioc`, and BioID needs `pandas`.
+REQUIRED_PACKAGES = ("datasets", "bioc", "pandas")
+
+
+def missing_packages() -> list[str]:
+    return [name for name in REQUIRED_PACKAGES if importlib.util.find_spec(name) is None]
 
 
 def local_input_available(bench: Benchmark) -> bool:
@@ -225,41 +228,68 @@ def local_input_available(bench: Benchmark) -> bool:
     return converted.exists() or (Path.home() / "Downloads" / module.ZIP_NAME).is_file()
 
 
+def missing_packages_message(selected: list[Benchmark]) -> str | None:
+    """Short explanation when chosen Hugging Face benchmarks need packages that are not installed."""
+    needing = sum(b.needs_datasets for b in selected)
+    missing = missing_packages() if needing else []
+    if not missing:
+        return None
+    return (
+        f"Nothing was downloaded: missing packages {', '.join(missing)} "
+        f"(needed by {needing} of the selected benchmarks).\n"
+        "Install them with: uv sync --extra benchmarks"
+    )
+
+
+RADGRAPH_NO_ZIP = (
+    "its zip was not found in ~/Downloads. RadGraph-XL is PhysioNet credentialed data: download the zip "
+    "from https://physionet.org/content/radgraph-xl/1.0.0/ into ~/Downloads and run again, or run: "
+    "uv run python benchmarks/scripts/radgraph_xl.py <path to the zip>"
+)
+
+
 def run(selected: list[Benchmark], root: Path) -> int:
-    has_datasets = datasets_available()
-    results: list[tuple[Benchmark, str, float]] = []
+    """Run the chosen scripts one after the other; exit code 1 unless every one succeeded."""
+    results: list[tuple[Benchmark, str, float, str]] = []  # benchmark, status, seconds, what went wrong
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
     for index, bench in enumerate(selected, start=1):
         console.rule(f"[brand]{index}/{len(selected)}[/]  [field]{bench.name}[/]", style="panel.border")
-        if bench.needs_datasets and not has_datasets:
-            console.print("[warning]Skipped:[/] needs the 'datasets' package. Run: uv sync --extra benchmarks")
-            results.append((bench, "skipped: no datasets", 0.0))
-            continue
         if bench.key in LOCAL_ONLY and not local_input_available(bench):
-            console.print(
-                "[warning]Skipped:[/] RadGraph-XL needs its zip from PhysioNet (credentialed access) in "
-                "~/Downloads, or run benchmarks/scripts/radgraph_xl.py with the zip's path."
-            )
-            results.append((bench, "skipped: no zip", 0.0))
+            console.print(f"[warning]Not downloaded:[/] {bench.name}: {RADGRAPH_NO_ZIP}")
+            results.append((bench, "skipped", 0.0, RADGRAPH_NO_ZIP))
             continue
         start = time.monotonic()
         code = subprocess.run([sys.executable, str(bench.script)], cwd=root, env=env).returncode
-        results.append((bench, "ok" if code == 0 else f"failed (exit {code})", time.monotonic() - start))
+        seconds = time.monotonic() - start
+        if code == 0:
+            results.append((bench, "ok", seconds, ""))
+        else:
+            reason = (
+                f"its script stopped with exit code {code}. The error is printed above; "
+                f"to retry it alone: uv run --extra benchmarks python {bench.script.relative_to(root).as_posix()}"
+            )
+            console.print(f"[bold red]Failed:[/] {bench.name}: {reason}")
+            results.append((bench, "failed", seconds, reason))
 
     summary = Table(box=box.ROUNDED, border_style="panel.border", header_style="table.header",
                     title="Summary", title_style="table.title")
     summary.add_column("Benchmark", style="field")
     summary.add_column("Result")
     summary.add_column("Time", justify="right", style="muted")
-    for bench, result, seconds in results:
-        style = "ok" if result == "ok" else ("warning" if result.startswith("skipped") else "bold red")
-        summary.add_row(bench.name, Text(result, style=style), f"{seconds:.0f} s")
+    styles = {"ok": "ok", "skipped": "warning", "failed": "bold red"}
+    for bench, status, seconds, _ in results:
+        summary.add_row(bench.name, Text(status, style=styles[status]), f"{seconds:.0f} s")
     console.print()
     console.print(summary)
-    failed = [r for r in results if r[1].startswith("failed")]
-    if failed:
-        console.print(f"[bold red]{len(failed)} failed.[/] Scroll up for the error, or run its script on its own.")
-    return 1 if failed else 0
+
+    problems = [(bench, status, reason) for bench, status, _, reason in results if status != "ok"]
+    if not problems:
+        console.print(f"[ok]All {len(results)} downloaded.[/]")
+        return 0
+    console.print(f"[bold red]Not everything was downloaded ({len(problems)} of {len(results)}):[/]")
+    for bench, status, reason in problems:
+        console.print(f"  [field]{bench.name}[/] ({status}): {reason}")
+    return 1
 
 
 def download_benchmarks(*, download_all: bool = False, list_only: bool = False) -> int:
@@ -283,4 +313,8 @@ def download_benchmarks(*, download_all: bool = False, list_only: bool = False) 
         console.print("[muted]Nothing selected.[/]")
         return 0
     console.print(f"[muted]Selected {len(selected)}:[/] " + ", ".join(b.name for b in selected))
+    problem = missing_packages_message(selected)
+    if problem:  # stop before downloading anything rather than skip part of the selection
+        console.print(f"[bold red]{problem}[/]")
+        return 1
     return run(selected, root)
