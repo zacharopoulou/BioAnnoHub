@@ -2,23 +2,20 @@
 
     uv run python benchmarks/scripts/chebi.py
 
-The ChEBI corpus has no train/test split. It has three parts, and each one
-is written to its own file:
+No train/test split-> three files: chebi_fullpaper (100 papers),
+chebi_abstracts_ann1 and chebi_abstracts_ann2 (the same 199 abstracts, two annotators).
 
-- chebi_fullpaper.jsonl:       100 full papers
-- chebi_abstracts_ann1.jsonl:  199 abstracts, annotated by annotator 1
-- chebi_abstracts_ann2.jsonl:  the same 199 abstracts, annotated by annotator 2
-
-About 1% of the entity spans in the original files include extra spaces at
-the end (for example the offsets cover "enzyme  " while the mention is
-"enzyme"). An annotator that tags "enzyme" correctly would then be scored
-wrong under strict matching, so this script moves those offsets in to the
-first and last non-space character (_trim_offsets).
+- In the source, some mentions' positions include spaces after the word
+  ("enzyme  " instead of "enzyme"). _trim_offsets removes those spaces from
+  the positions and copies the text from the corrected positions.
+- The source text files are UTF-8, but on Windows they are read with another
+  encoding and the download crashes. _utf8_xopen makes them be read as UTF-8.
 """
 
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -73,7 +70,7 @@ def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
 
 
 def _trim_offsets(row: dict[str, Any]) -> dict[str, Any]:
-    """Move each entity fragment's offsets in past leading and trailing spaces."""
+    """Move each entity fragment's offsets in past leading and trailing spaces, and match the text to them."""
     text = "".join(t for passage in row["passages"] for t in passage["text"])
     for entity in row["entities"]:
         trimmed = []
@@ -84,11 +81,35 @@ def _trim_offsets(row: dict[str, Any]) -> dict[str, Any]:
                 end -= 1
             trimmed.append([start, end])
         entity["offsets"] = trimmed
+        entity["text"] = [text[start:end] for start, end in trimmed]  # text taken from the trimmed offsets
     return row
 
 
+@contextmanager
+def _utf8_xopen():
+    """Make the loader read text files as UTF-8 while it runs.
+
+    `datasets` replaces `open` and `Path` in loader modules with its own xopen/xPath,
+    so patching pathlib.Path.open has no effect here: xopen is what opens the files.
+    """
+    from datasets.utils import file_utils
+
+    xopen = file_utils.xopen
+
+    def _xopen(file, mode="r", *args, **kwargs):
+        if "b" not in mode:
+            kwargs.setdefault("encoding", "utf-8")
+        return xopen(file, mode, *args, **kwargs)
+
+    file_utils.xopen = _xopen
+    try:
+        yield
+    finally:
+        file_utils.xopen = xopen
+
+
 def download_split(split: str, data_dir: Path) -> Path:
-    """Pull one part from Hugging Face, trim its offsets and persist it as JSONL."""
+    """Pull one part from Hugging Face (reading UTF-8), trim its offsets and persist it as JSONL."""
     try:
         from datasets import load_dataset
     except ImportError as exc:
@@ -97,13 +118,14 @@ def download_split(split: str, data_dir: Path) -> Path:
             "Install with: uv sync --extra benchmarks"
         ) from exc
 
-    ds = load_dataset(
-        HF_DATASET,
-        name=HF_CONFIGS[split],
-        split=HF_SPLIT,
-        trust_remote_code=True,
-        revision=HF_REVISION,
-    )
+    with _utf8_xopen():
+        ds = load_dataset(
+            HF_DATASET,
+            name=HF_CONFIGS[split],
+            split=HF_SPLIT,
+            trust_remote_code=True,
+            revision=HF_REVISION,
+        )
     target = _split_file(data_dir, split)
     _write_jsonl(target, (_trim_offsets(dict(row)) for row in ds))
     return target

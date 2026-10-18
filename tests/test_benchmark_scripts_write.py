@@ -65,6 +65,22 @@ def test_complete_write_renames_the_part_file(script: Path, tmp_path: Path) -> N
     assert not target.with_name("test.jsonl.part").exists()
 
 
+def test_chebi_trim_offsets_keeps_text_and_offsets_in_agreement() -> None:
+    module = _load(SCRIPTS_DIR / "chebi.py")
+    text = "Luteolin  \n  7 -glucoside was found."
+    row = {
+        "passages": [{"text": [text], "offsets": [[0, len(text)]]}],
+        # as in the source: the first fragment's span and text include two trailing spaces
+        "entities": [{"text": ["Luteolin  ", "7 -glucoside"], "offsets": [[0, 10], [13, 25]]}],
+    }
+
+    entity = module._trim_offsets(row)["entities"][0]
+
+    assert entity["offsets"] == [[0, 8], [13, 25]]
+    assert entity["text"] == ["Luteolin", "7 -glucoside"]
+    assert entity["text"] == [text[start:end] for start, end in entity["offsets"]]
+
+
 def test_umls_semantic_types_interrupted_write_leaves_no_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     module = _load(SCRIPTS_DIR / "umls_semantic_types.py")
     lines = [f"abcd|T{index:03d}|Type {index}" for index in range(module.EXPECTED_TYPES)]
