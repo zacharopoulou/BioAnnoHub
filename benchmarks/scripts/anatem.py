@@ -45,13 +45,23 @@ def _split_file(data_dir: Path, split: str) -> Path:
 
 
 def _write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> int:
+    """Write to <name>.part and rename it only once every row is written.
+
+    An interrupted download then never leaves a file that looks complete.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_name(path.name + ".part")
     written = 0
-    with path.open("w", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(json.dumps(row, ensure_ascii=False, default=str))
-            handle.write("\n")
-            written += 1
+    try:
+        with partial.open("w", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps(row, ensure_ascii=False, default=str))
+                handle.write("\n")
+                written += 1
+        partial.replace(path)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
     return written
 
 

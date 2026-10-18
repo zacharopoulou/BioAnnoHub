@@ -18,10 +18,12 @@ data/inputs/query_*.txt
 data/corpora/query_*.json
 
 # Benchmark data files are not committed: download them with
-#   uv run --extra benchmarks python benchmarks/download.py
+#   uv run --extra benchmarks bioannohub download-benchmarks
 benchmarks/data/**/*.jsonl
 benchmarks/data/**/*.json
 benchmarks/data/**/*.txt
+# Half-written downloads (renamed to the real file only when complete)
+benchmarks/data/**/*.part
 
 # RadGraph-XL is PhysioNet credentialed data and must not be shared: nothing in
 # its folder is committed. Regenerate locally with benchmarks/scripts/radgraph_xl.py

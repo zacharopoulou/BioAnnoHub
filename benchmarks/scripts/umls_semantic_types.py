@@ -51,7 +51,14 @@ def download(data_dir: Path) -> Path:
         raise ValueError(f"expected {EXPECTED_TYPES} semantic types, got {len(lines)}")
     target = data_dir / FILE_NAME
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    # Write to <name>.part and rename it once complete, so an interrupted run leaves no partial file.
+    partial = target.with_name(target.name + ".part")
+    try:
+        partial.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+        partial.replace(target)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
     return target
 
 
