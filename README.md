@@ -153,16 +153,18 @@ BioAnnoHub uses the publication export API, so PubTator3 only annotates document
 
 ### BERN2
 
-BERN2 is configured through its HTTP endpoint. The generated terminal UI config uses:
+BERN2 uses the public HTTPS endpoint. The generated terminal UI config uses:
 
 ```toml
 [annotators.bern2]
 runtime = "remote_api"
-endpoint = "http://bern2.korea.ac.kr/plain"
+endpoint = "https://bern2.korea.ac.kr/plain"
 timeout = 30
 ```
 
-Local BERN2 endpoints such as `localhost` or `127.0.0.1` are also supported.
+If an existing config sets `http://bern2.korea.ac.kr/plain`, update it to
+`https://bern2.korea.ac.kr/plain`. Local BERN2 endpoints such as `localhost`
+or `127.0.0.1` are also supported.
 
 BERN2 supports:
 
