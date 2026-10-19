@@ -2,31 +2,17 @@ from __future__ import annotations
 
 import json
 import socket
-import time
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 from urllib import error, parse, request
 
 
 PUBTATOR3_API_BASE_URL = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
-PUBTATOR_RAW_TEXT_REQUEST_URL = "https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/RESTful/request.cgi"
-PUBTATOR_RAW_TEXT_RETRIEVE_URL = "https://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/RESTful/retrieve.cgi"
 DEFAULT_EXPORT_FORMAT = "biocjson"
 DEFAULT_GET_BATCH_SIZE = 100
 DEFAULT_POST_BATCH_SIZE = 1000
-DEFAULT_BIOCONCEPT = "All"
-DEFAULT_TEXT_MAX_ATTEMPTS = 20
-DEFAULT_TEXT_POLL_INTERVAL = 2.0
-DEFAULT_TEXT_POLL_BACKOFF = 1.5
-DEFAULT_TEXT_MAX_POLL_INTERVAL = 15.0
-DEFAULT_TEXT_MAX_POLL_SECONDS = 180.0
 
 RequestOpener = Callable[[request.Request, int], bytes]
-PollProgressCallback = Callable[[str, int, int, float], None]
-
-
-class PubTator3PendingError(ValueError):
-    """Raised when a raw-text PubTator3 job is not ready yet."""
 
 
 def _default_open(http_request: request.Request, timeout: int) -> bytes:
@@ -98,90 +84,6 @@ class PubTator3Client:
         if format not in {"biocxml", "biocjson"}:
             raise ValueError("PubTator3 PMCID export only supports biocxml or biocjson formats.")
         return self._fetch_publications("pmcids", pmcids, format=format, concepts=concepts, full=full)
-
-    def submit_text_annotation(
-        self,
-        payload: bytes | str,
-        *,
-        bioconcept: str = DEFAULT_BIOCONCEPT,
-    ) -> str:
-        text = payload.decode("utf-8") if isinstance(payload, bytes) else payload
-        body = parse.urlencode({"text": text, "bioconcept": bioconcept}).encode("utf-8")
-        http_request = request.Request(
-            PUBTATOR_RAW_TEXT_REQUEST_URL,
-            data=body,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
-        response_text = self._send_text(http_request).strip()
-        try:
-            response_body = json.loads(response_text)
-        except json.JSONDecodeError:
-            session_id = response_text
-        else:
-            session_id = str(response_body.get("id") or "").strip()
-        if not session_id:
-            raise ValueError("PubTator3 submit endpoint returned an empty session ID.")
-        return session_id
-
-    def retrieve_text_annotation(self, session_id: str) -> str:
-        endpoint = f"{PUBTATOR_RAW_TEXT_RETRIEVE_URL}?{parse.urlencode({'id': session_id.strip()})}"
-        http_request = request.Request(endpoint, method="GET")
-        try:
-            return self._send_text(http_request)
-        except ValueError as exc:
-            if "HTTP Error 404" in str(exc) or "HTTP Error 400" in str(exc):
-                raise PubTator3PendingError("PubTator3 annotation job is not ready yet.") from exc
-            raise
-
-    def annotate_text(
-        self,
-        payload: bytes | str,
-        *,
-        bioconcept: str = DEFAULT_BIOCONCEPT,
-        max_attempts: int = DEFAULT_TEXT_MAX_ATTEMPTS,
-        poll_interval: float = DEFAULT_TEXT_POLL_INTERVAL,
-        poll_backoff: float = DEFAULT_TEXT_POLL_BACKOFF,
-        max_poll_interval: float = DEFAULT_TEXT_MAX_POLL_INTERVAL,
-        max_poll_seconds: float = DEFAULT_TEXT_MAX_POLL_SECONDS,
-        progress_callback: PollProgressCallback | None = None,
-    ) -> str:
-        if max_attempts < 1:
-            raise ValueError("max_attempts must be at least 1.")
-        if poll_interval < 0:
-            raise ValueError("poll_interval must be non-negative.")
-        if poll_backoff < 1.0:
-            raise ValueError("poll_backoff must be at least 1.0.")
-        if max_poll_interval <= 0:
-            raise ValueError("max_poll_interval must be greater than 0.")
-        if max_poll_seconds <= 0:
-            raise ValueError("max_poll_seconds must be greater than 0.")
-
-        session_id = self.submit_text_annotation(payload, bioconcept=bioconcept)
-        last_error: PubTator3PendingError | None = None
-        delay = poll_interval
-        started_at = time.monotonic()
-        for attempt in range(max_attempts):
-            try:
-                return self.retrieve_text_annotation(session_id)
-            except PubTator3PendingError as exc:
-                last_error = exc
-                elapsed = time.monotonic() - started_at
-                if attempt == max_attempts - 1:
-                    break
-                if elapsed >= max_poll_seconds:
-                    break
-                sleep_seconds = min(delay, max_poll_seconds - elapsed)
-                if progress_callback is not None:
-                    progress_callback(session_id, attempt + 1, max_attempts, sleep_seconds)
-                time.sleep(sleep_seconds)
-                delay = min(delay * poll_backoff, max_poll_interval)
-
-        elapsed = time.monotonic() - started_at
-        raise ValueError(
-            f"PubTator3 annotation job {session_id} was not ready after "
-            f"{max_attempts} attempts and {elapsed:.1f}s."
-        ) from last_error
 
     def _fetch_publications(
         self,

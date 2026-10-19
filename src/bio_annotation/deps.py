@@ -18,8 +18,7 @@ from pathlib import Path
 from typing import Callable, Iterable
 
 from bio_annotation.entity_proposal.apollo_proposer import APOLLO_INSTALL_HINT
-from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT
-from bio_annotation.entity_proposal.biobert_proposer import BIOBERT_INSTALL_HINT
+from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, DEFAULT_BENT_TYPES
 from bio_annotation.entity_proposal.clinicalbert_proposer import CLINICALBERT_INSTALL_HINT
 from bio_annotation.entity_proposal.d4data_proposer import D4DATA_INSTALL_HINT
 from bio_annotation.entity_proposal.flair_proposer import FLAIR_INSTALL_HINT
@@ -35,9 +34,8 @@ from bio_annotation.entity_proposal.stanza_proposer import (
 DISABLE_ENV_VAR = "TOTALANNOTATOR_NO_AUTO_INSTALL"
 
 EXTRA_MODULES: dict[str, tuple[str, ...]] = {
-    "flair": ("flair",),
+    "flair": ("flair", "pyab3p"),
     "clinicalbert": ("transformers", "torch"),
-    "biobert": ("transformers", "torch"),
     "apollo": ("transformers", "torch"),
     "d4data": ("transformers", "torch"),
     "stanza": ("stanza",),
@@ -48,7 +46,6 @@ EXTRA_MODULES: dict[str, tuple[str, ...]] = {
 ANNOTATOR_EXTRAS: dict[str, str] = {
     "flair": "flair",
     "clinicalbert": "clinicalbert",
-    "biobert": "biobert",
     "apollo": "apollo",
     "d4data": "d4data",
     **{annotator: "scispacy" for annotator in SCISPACY_MODEL_BY_ANNOTATOR},
@@ -58,7 +55,6 @@ ANNOTATOR_EXTRAS: dict[str, str] = {
 EXTRA_INSTALL_HINTS: dict[str, str] = {
     "flair": FLAIR_INSTALL_HINT,
     "clinicalbert": CLINICALBERT_INSTALL_HINT,
-    "biobert": BIOBERT_INSTALL_HINT,
     "apollo": APOLLO_INSTALL_HINT,
     "d4data": D4DATA_INSTALL_HINT,
     "stanza": STANZA_INSTALL_HINT,
@@ -137,32 +133,18 @@ def ensure_extras(
 # Annotators provisioned by a setup script instead of a pip extra: they need an
 # external repo, their own interpreter, or downloaded resources.
 TOOL_SETUP_SCRIPTS: dict[str, str] = {
-    "aioner": "tools/aioner/setup.sh",
     "bent": "tools/bent/setup.sh",
 }
 TOOL_SETUP_NOTES: dict[str, str] = {
-    "aioner": (
-        "Clones the AIONER repo, downloads ~1.5 GB of pretrained models, and provisions "
-        "a separate Python 3.8 environment."
-    ),
     "bent": (
         "Provisions a separate Python <=3.10 environment and downloads BENT's resources. "
         "Needs wget, git, make, g++ and javac on PATH."
     ),
 }
-AIONER_DEFAULT_MODEL_RELPATH = "pretrained_models/AIONER/PubmedBERT-CRF-AIONER.h5"
 
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
-
-
-def aioner_config_paths() -> tuple[str, str]:
-    """Resolve AIONER repo/model paths for the generated config."""
-
-    repo = os.environ.get("AIONER_REPO") or str(repo_root() / "AIONER")
-    model = os.environ.get("AIONER_MODEL") or str(Path(repo) / AIONER_DEFAULT_MODEL_RELPATH)
-    return repo, model
 
 
 def bent_root(project: str) -> Path | None:
@@ -172,18 +154,35 @@ def bent_root(project: str) -> Path | None:
     return roots[0] if roots else None
 
 
+BENT_KB_FILES = ("id_to_info.json", "id_to_name.json", "name_to_id.json", "node_to_node.json", "synonym_to_id.json")
+
+
+def bent_kb_complete(kb_dir: Path) -> bool:
+    """Whether a KB folder holds every dictionary BENT links against, e.g. not an interrupted extraction."""
+
+    return all((kb_dir / name).is_file() and (kb_dir / name).stat().st_size > 0 for name in BENT_KB_FILES)
+
+
+def bent_required_kbs(settings: dict[str, object]) -> list[str]:
+    """KB dictionaries the configured BENT types link against; none in NER-only mode."""
+
+    if settings.get("mode") == "ner":
+        return []
+    types = settings.get("types")
+    kbs = [kb.strip() for kb in types.values() if isinstance(kb, str) and kb.strip()] if isinstance(types, dict) else []
+    return list(dict.fromkeys(kbs or DEFAULT_BENT_TYPES.values()))
+
+
 def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
     """Whether a setup-script annotator has its environment and resources in place."""
 
-    if annotator == "aioner":
-        _, model = aioner_config_paths()
-        configured = settings.get("model")
-        if isinstance(configured, str) and configured.strip():
-            model = configured.strip()
-        return Path(model).exists() and (repo_root() / "tools" / "aioner" / ".venv").exists()
     if annotator == "bent":
+        if any(isinstance(settings.get(key), str) and settings[key].strip() for key in ("python", "script")):
+            return True
         project = settings.get("project")
         directory = project.strip() if isinstance(project, str) and project.strip() else DEFAULT_BENT_PROJECT
+        if Path(directory).resolve() != (repo_root() / TOOL_SETUP_SCRIPTS["bent"]).parent:
+            return True
 
         root = bent_root(directory)
         if root is None:
@@ -193,8 +192,7 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
             (root / "data" / "NILINKER").exists()
             and (root / "data" / "overlapping_entities").exists()
             and (root / "abbreviation_detector" / "Ab3P" / "identify_abbr").exists()
-            and dicts.is_dir()
-            and any(dicts.iterdir())
+            and all(bent_kb_complete(dicts / kb) for kb in bent_required_kbs(settings))
         )
     return True
 
@@ -234,5 +232,10 @@ def ensure_tool_environments(
         if input_fn("Run it now? [Y/n] ").strip().lower() not in ("", "y", "yes"):
             output_fn(f"Skipping setup. {skipped}")
             continue
-        if subprocess.run(["bash", str(script)], check=False).returncode != 0:
+        env = None
+        if annotator == "bent":
+            # setup.sh downloads only the KBs in BENT_KBS; NER-only mode passes "" to skip them.
+            kbs = bent_required_kbs(settings_by_annotator.get(annotator, {}))
+            env = {**os.environ, "BENT_KBS": ",".join(kbs)}
+        if subprocess.run(["bash", str(script)], check=False, env=env).returncode != 0:
             output_fn(f"{script} failed. {skipped}")

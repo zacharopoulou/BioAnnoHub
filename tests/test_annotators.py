@@ -11,11 +11,6 @@ import pytest
 
 from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
-from bio_annotation.annotators.aioner import (
-    annotate_with_aioner,
-    build_aioner_pubtator_input,
-    call_aioner,
-)
 from bio_annotation.annotators.clinicalbert import (
     DEFAULT_CLINICALBERT_MODEL,
     annotate_with_clinicalbert,
@@ -26,10 +21,6 @@ from bio_annotation.annotators.apollo import (
 )
 from bio_annotation.annotators.bent import annotate_with_bent, call_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2, call_bern2
-from bio_annotation.annotators.biobert import (
-    DEFAULT_BIOBERT_MODELS,
-    annotate_with_biobert,
-)
 from bio_annotation.annotators.d4data import (
     DEFAULT_D4DATA_MODEL,
     annotate_with_d4data,
@@ -365,26 +356,6 @@ def test_pubtator3_adapter_parses_pubtator3_wrapped_bioc_json() -> None:
     assert annotations[0].canonical_id == "5728"
 
 
-def test_pubtator3_adapter_parses_pubannotation_json() -> None:
-    document = sample_document()
-    response = {
-        "text": document.text,
-        "sourcedb": "PubMed",
-        "sourceid": document.document_id,
-        "denotations": [
-            {"obj": "Gene:5728", "span": {"begin": 0, "end": 4}},
-            {"obj": "Disease:D005909", "span": {"begin": 15, "end": 27}},
-        ],
-    }
-
-    annotations = annotate_with_pubtator3(document, response=response)
-
-    assert len(annotations) == 2
-    assert annotations[0].source == "pubtator3"
-    assert annotations[0].entity_type == "gene"
-    assert annotations[1].canonical_id == "D005909"
-
-
 def test_pubtator3_adapter_parses_pubtator_text_format() -> None:
     document = sample_document()
     response = (
@@ -402,37 +373,7 @@ def test_pubtator3_adapter_parses_pubtator_text_format() -> None:
     assert annotations[1].entity_type == "disease"
 
 
-def test_pubtator3_adapter_uses_raw_text_mode_for_plain_corpus() -> None:
-    document = Document(
-        document_id="CORPUS:doc1",
-        pmid="12345678",
-        title="PTEN regulates glioblastoma",
-        abstract="PTEN is important in glioblastoma.",
-        source="corpus",
-    )
-
-    class FakeClient:
-        def __init__(self) -> None:
-            self.payloads: list[str] = []
-            self.options: list[dict[str, object]] = []
-
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.payloads.append(payload)
-            self.options.append(kwargs)
-            return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[{"obj":"Gene:5728","span":{"begin":0,"end":4}}]}'
-
-    client = FakeClient()
-    annotations = annotate_with_pubtator3(document, client=client, mode="text_only")
-
-    assert len(annotations) == 1
-    assert annotations[0].source == "pubtator3"
-    assert annotations[0].entity_type == "gene"
-    assert annotations[0].canonical_id == "5728"
-    assert client.payloads == [document.text]
-    assert client.options[0]["bioconcept"] == "All"
-
-
-def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
+def test_pubtator3_uses_pmid_for_benchmark_documents() -> None:
     document = Document(
         document_id="9949209",
         pmid="9949209",
@@ -444,7 +385,6 @@ def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
     class FakeClient:
         def __init__(self) -> None:
             self.pmids: list[list[str]] = []
-            self.text_payloads: list[str] = []
 
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             self.pmids.append(pmids)
@@ -453,19 +393,14 @@ def test_pubtator3_publication_mode_uses_pmid_for_benchmark_documents() -> None:
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMCID lookup should not be used when PMID is present")
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for benchmark PMID documents")
-
     client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="publication_only")
+    payload = call_pubtator3(document, client=client)
 
     assert payload == {"documents": []}
     assert client.pmids == [["9949209"]]
-    assert client.text_payloads == []
 
 
-def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -> None:
+def test_pubtator3_uses_publication_export_for_pubtator3_pmid_documents() -> None:
     document = Document(
         document_id="PMID:12345678",
         pmid="12345678",
@@ -477,7 +412,6 @@ def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -
     class FakeClient:
         def __init__(self) -> None:
             self.pmids: list[list[str]] = []
-            self.text_payloads: list[str] = []
 
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             self.pmids.append(pmids)
@@ -486,19 +420,14 @@ def test_pubtator3_auto_uses_publication_export_for_pubtator3_pmid_documents() -
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMCID lookup should not be used when PMID is present")
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for PMID documents in auto mode")
-
     client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="auto")
+    payload = call_pubtator3(document, client=client)
 
     assert payload == {"documents": []}
     assert client.pmids == [["12345678"]]
-    assert client.text_payloads == []
 
 
-def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -> None:
+def test_pubtator3_uses_publication_export_for_metadata_pmcid_documents() -> None:
     document = Document(
         document_id="PMC:PMC1234567",
         title="PTEN regulates glioblastoma",
@@ -510,7 +439,6 @@ def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -
     class FakeClient:
         def __init__(self) -> None:
             self.pmcids: list[list[str]] = []
-            self.text_payloads: list[str] = []
 
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMID lookup should not be used when no PMID is present")
@@ -519,19 +447,14 @@ def test_pubtator3_auto_uses_publication_export_for_metadata_pmcid_documents() -
             self.pmcids.append(pmcids)
             return {"documents": []}
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.text_payloads.append(payload)
-            raise AssertionError("raw text annotation should not be used for PMCID documents in auto mode")
-
     client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="auto")
+    payload = call_pubtator3(document, client=client)
 
     assert payload == {"documents": []}
     assert client.pmcids == [["PMC1234567"]]
-    assert client.text_payloads == []
 
 
-def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers() -> None:
+def test_pubtator3_returns_nothing_without_publication_identifiers() -> None:
     document = Document(
         document_id="CORPUS:doc1",
         title="PTEN regulates glioblastoma",
@@ -540,86 +463,13 @@ def test_pubtator3_auto_falls_back_to_raw_text_without_publication_identifiers()
     )
 
     class FakeClient:
-        def __init__(self) -> None:
-            self.payloads: list[str] = []
-
         def fetch_publications_by_pmids(self, pmids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMID lookup should not be used without a PMID")
 
         def fetch_publications_by_pmcids(self, pmcids: list[str], **kwargs: object) -> dict[str, list[dict[str, object]]]:
             raise AssertionError("PMCID lookup should not be used without a PMCID")
 
-        def annotate_text(self, payload: str, **kwargs: object) -> str:
-            self.payloads.append(payload)
-            return '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
-
-    client = FakeClient()
-    payload = call_pubtator3(document, client=client, mode="auto")
-
-    assert payload == '{"text":"PTEN regulates glioblastoma\\n\\nPTEN is important in glioblastoma.","denotations":[]}'
-    assert client.payloads == [document.text]
-
-
-def test_aioner_adapter_parses_pubtator_output_and_normalizes_types() -> None:
-    document = sample_document()
-    # AIONER emits 5-column PubTator (no identifier; NER only). "Chemical" and
-    # "CellLine" must normalize to the canonical "drug" / "cell_line" types.
-    response = (
-        "PMID:12345678|t|PTEN regulates glioblastoma\n"
-        "PMID:12345678|a|\n"
-        "PMID:12345678\t0\t4\tPTEN\tGene\n"
-        "PMID:12345678\t15\t27\tglioblastoma\tDisease\n"
-        "PMID:12345678\t40\t48\tcisplatin\tChemical\n"
-        "PMID:12345678\t60\t65\tHeLa\tCellLine\n"
-    )
-
-    annotations = annotate_with_aioner(document, response=response)
-
-    assert len(annotations) == 4
-    assert all(annotation.source == "aioner" for annotation in annotations)
-    assert annotations[0].entity_type == "gene"
-    assert annotations[0].start == 0
-    assert annotations[0].end == 4
-    assert annotations[1].entity_type == "disease"
-    assert annotations[2].entity_type == "drug"
-    assert annotations[3].entity_type == "cell_line"
-    assert all(annotation.canonical_id is None for annotation in annotations)
-
-
-def test_aioner_adapter_uses_request_fn() -> None:
-    document = sample_document()
-    calls: list[Document] = []
-
-    def fake_request(doc: Document) -> str:
-        calls.append(doc)
-        return "PMID:12345678\t0\t4\tPTEN\tGene\n"
-
-    annotations = annotate_with_aioner(document, request_fn=fake_request)
-
-    assert calls == [document]
-    assert len(annotations) == 1
-    assert annotations[0].entity_type == "gene"
-
-
-def test_aioner_input_flattens_newlines_preserving_offsets() -> None:
-    document = sample_document()
-    rendered = build_aioner_pubtator_input(document)
-
-    title_line = rendered.splitlines()[0]
-    assert title_line.startswith("PMID:12345678|t|")
-    flat_text = title_line.split("|t|", 1)[1]
-    assert "\n" not in flat_text
-    # Length is preserved so AIONER's absolute offsets map onto document.text.
-    assert len(flat_text) == len(document.text)
-
-
-def test_aioner_call_requires_configuration(monkeypatch) -> None:
-    document = sample_document()
-    monkeypatch.delenv("AIONER_REPO", raising=False)
-    monkeypatch.delenv("AIONER_MODEL", raising=False)
-
-    with pytest.raises(RuntimeError, match="AIONER repo path is not configured"):
-        call_aioner(document)
+    assert call_pubtator3(document, client=FakeClient()) is None
 
 
 def test_clinicalbert_adapter_parses_pipeline_output_and_normalizes_types() -> None:
@@ -708,131 +558,6 @@ def test_clinicalbert_adapter_trims_leading_articles_and_drops_noise() -> None:
     spans = [annotation.span_text for annotation in annotations]
     assert spans == ["stop codon", "11-base pair insertion", "breast cancer"]
     assert all(annotation.entity_type == "problem" for annotation in annotations)
-
-
-def test_biobert_adapter_merges_per_model_responses() -> None:
-    document = sample_document()
-    # One HuggingFace payload per checkpoint; the producing model sets the type.
-    response = {
-        "gene": [{"entity_group": "GENE", "score": 0.98, "word": "PTEN"}],
-        "disease": [{"entity_group": "DISEASE", "score": 0.95, "word": "glioblastoma"}],
-        "drug": [{"entity_group": "CHEMICAL", "score": 0.90, "word": "miR-21"}],
-    }
-
-    annotations = annotate_with_biobert(document, response=response)
-
-    assert all(annotation.source == "biobert" for annotation in annotations)
-    assert {(a.span_text, a.entity_type) for a in annotations} == {
-        ("PTEN", "gene"),
-        ("glioblastoma", "disease"),
-        ("miR-21", "drug"),
-    }
-
-
-def test_biobert_adapter_loads_one_pipeline_per_model() -> None:
-    document = sample_document()
-    loaded: list[str] = []
-    label_by_model = {
-        "alvaroalon2/biobert_genetic_ner": "GENE",
-        "alvaroalon2/biobert_diseases_ner": "DISEASE",
-        "alvaroalon2/biobert_chemical_ner": "CHEMICAL",
-    }
-
-    def fake_loader(model: str):
-        loaded.append(model)
-        label = label_by_model[model]
-        return lambda text: [{"entity_group": label, "score": 0.9, "word": "PTEN"}]
-
-    annotations = annotate_with_biobert(document, pipeline_loader=fake_loader)
-
-    # One pipeline loaded per configured checkpoint, all merged under "biobert".
-    assert loaded == list(DEFAULT_BIOBERT_MODELS.values())
-    assert all(a.source == "biobert" for a in annotations)
-    assert sorted(a.entity_type for a in annotations) == ["disease", "drug", "gene"]
-
-
-def test_biobert_adapter_uses_request_fn_and_drops_punctuation() -> None:
-    document = sample_document()
-
-    def fake_request(doc: Document) -> dict[str, list[dict[str, object]]]:
-        return {
-            "gene": [
-                {"entity_group": "GENE", "score": 0.9, "word": "PTEN"},
-                {"entity_group": "GENE", "score": 0.4, "word": "-"},
-            ],
-        }
-
-    annotations = annotate_with_biobert(document, request_fn=fake_request)
-
-    assert [a.span_text for a in annotations] == ["PTEN"]
-    assert annotations[0].entity_type == "gene"
-    assert annotations[0].source == "biobert"
-
-
-def test_biobert_adapter_drops_outside_zero_labels() -> None:
-    document = sample_document()
-    # The diseases checkpoint mislabels its "outside" tag as "0" (not "O"), so the
-    # pipeline emits bogus "0" spans over plain text; those must be dropped.
-    response = {
-        "disease": [
-            {"entity_group": "0", "score": 1.0, "word": "PTEN and"},
-            {"entity_group": "DISEASE", "score": 0.99, "word": "glioblastoma"},
-            {"entity_group": "0", "score": 1.0, "word": "are biomarkers in"},
-        ],
-    }
-
-    annotations = annotate_with_biobert(document, response=response)
-
-    assert [a.span_text for a in annotations] == ["glioblastoma"]
-    assert annotations[0].entity_type == "disease"
-
-
-def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:
-    # The Windows runner must hand AIONER forward-slash paths (it splits the model
-    # path on "/") and decode the subprocess as UTF-8. Imported directly so the
-    # test runs on any OS.
-    from pathlib import Path
-
-    from bio_annotation.entity_proposal import aioner_windows
-
-    repo = tmp_path / "aioner"
-    (repo / "src").mkdir(parents=True)
-    (repo / "src" / "AIONER_Run.py").write_text("", encoding="utf-8")
-    (repo / "vocab").mkdir()
-    (repo / "vocab" / "AIO_label.vocab").write_text("", encoding="utf-8")
-    model = tmp_path / "models" / "AIONER.h5"
-    model.parent.mkdir()
-    model.write_text("", encoding="utf-8")
-
-    captured: dict = {}
-
-    class FakeCompleted:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    def fake_run(command, **kwargs):
-        captured["command"] = command
-        captured["kwargs"] = kwargs
-        out_dir = Path(command[command.index("-o") + 1])
-        (out_dir / "document.txt").write_text("doc\t0\t4\tPTEN\tGene\n", encoding="utf-8")
-        return FakeCompleted()
-
-    monkeypatch.setattr(aioner_windows.subprocess, "run", fake_run)
-
-    document = sample_document()
-    out = aioner_windows.call_aioner(
-        document, repo=str(repo), model=str(model), python="python"
-    )
-
-    cmd = captured["command"]
-    model_arg = cmd[cmd.index("-m") + 1]
-    assert "\\" not in model_arg
-    assert model_arg.endswith("/models/AIONER.h5")
-    assert "\\" not in cmd[cmd.index("-i") + 1]
-    assert "\\" not in cmd[cmd.index("-o") + 1]
-    assert captured["kwargs"].get("encoding") == "utf-8"
-    assert "PTEN" in out
 
 
 def test_apollo_adapter_parses_pipeline_output_and_normalizes_types() -> None:

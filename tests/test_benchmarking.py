@@ -423,7 +423,6 @@ def test_benchmark_annotator_options_include_runtime_defaults() -> None:
     assert options["flair"]["model"] == "hunflair2"
     assert options["flair"]["linking"] is False
     assert options["flair"]["linkers"] == ["disease-linker"]
-    assert options["pubtator3"]["mode"] == "publication_only"
 
 
 def test_benchmark_annotator_options_allow_targeted_overrides() -> None:
@@ -480,7 +479,7 @@ def test_preflight_loads_flair_linkers_when_linking_enabled() -> None:
     assert resources["flair_linkers"] == ["disease-linker"]
 
 
-def test_preflight_reports_pubtator3_publication_mode() -> None:
+def test_preflight_reports_pubtator3_configured() -> None:
     results, resources = preflight_benchmark_annotators(
         ["pubtator3"],
         benchmark_annotator_options(),
@@ -489,7 +488,6 @@ def test_preflight_reports_pubtator3_publication_mode() -> None:
     assert resources == {}
     assert results[0].name == "pubtator3"
     assert results[0].status == "configured"
-    assert "mode=publication_only" in results[0].message
 
 
 def test_preflight_fails_once_with_clear_flair_context() -> None:
@@ -598,7 +596,7 @@ def test_review_runner_preloads_flair_once_for_all_documents(tmp_path) -> None:
     assert payload["preflight"][0]["status"] == "ready"
 
 
-def test_review_runner_uses_pubtator3_publication_mode_by_default(tmp_path) -> None:
+def test_review_runner_uses_pubtator3_pmid_lookup(tmp_path) -> None:
     benchmark_path = tmp_path / "test.jsonl"
     benchmark_path.write_text(json.dumps(_sample_ncbi_row("9949209")) + "\n", encoding="utf-8")
     seen_documents: list[tuple[str, str]] = []
@@ -614,9 +612,7 @@ def test_review_runner_uses_pubtator3_publication_mode_by_default(tmp_path) -> N
     )
 
     assert seen_documents == [("9949209", "9949209")]
-    assert payload["annotator_options"]["pubtator3"]["mode"] == "publication_only"
     assert payload["preflight"][0]["name"] == "pubtator3"
-    assert "mode=publication_only" in payload["preflight"][0]["message"]
 
 
 def test_review_runner_reports_progress(tmp_path) -> None:

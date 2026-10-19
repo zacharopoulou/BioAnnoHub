@@ -360,27 +360,20 @@ def test_cli_run_config_ingestion_only(tmp_path) -> None:
     assert not output.lstrip().startswith("{")
 
 
-def test_read_pubtator3_options_parses_text_mode_settings() -> None:
+def test_read_pubtator3_options_parses_settings() -> None:
     options = _read_pubtator3_options(
         {
             "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
             "timeout": 45,
             "format": "biocjson",
-            "mode": "text_only",
-            "bioconcept": "Gene",
-            "poll_interval_seconds": 3.0,
-            "poll_backoff": 2.0,
-            "max_poll_interval_seconds": 12.0,
-            "max_poll_attempts": 25,
         }
     )
 
-    assert options["mode"] == "text_only"
-    assert options["bioconcept"] == "Gene"
-    assert options["max_poll_attempts"] == 25
-    assert options["poll_interval_seconds"] == 3.0
-    assert options["poll_backoff"] == 2.0
-    assert options["max_poll_interval_seconds"] == 12.0
+    assert options == {
+        "endpoint": "https://www.ncbi.nlm.nih.gov/research/pubtator3-api",
+        "timeout": 45,
+        "format": "biocjson",
+    }
 
 
 def test_read_bern2_options_prefers_endpoint_then_base_url() -> None:
@@ -538,7 +531,7 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     seen_linkers: list[object] = []
 
     def fake_find_spec(name: str) -> object | None:
-        assert name == "flair"
+        assert name in {"flair", "pyab3p"}
         return object()
 
     def fake_tagger_loader(model: str) -> object:
@@ -856,3 +849,38 @@ def test_aggregate_annotator_statuses_sums_counts_timing_and_errors() -> None:
         {"name": "bern2", "status": "produced_annotations", "annotation_count": 2, "duration_seconds": 1.5, "failed_documents": 1, "errors": ["timeout"]},
         {"name": "medcat", "status": "failed", "annotation_count": 0, "duration_seconds": 0.5, "failed_documents": 2, "errors": ["Connection refused"]},
     ]
+
+    
+def test_each_pipeline_run_resets_medcat_failure_reporting(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                'source = "entrez"',
+                "",
+                "[enrichment]",
+                "sources = []",
+                "",
+                "[annotators]",
+                'enabled = ["bern2"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    resets: list[None] = []
+    monkeypatch.setattr("bio_annotation.pipeline_runner.reset_reported_endpoints", lambda: resets.append(None))
+
+    for _ in range(2):
+        run_pipeline_from_config(
+            config_path,
+            orchestrator_factory=_stub_orchestrator,
+            bern2_request_fn=lambda document: {"annotations": []},
+        )
+
+    assert len(resets) == 2

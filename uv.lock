@@ -189,6 +189,110 @@ wheels = [
 ]
 
 [[package]]
+name = "bioannohub"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "rich" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "bioc" },
+    { name = "datasets" },
+    { name = "en-core-sci-md" },
+    { name = "en-core-sci-scibert" },
+    { name = "en-ner-bc5cdr-md" },
+    { name = "en-ner-bionlp13cg-md" },
+    { name = "en-ner-craft-md" },
+    { name = "en-ner-jnlpba-md" },
+    { name = "flair" },
+    { name = "numpy" },
+    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
+    { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "pyab3p" },
+    { name = "scispacy" },
+    { name = "stanza" },
+    { name = "tabulate" },
+    { name = "torch" },
+    { name = "transformers" },
+]
+apollo = [
+    { name = "torch" },
+    { name = "transformers" },
+]
+benchmarks = [
+    { name = "bioc" },
+    { name = "datasets" },
+    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
+    { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
+    { name = "tabulate" },
+]
+clinicalbert = [
+    { name = "torch" },
+    { name = "transformers" },
+]
+d4data = [
+    { name = "torch" },
+    { name = "transformers" },
+]
+flair = [
+    { name = "flair" },
+    { name = "pyab3p" },
+]
+scispacy = [
+    { name = "en-core-sci-md" },
+    { name = "en-core-sci-scibert" },
+    { name = "en-ner-bc5cdr-md" },
+    { name = "en-ner-bionlp13cg-md" },
+    { name = "en-ner-craft-md" },
+    { name = "en-ner-jnlpba-md" },
+    { name = "numpy" },
+    { name = "scispacy" },
+]
+stanza = [
+    { name = "stanza" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "bioannohub", extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy", "benchmarks"], marker = "extra == 'all'" },
+    { name = "bioc", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
+    { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
+    { name = "en-core-sci-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_md-0.5.4.tar.gz" },
+    { name = "en-core-sci-scibert", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz" },
+    { name = "en-ner-bc5cdr-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bc5cdr_md-0.5.4.tar.gz" },
+    { name = "en-ner-bionlp13cg-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bionlp13cg_md-0.5.4.tar.gz" },
+    { name = "en-ner-craft-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_craft_md-0.5.4.tar.gz" },
+    { name = "en-ner-jnlpba-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_jnlpba_md-0.5.4.tar.gz" },
+    { name = "flair", marker = "extra == 'flair'", specifier = "==0.15.1" },
+    { name = "matplotlib", specifier = ">=3.8" },
+    { name = "numpy", marker = "extra == 'scispacy'", specifier = ">=1.26,<2.0" },
+    { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
+    { name = "pyab3p", marker = "extra == 'flair'", specifier = ">=0.1.0" },
+    { name = "rich", specifier = ">=13.7" },
+    { name = "scispacy", marker = "extra == 'scispacy'", specifier = ">=0.5.5" },
+    { name = "stanza", marker = "extra == 'stanza'", specifier = ">=1.8" },
+    { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
+    { name = "torch", marker = "extra == 'apollo'", specifier = ">=2.0" },
+    { name = "torch", marker = "extra == 'clinicalbert'", specifier = ">=2.0" },
+    { name = "torch", marker = "extra == 'd4data'", specifier = ">=2.0" },
+    { name = "transformers", marker = "extra == 'apollo'", specifier = ">=4.30,<5" },
+    { name = "transformers", marker = "extra == 'clinicalbert'", specifier = ">=4.30,<5" },
+    { name = "transformers", marker = "extra == 'd4data'", specifier = ">=4.30,<5" },
+]
+provides-extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy", "benchmarks", "all"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8.0" }]
+
+[[package]]
 name = "bioc"
 version = "2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -3205,116 +3309,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/e7/0b6665f533aa9e337662dc190425abc0af1fe3234088f4454c52393ded61/torch-2.11.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:563ed3d25542d7e7bbc5b235ccfacfeb97fb470c7fee257eae599adb8005c8a2", size = 530613405, upload-time = "2026-03-23T18:08:07.014Z" },
     { url = "https://files.pythonhosted.org/packages/cf/bf/c8d12a2c86dbfd7f40fb2f56fbf5a505ccf2d9ce131eb559dfc7c51e1a04/torch-2.11.0-cp314-cp314t-win_amd64.whl", hash = "sha256:b2a43985ff5ef6ddd923bbcf99943e5f58059805787c5c9a2622bf05ca2965b0", size = 114792991, upload-time = "2026-03-23T18:08:19.216Z" },
 ]
-
-[[package]]
-name = "bioannohub"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "matplotlib" },
-    { name = "rich" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "bioc" },
-    { name = "datasets" },
-    { name = "en-core-sci-md" },
-    { name = "en-core-sci-scibert" },
-    { name = "en-ner-bc5cdr-md" },
-    { name = "en-ner-bionlp13cg-md" },
-    { name = "en-ner-craft-md" },
-    { name = "en-ner-jnlpba-md" },
-    { name = "flair" },
-    { name = "numpy" },
-    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
-    { name = "pyab3p" },
-    { name = "scispacy" },
-    { name = "stanza" },
-    { name = "tabulate" },
-    { name = "torch" },
-    { name = "transformers" },
-]
-apollo = [
-    { name = "torch" },
-    { name = "transformers" },
-]
-benchmarks = [
-    { name = "bioc" },
-    { name = "datasets" },
-    { name = "pandas", version = "2.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "pandas", version = "3.0.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
-    { name = "tabulate" },
-]
-biobert = [
-    { name = "torch" },
-    { name = "transformers" },
-]
-clinicalbert = [
-    { name = "torch" },
-    { name = "transformers" },
-]
-d4data = [
-    { name = "torch" },
-    { name = "transformers" },
-]
-flair = [
-    { name = "flair" },
-    { name = "pyab3p" },
-]
-scispacy = [
-    { name = "en-core-sci-md" },
-    { name = "en-core-sci-scibert" },
-    { name = "en-ner-bc5cdr-md" },
-    { name = "en-ner-bionlp13cg-md" },
-    { name = "en-ner-craft-md" },
-    { name = "en-ner-jnlpba-md" },
-    { name = "numpy" },
-    { name = "scispacy" },
-]
-stanza = [
-    { name = "stanza" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "bioc", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
-    { name = "datasets", marker = "extra == 'benchmarks'", specifier = ">=2.14,<4.0" },
-    { name = "en-core-sci-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_md-0.5.4.tar.gz" },
-    { name = "en-core-sci-scibert", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz" },
-    { name = "en-ner-bc5cdr-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bc5cdr_md-0.5.4.tar.gz" },
-    { name = "en-ner-bionlp13cg-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bionlp13cg_md-0.5.4.tar.gz" },
-    { name = "en-ner-craft-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_craft_md-0.5.4.tar.gz" },
-    { name = "en-ner-jnlpba-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_jnlpba_md-0.5.4.tar.gz" },
-    { name = "flair", marker = "extra == 'flair'", specifier = "==0.15.1" },
-    { name = "matplotlib", specifier = ">=3.8" },
-    { name = "numpy", marker = "extra == 'scispacy'", specifier = ">=1.26,<2.0" },
-    { name = "pandas", marker = "extra == 'benchmarks'", specifier = ">=2.0" },
-    { name = "pyab3p", marker = "extra == 'flair'", specifier = ">=0.1.0" },
-    { name = "rich", specifier = ">=13.7" },
-    { name = "scispacy", marker = "extra == 'scispacy'", specifier = ">=0.5.5" },
-    { name = "stanza", marker = "extra == 'stanza'", specifier = ">=1.8" },
-    { name = "tabulate", marker = "extra == 'benchmarks'", specifier = ">=0.9" },
-    { name = "torch", marker = "extra == 'apollo'", specifier = ">=2.0" },
-    { name = "torch", marker = "extra == 'biobert'", specifier = ">=2.0" },
-    { name = "torch", marker = "extra == 'clinicalbert'", specifier = ">=2.0" },
-    { name = "torch", marker = "extra == 'd4data'", specifier = ">=2.0" },
-    { name = "bioannohub", extras = ["flair", "clinicalbert", "biobert", "apollo", "d4data", "stanza", "scispacy", "benchmarks"], marker = "extra == 'all'" },
-    { name = "transformers", marker = "extra == 'apollo'", specifier = ">=4.30,<5" },
-    { name = "transformers", marker = "extra == 'biobert'", specifier = ">=4.30,<5" },
-    { name = "transformers", marker = "extra == 'clinicalbert'", specifier = ">=4.30,<5" },
-    { name = "transformers", marker = "extra == 'd4data'", specifier = ">=4.30,<5" },
-]
-provides-extras = ["flair", "clinicalbert", "biobert", "apollo", "d4data", "stanza", "scispacy", "benchmarks", "all"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8.0" }]
 
 [[package]]
 name = "tqdm"

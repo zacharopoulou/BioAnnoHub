@@ -58,9 +58,9 @@ Install them now with uv? [Y/n]
 Accepting runs `uv sync` for you and the run continues. Declining stops the run and prints the manual install command, as does a
 non-interactive session or an environment uv does not manage. Set `TOTALANNOTATOR_NO_AUTO_INSTALL=1` to always skip the prompt.
 
-AIONER and BENT are not pip extras: they need their own interpreter and downloaded resources, so BioAnnoHub offers to run
-`tools/aioner/setup.sh` or `tools/bent/setup.sh` instead. Those two never stop the run — declining leaves the annotator
-unavailable and the remaining annotators still run.
+BENT is not a pip extra: it needs its own interpreter and downloaded resources, so BioAnnoHub offers to run
+`tools/bent/setup.sh` instead. It never stops the run — declining leaves BENT unavailable and the remaining annotators
+still run.
 
 ## Run The Terminal UI
 
@@ -149,7 +149,7 @@ The JSON file is the full pipeline payload. The top-level `annotations` array is
 
 PubTator3 uses the NCBI PubTator3 API.
 
-For PubMed-backed documents, BioAnnoHub uses the publication export API. For local text, BioAnnoHub uses PubTator3 raw-text annotation, which is asynchronous and may need polling.
+BioAnnoHub uses the publication export API, so PubTator3 only annotates documents with a PMID or PMCID. It is not available for plain-text input.
 
 ### BERN2
 

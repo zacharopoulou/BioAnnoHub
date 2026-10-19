@@ -9,15 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
-from bio_annotation.entity_proposal.aioner_proposer import (
-    DEFAULT_AIONER_ENTITY,
-    DEFAULT_AIONER_PROJECT,
-)
 from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, DEFAULT_BENT_TYPES
 from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
-from bio_annotation.deps import aioner_config_paths
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
 from bio_annotation.entity_proposal.scispacy_proposer import (
@@ -177,19 +172,25 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
                 raise ValueError("Plain text table files must use .csv or .tsv extension.")
         else:
             text_content = prompt_multiline_text(input_fn=input_fn, output_fn=output_fn)
+    # PubTator3 only annotates PubMed/PMC publications, so it is not offered for plain text.
+    annotator_choices = tuple(
+        (value, label)
+        for value, label in ANNOTATOR_CHOICES
+        if not (mode == "plain_text" and value == "pubtator3")
+    )
     annotators = _prompt_multi_choice(
         input_fn=input_fn,
         output_fn=output_fn,
         title="Choose annotators, or press Enter for default annotators",
-        choices=ANNOTATOR_CHOICES,
-        # AIONER and BENT need separate environments + models, BioBERT/apollo/d4data
+        choices=annotator_choices,
+        # BENT need separate environments + models, ClinicalBERT/apollo/d4data
         # download local models, MedCAT needs a running MedCATservice, and
         # Stanza/scispaCy require separate local model resources, so none are
         # pre-selected.
         default_values=[
             value
-            for value, _ in ANNOTATOR_CHOICES
-            if value not in {"aioner", "bent", "clinicalbert", "biobert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
+            for value, _ in annotator_choices
+            if value not in {"bent", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
         ],
         validate_values=_validate_selected_annotators,
     )
@@ -283,7 +284,6 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
             "timeout = 30",
         ]
     if "pubtator3" in answers.annotators:
-        pubtator3_mode = "text_only" if answers.input_mode == "plain_text" else "auto"
         lines += [
             "",
             "[annotators.pubtator3]",
@@ -291,16 +291,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
             'endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"',
             'format = "biocjson"',
             "timeout = 60",
-            f"mode = {_toml_string(pubtator3_mode)}",
-            'bioconcept = "All"',
-            "poll_interval_seconds = 2.0",
-            "poll_backoff = 1.5",
-            "max_poll_interval_seconds = 15.0",
-            "max_poll_attempts = 30",
         ]
-    if "aioner" in answers.annotators:
-        aioner_repo, aioner_model = aioner_config_paths()
-        lines += ["", "[annotators.aioner]", 'runtime = "local_subprocess"', f"repo = {_toml_string(aioner_repo)}", f"model = {_toml_string(aioner_model)}", f"entity = {_toml_string(DEFAULT_AIONER_ENTITY)}", f"project = {_toml_string(DEFAULT_AIONER_PROJECT)}"]
     if "bent" in answers.annotators:
         lines += ["", "[annotators.bent]", 'runtime = "local_subprocess"', 'mode = "ner_nel"', f"project = {_toml_string(DEFAULT_BENT_PROJECT)}", "timeout = 900", "", "[annotators.bent.types]"]
         lines += [f"{entity_type} = {_toml_string(kb)}" for entity_type, kb in DEFAULT_BENT_TYPES.items()]
