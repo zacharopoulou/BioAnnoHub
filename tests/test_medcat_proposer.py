@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import logging
+from urllib import error
+
+from bio_annotation.entity_proposal import medcat_proposer
 from bio_annotation.entity_proposal.medcat_proposer import (
     _extract_records,
     _normalize_medcat_process_url,
+    call_medcat,
     parse_medcat_response,
+    reset_reported_endpoints,
 )
 from bio_annotation.schemas.document import Document
 
@@ -105,3 +111,20 @@ def test_parse_medcat_response_min_acc_filters_weak_spans() -> None:
     anns = parse_medcat_response(doc, payload, min_acc=0.5)
     assert len(anns) == 1
     assert anns[0].span_text == "beta"
+
+
+def test_call_medcat_warns_once_per_endpoint_until_reset(monkeypatch, caplog) -> None:
+    def refuse(*args, **kwargs):
+        raise error.URLError("connection refused")
+
+    monkeypatch.setattr(medcat_proposer.request, "urlopen", refuse)
+    document = Document(document_id="doc-1", title="PTEN", abstract="")
+    reset_reported_endpoints()
+
+    with caplog.at_level(logging.DEBUG, logger=medcat_proposer.logger.name):
+        call_medcat(document, endpoint="http://127.0.0.1:5555")
+        call_medcat(document, endpoint="http://127.0.0.1:5555")
+        reset_reported_endpoints()
+        call_medcat(document, endpoint="http://127.0.0.1:5555")
+
+    assert [record.levelno for record in caplog.records] == [logging.WARNING, logging.DEBUG, logging.WARNING]
