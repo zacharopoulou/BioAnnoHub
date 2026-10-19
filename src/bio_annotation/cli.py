@@ -168,23 +168,23 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         epilog="""examples:
   Free-text search:
-    totalannotator search-pmids \\
+    bioannohub search-pmids \\
       --query 'glioblastoma AND microRNA' \\
       --output data/inputs/query_pmids.txt
 
   MeSH search:
-    totalannotator search-pmids \\
+    bioannohub search-pmids \\
       --query '"Glioblastoma"[MeSH Terms] AND "MicroRNAs"[MeSH Terms]' \\
       --output data/inputs/query_pmids.txt
 
   Publication type filter:
-    totalannotator search-pmids \\
+    bioannohub search-pmids \\
       --query 'glioblastoma AND microRNA' \\
       --filter '"Review"[Publication Type]' \\
       --output data/inputs/query_pmids.txt
 
   Multiple filters with dates:
-    totalannotator search-pmids \\
+    bioannohub search-pmids \\
       --query '"Glioblastoma"[MeSH Terms]' \\
       --filter '"Review"[Publication Type]' \\
       --filter 'english[Language]' \\

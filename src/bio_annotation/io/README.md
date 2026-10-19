@@ -20,7 +20,7 @@ Each repeated `--filter` value is appended to the query with `AND`.
 Free-text search:
 
 ```bash
-uv run totalannotator search-pmids \
+uv run bioannohub search-pmids \
   --query 'glioblastoma AND microRNA' \
   --output data/inputs/query_pmids.txt
 ```
@@ -28,7 +28,7 @@ uv run totalannotator search-pmids \
 MeSH search:
 
 ```bash
-uv run totalannotator search-pmids \
+uv run bioannohub search-pmids \
   --query '"Glioblastoma"[MeSH Terms] AND "MicroRNAs"[MeSH Terms]' \
   --output data/inputs/query_pmids.txt
 ```
@@ -36,7 +36,7 @@ uv run totalannotator search-pmids \
 Publication type filter:
 
 ```bash
-uv run totalannotator search-pmids \
+uv run bioannohub search-pmids \
   --query 'glioblastoma AND microRNA' \
   --filter '"Review"[Publication Type]' \
   --output data/inputs/query_pmids.txt
@@ -45,7 +45,7 @@ uv run totalannotator search-pmids \
 Multiple filters with date bounds:
 
 ```bash
-uv run totalannotator search-pmids \
+uv run bioannohub search-pmids \
   --query '"Glioblastoma"[MeSH Terms]' \
   --filter '"Review"[Publication Type]' \
   --filter 'english[Language]' \
