@@ -1,315 +1,31 @@
 # BioAnnoHub
 
-BioAnnoHub is a biomedical annotation tool for turning PubMed IDs or local text into reproducible annotation runs.
+BioAnnoHub builds biomedical literature corpora, runs selected named entity annotators, and saves results in a format that can be inspected and reused.
 
-The main workflow is:
+Use it from the terminal for an interactive run, or use a TOML config for a repeatable workflow. Inputs include PubMed IDs, PMID files, and local text tables. Runs save their configuration, annotations, and summary files together.
 
-```text
-choose input -> choose annotators -> choose entity types -> run annotation -> JSON + TSV outputs
-```
+## Get started
 
-Each interactive run writes a stable run folder containing the generated config, JSON results, TSV tables, and a manifest so the run can be inspected or reproduced later.
-
-## What It Does
-
-BioAnnoHub supports:
-
-- PubMed articles from inline PMIDs or a PMID file
-- local plain text from a CSV/TSV table, raw text file, or manual terminal input
-- live annotation with PubTator3, BERN2, and Flair/HunFlair
-- entity-type filtering for genes/proteins, diseases, chemicals/drugs, species, variants, cell lines, cell types, DNA, and RNA
-- canonical JSON output plus TSV files for spreadsheet-friendly review
-- reproducible TOML configs for every terminal UI run
-- direct config-based pipeline runs for scripted workflows
-- standalone NCBI Disease benchmark review for comparing disease annotations across annotators
-
-## Install
+Requirements: Python 3.12 or later and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
+git clone https://github.com/zacharopoulou/BioAnnoHub.git
 cd BioAnnoHub
 uv sync
-```
-
-Install local Flair support when you want to use the `flair` annotator:
-
-```bash
-uv sync --extra flair
-```
-
-The Flair extra includes HunFlair2 plus the `pyab3p` abbreviation resolver used
-by the default HunFlair2 linker models.
-
-Install every optional feature:
-
-```bash
-uv sync --extra all
-```
-
-When a run selects an annotator whose dependencies are missing, BioAnnoHub asks
-before the run starts:
-
-```text
-The selected annotators need optional dependencies: scispacy.
-Installing downloads several GB (PyTorch and model packages) and can take a few minutes.
-Install them now with uv? [Y/n]
-```
-
-Accepting runs `uv sync` for you and the run continues. Declining stops the run and prints the manual install command, as does a
-non-interactive session or an environment uv does not manage. Set `TOTALANNOTATOR_NO_AUTO_INSTALL=1` to always skip the prompt.
-
-BENT is not a pip extra: it needs its own interpreter and downloaded resources, so BioAnnoHub offers to run
-`tools/bent/setup.sh` instead. It never stops the run — declining leaves BENT unavailable and the remaining annotators
-still run.
-
-## Run The Terminal UI
-
-Start a new annotation run:
-
-```bash
 uv run bioannohub annotate
 ```
 
-The UI asks for:
+The terminal workflow guides you through choosing documents, annotators, and entity types. Local annotators may need optional dependencies, model downloads, or a separate setup; the app will explain what is needed when you select one.
 
-1. Input source
-2. Annotators
-3. Entity types
+## Common commands
 
-Annotator selection defaults to all annotators. Press Enter at the annotator prompt to use:
-
-```text
-PubTator3, BERN2, Flair / HunFlair
-```
-
-By default, each run is written to its own timestamped folder, with `latest` pointing to the newest one:
-
-```text
-outputs/runs/2026-08-06_14-32-10/
-outputs/runs/latest -> 2026-08-06_14-32-10
-```
-
-Use a different run directory with:
-
-```bash
-uv run bioannohub annotate --runs-dir outputs/my-run
-```
-
-## Benchmark Review
-
-BioAnnoHub also includes a secondary, standalone benchmark-review workflow for evaluating annotators without changing the main `run-config` pipeline.
-
-The first supported benchmark is NCBI Disease, focused on disease spans from `bern2`, `pubtator3`, and `flair`.
-
-Run the benchmark review with:
-
-```bash
-uv run bioannohub evaluate-ncbi-review
-```
-
-The default output directory is:
-
-```bash
-outputs/benchmark-review/ncbi_disease
-```
-
-For full details on benchmark loading, offset handling, strict and lenient metrics, output files, and current limitations, see [src/bio_annotation/benchmarking/README.md](src/bio_annotation/benchmarking/README.md).
-
-## Run Outputs
-
-Every run (terminal UI or `run-config` with an `[output] path`) gets its own timestamped folder next to the configured output path, e.g. `outputs/runs/2026-08-06_14-32-10/`, and `outputs/runs/latest` is updated to point to it. The folder contains:
-
-```text
-config.toml
-run_manifest.json
-inputs/
-  pmids.txt                 # inline PMIDs input
-  <input file>              # copy of the PMID file, text table, or corpus used
-results/
-  results.json
-  results.keywords.tsv
-  results.annotations.tsv
-  results.html
-```
-
-The file names follow the configured output path, so `path = "outputs/runs/results.json"` produces `results.*` files.
-
-The JSON file is the full pipeline payload. The top-level `annotations` array is the source of truth for raw annotator outputs; grouped sections reference those records by `annotation_id`. The TSV files are intended for quick inspection, sharing, and spreadsheet analysis:
-
-- `results.keywords.tsv`
-  One row per grouped keyword/entity mention.
-- `results.annotations.tsv`
-  One row per raw annotation.
-- `run_manifest.json`
-  Run metadata: start time and duration, input and copied input files, selected annotators/entity types, output file paths, summary counts, and per-annotator status, annotation count, timing, and errors.
-
-## Annotators
-
-### PubTator3
-
-PubTator3 uses the NCBI PubTator3 API.
-
-BioAnnoHub uses the publication export API, so PubTator3 only annotates documents with a PMID or PMCID. It is not available for plain-text input.
-
-### BERN2
-
-BERN2 uses the public HTTPS endpoint. The generated terminal UI config uses:
-
-```toml
-[annotators.bern2]
-runtime = "remote_api"
-endpoint = "https://bern2.korea.ac.kr/plain"
-timeout = 30
-```
-
-If an existing config sets `http://bern2.korea.ac.kr/plain`, update it to
-`https://bern2.korea.ac.kr/plain`. Local BERN2 endpoints such as `localhost`
-or `127.0.0.1` are also supported.
-
-BERN2 supports:
-
-- gene/protein
-- disease
-- chemical/drug
-- species
-- variant/mutation
-- cell line
-- cell type
-- DNA
-- RNA
-
-### Flair / HunFlair
-
-Flair/HunFlair runs through the configured local Flair model. With HunFlair2,
-TotalAnnotator also runs the configured `EntityMentionLinker` models and stores
-the single returned/top link in `canonical_id`, its preferred name in
-`canonical_name`, and the linker score in `normalization_score`. The NER model
-score remains in `confidence`.
-
-HunFlair supports:
-
-- gene/protein
-- disease
-- chemical/drug
-- species
-- cell line
-
-HunFlair2 linkers are opt-in because the full default linker set downloads large
-local resources. Enable linking with:
-
-```toml
-[annotators.flair]
-model = "hunflair2"
-linking = true
-linkers = ["gene-linker", "disease-linker", "chemical-linker", "species-linker"]
-```
-
-The returned identifier namespaces are type-specific: genes use NCBI Gene,
-diseases use MeSH or OMIM, chemicals/drugs use MeSH, and species use NCBI
-Taxonomy. Cell line NER is supported, but no default HunFlair2 cell-line linker
-is configured.
-
-HunFlair does not produce variants/mutations. If the terminal UI selection includes unsupported entity types for a selected annotator, it shows a compatibility warning before continuing.
-
-### MedCAT
-
-MedCAT runs as a separate service, CogStack MedCATservice, that BioAnnoHub calls over HTTP, like BERN2. Unlike BERN2 there is no public endpoint, so you run the service yourself and point BioAnnoHub at it. The generated terminal UI config uses:
-
-```toml
-[annotators.medcat]
-runtime = "remote_api"
-endpoint = "http://localhost:5555"
-min_acc = 0.3
-```
-
-The endpoint defaults to `http://localhost:5555` (the CogStack docker-compose default) and can be overridden with the `MEDCAT_API_URL` environment variable or the `endpoint` setting. `min_acc` (0..1) drops low-confidence concepts.
-
-To start the service: clone [CogStack/MedCATservice](https://github.com/CogStack/MedCATservice), download a model pack (the MedMen demo, or a clinical UMLS/SNOMED pack for real use), then run `docker compose up -d` from its `docker/` folder and check `http://localhost:5555/api/info`. If MedCAT is selected in the terminal UI and no service is reachable, BioAnnoHub warns before the run; if none is reachable at run time, the MedCAT step simply returns no annotations and the rest of the run continues.
-
-MedCAT entity types are the model pack's semantic types (UMLS TUIs), so they pass through as returned rather than mapping to the canonical types below.
-
-### scispaCy
-
-scispaCy runs local spaCy NER model packages. Install the Python dependency and BioAnnoHub-supported model packages with `uv sync --extra scispacy`.
-
-BioAnnoHub exposes the requested scispaCy models as separate annotators, labeled in the UI as scispaCy implementations with their exact model id:
-
-- `scispacy_jnlpba` -> `en_ner_jnlpba_md`
-- `scispacy_bc5cdr` -> `en_ner_bc5cdr_md`
-- `scispacy_bionlp13cg` -> `en_ner_bionlp13cg_md`
-- `scispacy_craft` -> `en_ner_craft_md`
-- `scispacy_scibert` -> `en_core_sci_scibert` with the UMLS `EntityLinker`
-- `scispacy_md` -> `en_core_sci_md` with the UMLS `EntityLinker`
-
-`CHEMICAL` and `SIMPLE_CHEMICAL` normalize to the existing `drug` canonical type. The general models (`scispacy_scibert`, `scispacy_md`) detect generic entities and link them to UMLS, storing the top UMLS candidate in `canonical_id` and its canonical name when the linker returns one; the knowledge base defaults to UMLS and is configurable via `linker_name`. The corpus NER models above do not link.
-
-## Entity Types
-
-BioAnnoHub normalizes annotator labels into canonical entity types:
-
-| Canonical type | Display label |
-| --- | --- |
-| `gene` | Gene / protein |
-| `disease` | Disease |
-| `drug` | Chemical / drug |
-| `species` | Species |
-| `variant` | Variant / mutation |
-| `cell_line` | Cell line |
-| `cell_type` | Cell type |
-| `dna` | DNA |
-| `rna` | RNA |
-
-If no entity types are selected, the pipeline keeps all returned entity types.
-
-## Config-Based Runs
-
-Every terminal UI run writes a TOML config. You can rerun that config directly:
-
-```bash
-uv run bioannohub run-config --config outputs/runs/latest/config.toml
-```
-
-You can also inspect a config before running it:
-
-```bash
-uv run bioannohub inspect-config --config outputs/runs/latest/config.toml
-```
-
-Preview documents for a config:
-
-```bash
-uv run bioannohub load-documents --config outputs/runs/latest/config.toml
-```
-
-## Example Configs
-
-Inline PMID input:
+Run a saved example config:
 
 ```bash
 uv run bioannohub run-config --config configs/examples/pmid-single.toml
 ```
 
-PMID file input:
-
-```bash
-uv run bioannohub run-config --config configs/examples/pmid-file.toml
-```
-
-Local text table input:
-
-```bash
-uv run bioannohub run-config --config configs/examples/corpus-file.toml
-```
-
-Merged PubMed fetch-source ingestion:
-
-```bash
-uv run bioannohub run-config --config configs/examples/fetch-merge.toml
-```
-
-## PMID Search
-
-Generate a PMID file from a PubMed query:
+Search PubMed and save matching PMIDs:
 
 ```bash
 uv run bioannohub search-pmids \
@@ -317,54 +33,39 @@ uv run bioannohub search-pmids \
   --output data/inputs/query_pmids.txt
 ```
 
-Useful options:
-
-- `--max-results`
-- `--date-from`
-- `--date-to`
-- `--sort-by`
-- `--filter`
-
-`search-pmids` handles large result sets by splitting the publication-date range when needed, then writing one PMID per line.
-
-## Pipeline Output Shape
-
-`results.json` is corpus-first. Top-level sections include:
-
-- `stage`
-- `input`
-- `pipeline`
-- `document_count`
-- `corpus_summary`
-- `entity_types`
-- `documents`
-- `annotation_summary`
-- `annotator_summary`
-- `document_annotations`
-  Per-document annotator status and annotation IDs.
-- `keywords`
-  Grouped keyword/entity mentions with annotation ID references.
-- `annotations`
-  One row per raw annotation; source of truth for annotation details.
-
-The TSV files are generated from the same payload and use the same output stem as the JSON file.
-
-## Developer Checks
-
-Show diagnostic logs while running a command:
+Preview a config before running it:
 
 ```bash
-uv run bioannohub --log-level INFO run-config
+uv run bioannohub inspect-config --config configs/examples/pmid-single.toml
+uv run bioannohub load-documents --config configs/examples/pmid-single.toml
 ```
 
-Run the test suite:
+Run the standalone NCBI Disease benchmark review:
 
 ```bash
-uv run pytest
+uv sync --extra benchmarks
+uv run bioannohub evaluate-ncbi-review
 ```
 
-Run the CLI demo:
+## Documentation
+
+- [Configuration guide](configs/README.md): config structure and runnable examples.
+- [Project docs](docs/README.md): workflow overview and design notes.
+- [Benchmark review guide](src/bio_annotation/benchmarking/README.md): dataset, evaluation options, outputs, and limitations.
+- [Benchmark data notes](data/benchmarks/README.md): local benchmark data conventions.
+- [Data guide](data/README.md): inputs, corpora, and generated data.
+- [Tests guide](tests/README.md): test coverage and development checks.
+- [Workflow specification](docs/workflow-spec.md): the broader workflow model and supported input types.
+
+## Output
+
+Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
+
+## Development
+
+Run the local demo or the test suite with:
 
 ```bash
 uv run bioannohub demo
+uv run pytest
 ```
