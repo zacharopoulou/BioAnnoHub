@@ -181,6 +181,8 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
             return True
         project = settings.get("project")
         directory = project.strip() if isinstance(project, str) and project.strip() else DEFAULT_BENT_PROJECT
+        if Path(directory).resolve() != (repo_root() / TOOL_SETUP_SCRIPTS["bent"]).parent:
+            return True
 
         root = bent_root(directory)
         if root is None:
