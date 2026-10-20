@@ -190,3 +190,27 @@ def run_summary_lines(*, document_count: int, annotation_count: int, results_pat
     table.add_row("Config", str(config_path))
     table.add_row("Manifest", str(manifest_path))
     return render_lines(table)
+
+
+def annotator_results_lines(annotators: list[dict[str, Any]]) -> list[str]:
+    """Render per-annotator outcomes and post-filter entity counts."""
+    with_results = sum(int(row.get("entity_count", 0)) > 0 for row in annotators)
+    table = Table(
+        title="Annotator results",
+        box=box.ROUNDED,
+        title_style="table.title",
+        border_style="panel.border",
+    )
+    table.add_column("Annotator", style="field")
+    table.add_column("Status")
+    table.add_column("Entities after filters", justify="right")
+    for row in annotators:
+        table.add_row(
+            str(row.get("annotator", "Unknown")),
+            str(row.get("status", "Unknown")),
+            str(row.get("entity_count", 0)),
+        )
+    lines = [f"Annotators with results after filters: {with_results}/{len(annotators)}"]
+    if annotators:
+        lines.extend(render_lines(table))
+    return lines

@@ -52,6 +52,7 @@ from bio_annotation.terminal_text_input import (
 )
 from bio_annotation.terminal_theme import (
     annotator_capability_lines,
+    annotator_results_lines,
     banner_lines,
     choice_lines,
     emit,
@@ -170,7 +171,96 @@ def run_terminal_annotation_ui(
             manifest_path=paths.manifest_path,
         ),
     )
+    emit(
+        output_fn,
+        annotator_results_lines(_terminal_annotator_results(payload)),
+    )
     return payload
+
+
+def _terminal_annotator_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Summarize final, filtered entity counts alongside execution outcomes."""
+    pipeline = payload.get("pipeline")
+    pipeline = pipeline if isinstance(pipeline, dict) else {}
+    summary = payload.get("annotator_summary")
+    summary = summary if isinstance(summary, dict) else {}
+    configured = pipeline.get("annotators_enabled") or summary.get("configured") or []
+    if not isinstance(configured, list):
+        configured = []
+
+    rows: dict[str, dict[str, Any]] = {
+        str(name): {
+            "name": str(name),
+            "attempted": 0,
+            "failed": 0,
+            "produced": 0,
+            "entities": 0,
+        }
+        for name in configured
+    }
+    statuses = summary.get("annotators", [])
+    if isinstance(statuses, list):
+        for status in statuses:
+            if not isinstance(status, dict) or not status.get("name"):
+                continue
+            name = str(status["name"])
+            row = rows.setdefault(
+                name,
+                {
+                    "name": name,
+                    "attempted": 0,
+                    "failed": 0,
+                    "produced": 0,
+                    "entities": 0,
+                },
+            )
+            row["attempted"] += 1
+            if status.get("status") == "failed":
+                row["failed"] += 1
+            elif status.get("status") == "produced_annotations":
+                row["produced"] += 1
+
+    annotations = payload.get("annotations", [])
+    if isinstance(annotations, list):
+        for annotation in annotations:
+            if not isinstance(annotation, dict) or not annotation.get("source"):
+                continue
+            name = str(annotation["source"])
+            row = rows.setdefault(
+                name,
+                {
+                    "name": name,
+                    "attempted": 0,
+                    "failed": 0,
+                    "produced": 0,
+                    "entities": 0,
+                },
+            )
+            row["entities"] += 1
+
+    results = []
+    for row in rows.values():
+        attempted = row["attempted"]
+        failed = row["failed"]
+        produced = row["produced"]
+        if attempted == 0:
+            status_label = "Not run"
+        elif failed == attempted:
+            status_label = f"Failed ({failed} docs)"
+        elif failed:
+            status_label = f"Partial failure ({failed} docs)"
+        elif produced == 0:
+            status_label = "No annotations"
+        else:
+            status_label = "Completed"
+        results.append(
+            {
+                "annotator": _annotator_label(row["name"]),
+                "status": status_label,
+                "entity_count": row["entities"],
+            }
+        )
+    return results
 
 
 def _setup_control_input(input_fn: InputFn) -> InputFn:
@@ -284,7 +374,7 @@ def _prompt_domain_and_task(
             choices=(
                 ("NER", "Named entity recognition (NER)"),
                 ("NEN", "Named entity normalization (NEN)"),
-                ("both", "NER and NEN"),
+                ("both", "NER, NEN, or both"),
             ),
         )
         annotator_choices = annotator_choices_for(
@@ -299,7 +389,7 @@ def _prompt_domain_and_task(
             warning_lines(
                 "No compatible annotators",
                 [
-                    f"No annotator supports {domain} {task} for this input type. "
+                    f"No annotator supports {domain} {_task_label(task)} for this input type. "
                     "Choose a different domain or task."
                 ],
             ),
@@ -322,11 +412,8 @@ def annotator_choices_for(
                 flair_linking=task in {"NEN", "both"},
             )
         )
-        if required_tasks.issubset(tasks):
-            display = label
-            if annotator == "flair" and task in {"NEN", "both"}:
-                display = f"{label} (NEN linkers enabled)"
-            choices.append((annotator, display))
+        if required_tasks.intersection(tasks):
+            choices.append((annotator, label))
     return tuple(choices)
 
 
@@ -679,7 +766,7 @@ def _validate_selected_annotators(
         if (
             not _domain_matches_capability(domain, annotator_domains(annotator))
             or input_kind not in annotator_input_modes(annotator)
-            or not required_tasks.issubset(available_tasks)
+            or not required_tasks.intersection(available_tasks)
         ):
             incompatible.append(_annotator_label(annotator))
     if incompatible:
@@ -770,7 +857,7 @@ def _domain_matches_capability(domain: str, supported_domains: tuple[str, ...]) 
 
 
 def _task_label(task: str) -> str:
-    return {"NER": "NER", "NEN": "NEN", "both": "NER and NEN"}.get(task, task)
+    return {"NER": "NER", "NEN": "NEN", "both": "NER, NEN, or both"}.get(task, task)
 
 
 def _annotator_label(annotator: str) -> str:
