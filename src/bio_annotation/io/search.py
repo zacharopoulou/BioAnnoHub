@@ -12,6 +12,7 @@ from urllib import error, parse, request
 _ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 _CAP = 10_000
 _MIN_INTERVAL = 0.34  # 3 req/sec NCBI limit (unauthenticated)
+_RETRACTED_PUBLICATION_FILTER = '"Retracted Publication"[Publication Type]'
 
 _last_request = 0.0
 
@@ -46,6 +47,7 @@ def search_pubmed_pmids(
     filters: list[str] | None = None,
     timeout: int = 30,
     esearch_fn: Callable[[str], dict[str, Any]] | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[str]:
     term = query.strip()
     if not term:
@@ -53,24 +55,67 @@ def search_pubmed_pmids(
     for clause in filters or []:
         if clause.strip():
             term += f" AND {clause.strip()}"
+    # Apply this outside the user's query group so OR clauses cannot bypass it.
+    # PubMed assigns this type to the article that was retracted; the separate
+    # retraction notice remains a distinct citation.
+    term = f"({term}) NOT {_RETRACTED_PUBLICATION_FILTER}"
     fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
     lo = _parse_date(date_from, upper=False) if date_from else date(1950, 1, 1)
-    hi = _parse_date(date_to, upper=True) if date_to else date(2100, 12, 31)
+    hi = _parse_date(date_to, upper=True) if date_to else date.today()
 
     pmids: dict[str, None] = {}
     stack = [(lo, hi)]
     while stack:
         start, end = stack.pop()
         window = f'{term} AND ("{start:%Y/%m/%d}"[Date - Publication] : "{end:%Y/%m/%d}"[Date - Publication])'
+        _report_progress(
+            progress_callback,
+            stage="searching",
+            start=start,
+            end=end,
+            collected=_progress_collected_count(len(pmids), max_results),
+            max_results=max_results,
+        )
         result = fn(window)
-        if result["count"] <= _CAP:
+        count = result["count"]
+        _report_progress(
+            progress_callback,
+            stage="window_complete",
+            start=start,
+            end=end,
+            count=count,
+            collected=_progress_collected_count(len(pmids), max_results),
+            max_results=max_results,
+        )
+        if count <= _CAP:
             for pmid in result["pmids"]:
                 pmids.setdefault(pmid, None)
+            _report_progress(
+                progress_callback,
+                stage="collected",
+                start=start,
+                end=end,
+                count=count,
+                collected=_progress_collected_count(len(pmids), max_results),
+                max_results=max_results,
+            )
             continue
-        if start == end: # window has 1-day size and still more than 10000 results
-            raise ValueError(f"Window {start:%Y/%m/%d} has {result['count']} results, exceeds {_CAP} cap.")
+        if start == end:  # window has 1-day size and still more than 10000 results
+            raise ValueError(f"Window {start:%Y/%m/%d} has {count} results, exceeds {_CAP} cap.")
         mid = start + (end - start) // 2
+        _report_progress(
+            progress_callback,
+            stage="splitting",
+            start=start,
+            end=end,
+            count=count,
+            split_start=start,
+            split_mid=mid,
+            split_end=end,
+            collected=_progress_collected_count(len(pmids), max_results),
+            max_results=max_results,
+        )
         stack.append((start, mid))
         stack.append((mid + timedelta(days=1), end))
     collected = list(pmids)
@@ -80,6 +125,15 @@ def search_pubmed_pmids(
 def write_pmids(path: Path, pmids: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(f"{pmid}\n" for pmid in pmids), encoding="utf-8")
+
+
+def _report_progress(callback: Callable[[dict[str, Any]], None] | None, **event: Any) -> None:
+    if callback is not None:
+        callback(event)
+
+
+def _progress_collected_count(collected: int, max_results: int | None) -> int:
+    return min(collected, max_results) if max_results is not None else collected
 
 
 def _parse_date(value: str, *, upper: bool) -> date:
