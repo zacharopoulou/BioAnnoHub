@@ -12,6 +12,7 @@ from urllib import error, parse, request
 _ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 _CAP = 10_000
 _MIN_INTERVAL = 0.34  # 3 req/sec NCBI limit (unauthenticated)
+_RETRACTED_PUBLICATION_FILTER = '"Retracted Publication"[Publication Type]'
 
 _last_request = 0.0
 
@@ -54,6 +55,10 @@ def search_pubmed_pmids(
     for clause in filters or []:
         if clause.strip():
             term += f" AND {clause.strip()}"
+    # Apply this outside the user's query group so OR clauses cannot bypass it.
+    # PubMed assigns this type to the article that was retracted; the separate
+    # retraction notice remains a distinct citation.
+    term = f"({term}) NOT {_RETRACTED_PUBLICATION_FILTER}"
     fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
     lo = _parse_date(date_from, upper=False) if date_from else date(1950, 1, 1)

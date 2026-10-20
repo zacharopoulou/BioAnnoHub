@@ -197,6 +197,8 @@ Notes:
   Use PubMed field tags such as [MeSH Terms], [Publication Type],
   [Language], and [Date - Publication]. Each --filter is appended
   to the query with AND.
+  Results tagged by PubMed as Retracted Publication are always excluded.
+  Separate retraction notices are not excluded.
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
