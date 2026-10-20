@@ -165,8 +165,11 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
             "3",  # plain text
             "2",  # raw text file
             str(source_text),
+            "1",  # biomedical domain
+            "1",  # NER task
             "1",  # BERN2 (PubTator3 is not offered for plain text)
             "1,2",  # Gene, Disease
+            "",  # start annotation
         ]
     )
     messages: list[str] = []
@@ -229,8 +232,11 @@ def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path
             "3",  # plain text
             "2",  # raw text file
             str(source_text),
-            "1",  # pubtator3
-            "",  # all entity types
+            "1",  # biomedical domain
+            "1",  # NER task
+            "1",  # BERN2
+            "all",  # all entity types
+            "",  # start annotation
         ]
     )
 
@@ -272,8 +278,11 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
         [
             "2",  # PMID file
             str(pmid_file),
+            "1",  # biomedical domain
+            "1",  # NER task
             "1",  # pubtator3
-            "",  # all entity types
+            "all",  # all entity types
+            "",  # start annotation
         ]
     )
 
@@ -304,14 +313,17 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
     assert (run_dir / "config.toml").exists()
 
 
-def test_run_terminal_annotation_ui_defaults_to_all_annotators(tmp_path) -> None:
+def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) -> None:
     output_dir = tmp_path / "out"
     prompts = iter(
         [
             "1",  # PMIDs
             "123",
-            "",  # all annotators
-            "",  # all entity types
+            "1",  # biomedical domain
+            "1",  # NER task
+            "all",  # all compatible annotators
+            "all",  # all entity types
+            "",  # start annotation
         ]
     )
     seen_prompts: list[str] = []
@@ -339,7 +351,7 @@ def test_run_terminal_annotation_ui_defaults_to_all_annotators(tmp_path) -> None
         pipeline_run_fn=fake_pipeline_run,
     )
 
-    assert "Choose comma-separated numbers [default: 1, 2, 3]: " in seen_prompts
+    assert "Choose comma-separated numbers, or type 'all' for all options: " in seen_prompts
 
 
 def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path) -> None:
@@ -350,9 +362,12 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
             "3",  # plain text
             "2",  # raw text file
             str(source_text),
+            "1",  # biomedical domain
+            "1",  # NER task
             "1,2",  # BERN2, Flair
             "5,6",  # Variant / mutation, Cell line
             "y",
+            "",  # start annotation
         ]
     )
     messages: list[str] = []

@@ -70,8 +70,9 @@ def help_lines() -> list[str]:
     return render_lines(
         Panel(
             Text.assemble(
-                ("Choose an input source, annotators, and entity filters.\n", "muted"),
-                ("Each run writes ", "muted"),
+                ("Choose input, domain, annotation task, compatible annotators, and entity filters.\n", "muted"),
+                ("Type 'restart' or 'exit' at any prompt; press Enter at the final prompt to run.\n", "muted"),
+                ("Each completed run writes ", "muted"),
                 ("config", "field"),
                 (", ", "muted"),
                 ("JSON", "field"),
@@ -79,7 +80,7 @@ def help_lines() -> list[str]:
                 ("TSV review tables", "field"),
                 (", and a ", "muted"),
                 ("manifest", "field"),
-                (".", "muted"),
+                (". Annotations retain their source; filters apply after execution to combined results.", "muted"),
             ),
             title="Workflow",
             title_align="left",
@@ -100,12 +101,36 @@ def choice_lines(title: str, choices: tuple[tuple[str, str], ...], *, default_in
         border_style="panel.border",
         pad_edge=True,
     )
+    defaults = set(default_indexes or [])
     table.add_column("#", justify="right", no_wrap=True, style="accent")
     table.add_column("Option")
-    table.add_column("Default", justify="center", no_wrap=True, style="ok")
-    defaults = set(default_indexes or [])
+    if defaults:
+        table.add_column("Default", justify="center", no_wrap=True, style="ok")
     for index, (_, label) in enumerate(choices, start=1):
-        table.add_row(str(index), label, "default" if index in defaults else "")
+        row = [str(index), label]
+        if defaults:
+            row.append("default" if index in defaults else "")
+        table.add_row(*row)
+    return render_lines(table)
+
+
+def annotator_capability_lines(
+    rows: Iterable[tuple[str, str, str, str, str]],
+) -> list[str]:
+    table = Table(
+        title="Selected annotator capabilities",
+        box=box.ROUNDED,
+        show_lines=True,
+        show_header=True,
+        header_style="table.header",
+        title_style="table.title",
+        border_style="panel.border",
+        pad_edge=True,
+    )
+    for column in ("Annotator", "Domains", "Inputs", "Tasks", "Entity types"):
+        table.add_column(column)
+    for row in rows:
+        table.add_row(*row)
     return render_lines(table)
 
 
@@ -122,7 +147,14 @@ def warning_lines(title: str, messages: Iterable[str]) -> list[str]:
     )
 
 
-def run_plan_lines(*, input_mode: str, annotators: list[str], entity_types: list[str]) -> list[str]:
+def run_plan_lines(
+    *,
+    input_mode: str,
+    domain: str = "Biomedical",
+    task: str = "NER",
+    annotators: list[str],
+    entity_types: list[str],
+) -> list[str]:
     table = Table(
         title="Run plan",
         box=box.ROUNDED,
@@ -133,6 +165,8 @@ def run_plan_lines(*, input_mode: str, annotators: list[str], entity_types: list
     table.add_column("Field", style="field")
     table.add_column("Value")
     table.add_row("Input", input_mode)
+    table.add_row("Domain", domain)
+    table.add_row("Task", task)
     table.add_row("Annotators", ", ".join(annotators) or "all")
     table.add_row("Entity filters", ", ".join(entity_types) if entity_types else "all entity types")
     return render_lines(table)

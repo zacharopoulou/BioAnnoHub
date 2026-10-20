@@ -25,10 +25,14 @@ from bio_annotation.entity_proposal.stanza_proposer import (
 from bio_annotation.pipeline_runner import DEFAULT_FLAIR_LINKERS
 from bio_annotation.entity_types import (
     ANNOTATOR_CHOICES,
+    ANNOTATOR_CAPABILITIES,
     ANNOTATOR_DISPLAY_NAMES,
     ANNOTATOR_ENTITY_TYPES,
     ENTITY_TYPE_CHOICES,
     ENTITY_TYPE_DISPLAY_NAMES,
+    annotator_domains,
+    annotator_input_modes,
+    annotator_tasks_for_selection,
 )
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import (
@@ -47,6 +51,7 @@ from bio_annotation.terminal_text_input import (
     write_generated_text_table_from_raw_text_file,
 )
 from bio_annotation.terminal_theme import (
+    annotator_capability_lines,
     banner_lines,
     choice_lines,
     emit,
@@ -59,6 +64,14 @@ from bio_annotation.terminal_theme import (
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
 PipelineRunFn = Callable[..., dict[str, Any]]
+
+
+class _RestartSetup(Exception):
+    """Signal that the interactive setup should start over."""
+
+
+class _ExitSetup(Exception):
+    """Signal that the user cancelled interactive setup."""
 
 
 @dataclass(frozen=True)
@@ -85,6 +98,8 @@ class TerminalUIAnswers:
     plain_text_document_id: str | None = None
     plain_text_title: str | None = None
     plain_text_abstract: str | None = None
+    domain: str = "biomedical"
+    task: str = "NER"
 
 
 def run_terminal_annotation_ui(
@@ -96,16 +111,38 @@ def run_terminal_annotation_ui(
 ) -> dict[str, Any]:
     emit(output_fn, banner_lines())
     emit(output_fn, help_lines())
-    answers = collect_terminal_ui_answers(input_fn=input_fn, output_fn=output_fn)
+    controlled_input = _setup_control_input(input_fn)
+    while True:
+        try:
+            answers = collect_terminal_ui_answers(
+                input_fn=controlled_input,
+                output_fn=output_fn,
+            )
+            emit(
+                output_fn,
+                run_plan_lines(
+                    input_mode=_input_mode_label(answers.input_mode),
+                    domain=_domain_label(answers.domain),
+                    task=_task_label(answers.task),
+                    annotators=[_annotator_label(a) for a in answers.annotators],
+                    entity_types=[_entity_type_label(e) for e in answers.entity_types],
+                ),
+            )
+            while True:
+                raw = controlled_input(
+                    "Press Enter to start annotation (or type 'restart' / 'exit'): "
+                ).strip()
+                if not raw:
+                    break
+                output_fn("Press Enter to start, or type 'restart' or 'exit'.")
+            break
+        except _RestartSetup:
+            output_fn("Starting setup over.")
+        except _ExitSetup:
+            output_fn("Annotation setup cancelled; no run was started.")
+            return {"stage": "cancelled", "cancelled": True}
+
     paths = create_run_paths(runs_dir)
-    emit(
-        output_fn,
-        run_plan_lines(
-            input_mode=_input_mode_label(answers.input_mode),
-            annotators=[_annotator_label(a) for a in answers.annotators],
-            entity_types=[_entity_type_label(e) for e in answers.entity_types],
-        ),
-    )
     prepare_input_files(answers, paths)
     write_terminal_ui_config(answers, paths.config_path, paths)
     load_pipeline_config(paths.config_path)
@@ -134,6 +171,19 @@ def run_terminal_annotation_ui(
         ),
     )
     return payload
+
+
+def _setup_control_input(input_fn: InputFn) -> InputFn:
+    def controlled_input(prompt: str) -> str:
+        value = input_fn(prompt)
+        command = value.strip().lower()
+        if command in {"restart", ":restart"}:
+            raise _RestartSetup
+        if command in {"exit", "quit", "q", ":exit", ":q"}:
+            raise _ExitSetup
+        return value
+
+    return controlled_input
 
 
 def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> TerminalUIAnswers:
@@ -172,27 +222,30 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
                 raise ValueError("Plain text table files must use .csv or .tsv extension.")
         else:
             text_content = prompt_multiline_text(input_fn=input_fn, output_fn=output_fn)
-    # PubTator3 only annotates PubMed/PMC publications, so it is not offered for plain text.
-    annotator_choices = tuple(
-        (value, label)
-        for value, label in ANNOTATOR_CHOICES
-        if not (mode == "plain_text" and value == "pubtator3")
+    domain, task, annotator_choices = _prompt_domain_and_task(
+        input_fn=input_fn,
+        output_fn=output_fn,
+        input_mode=mode,
     )
     annotators = _prompt_multi_choice(
         input_fn=input_fn,
         output_fn=output_fn,
-        title="Choose annotators, or press Enter for default annotators",
+        title="Choose annotators",
         choices=annotator_choices,
-        # BENT need separate environments + models, ClinicalBERT/apollo/d4data
-        # download local models, MedCAT needs a running MedCATservice, and
-        # Stanza/scispaCy require separate local model resources, so none are
-        # pre-selected.
-        default_values=[
-            value
-            for value, _ in annotator_choices
-            if value not in {"bent", "clinicalbert", "apollo", "d4data", "medcat", *STANZA_ANNOTATORS, *SCISPACY_MODEL_BY_ANNOTATOR}
-        ],
-        validate_values=_validate_selected_annotators,
+        default_values=[],
+        # Require an explicit annotator choice, including when only optional
+        # local models or services are compatible with the selected workflow.
+        allow_empty=False,
+        allow_all=True,
+        validate_values=lambda selected: _validate_selected_annotators(
+            selected, domain=domain, task=task, input_mode=mode
+        ),
+    )
+    emit(
+        output_fn,
+        annotator_capability_lines(
+            _annotator_capability_rows(annotators, task=task)
+        ),
     )
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
     return TerminalUIAnswers(
@@ -204,7 +257,112 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         plain_text_file=text_file,
         plain_text_source=text_source,
         plain_text_content=text_content,
+        domain=domain,
+        task=task,
     )
+
+
+def _prompt_domain_and_task(
+    *, input_fn: InputFn, output_fn: OutputFn, input_mode: str
+) -> tuple[str, str, tuple[tuple[str, str], ...]]:
+    input_kind = "plain_text" if input_mode == "plain_text" else "pmid"
+    while True:
+        domain = _prompt_choice(
+            input_fn=input_fn,
+            output_fn=output_fn,
+            title="Choose the text domain",
+            choices=(
+                ("biomedical", "Biomedical literature and research text"),
+                ("clinical", "Clinical notes and reports"),
+                ("both", "Biomedical and clinical annotators"),
+            ),
+        )
+        task = _prompt_choice(
+            input_fn=input_fn,
+            output_fn=output_fn,
+            title="Choose the annotation task",
+            choices=(
+                ("NER", "Named entity recognition (NER)"),
+                ("NEN", "Named entity normalization (NEN)"),
+                ("both", "NER and NEN"),
+            ),
+        )
+        annotator_choices = annotator_choices_for(
+            domain=domain,
+            input_kind=input_kind,
+            task=task,
+        )
+        if annotator_choices:
+            return domain, task, annotator_choices
+        emit(
+            output_fn,
+            warning_lines(
+                "No compatible annotators",
+                [
+                    f"No annotator supports {domain} {task} for this input type. "
+                    "Choose a different domain or task."
+                ],
+            ),
+        )
+
+
+def annotator_choices_for(
+    *, domain: str, input_kind: str, task: str
+) -> tuple[tuple[str, str], ...]:
+    required_tasks = {"NER", "NEN"} if task == "both" else {task}
+    choices: list[tuple[str, str]] = []
+    for annotator, label in ANNOTATOR_CHOICES:
+        capability = ANNOTATOR_CAPABILITIES[annotator]
+        if not _domain_matches_capability(domain, capability.domains) or input_kind not in capability.input_modes:
+            continue
+        tasks = set(
+            annotator_tasks_for_selection(
+                annotator,
+                # The terminal enables default linkers whenever NEN is requested.
+                flair_linking=task in {"NEN", "both"},
+            )
+        )
+        if required_tasks.issubset(tasks):
+            display = label
+            if annotator == "flair" and task in {"NEN", "both"}:
+                display = f"{label} (NEN linkers enabled)"
+            choices.append((annotator, display))
+    return tuple(choices)
+
+
+def _annotator_capability_rows(
+    annotators: list[str], *, task: str
+) -> list[tuple[str, str, str, str, str]]:
+    rows = []
+    for annotator in annotators:
+        capability = ANNOTATOR_CAPABILITIES[annotator]
+        domains = ", ".join(_domain_label(domain) for domain in capability.domains)
+        inputs = ", ".join(
+            "PMID articles" if mode == "pmid" else "plain text"
+            for mode in capability.input_modes
+        )
+        tasks = ", ".join(
+            annotator_tasks_for_selection(
+                annotator,
+                flair_linking=task in {"NEN", "both"},
+            )
+        )
+        entity_types = ", ".join(
+            dict.fromkeys(
+                _entity_type_label(entity_type)
+                for entity_type in capability.entity_types
+            )
+        ) or "Defined by the loaded model"
+        rows.append(
+            (
+                capability.label,
+                domains,
+                inputs,
+                tasks,
+                entity_types,
+            )
+        )
+    return rows
 
 
 def create_run_paths(runs_dir: Path, *, now: datetime | None = None) -> RunPaths:
@@ -255,7 +413,13 @@ def _medcat_service_reachable(endpoint: str, *, timeout: float = 3.0) -> bool:
 
 
 def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -> str:
-    lines = ["[input]"]
+    lines = [
+        "[workflow]",
+        f"domain = {_toml_string(answers.domain)}",
+        f"task = {_toml_string(answers.task)}",
+        "",
+        "[input]",
+    ]
     if answers.input_mode == "pmids":
         lines += ['mode = "pmids"', f"pmids = {_toml_string_list(answers.pmids)}"]
     elif answers.input_mode == "pmid_file":
@@ -307,7 +471,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
             "[annotators.flair]",
             'runtime = "local_model"',
             'model = "hunflair2"',
-            "linking = false",
+            f"linking = {str(answers.task in {'NEN', 'both'}).lower()}",
             f"linkers = {_toml_string_list(DEFAULT_FLAIR_LINKERS.values())}",
         ]
     if "medcat" in answers.annotators:
@@ -352,7 +516,8 @@ def find_unsupported_entity_types(annotators: list[str], entity_types: list[str]
     return {
         a: missing
         for a in annotators
-        if (missing := [e for e in entity_types if e not in ANNOTATOR_ENTITY_TYPES.get(a, set())])
+        if ANNOTATOR_ENTITY_TYPES.get(a)
+        and (missing := [e for e in entity_types if e not in ANNOTATOR_ENTITY_TYPES[a]])
     }
 
 
@@ -374,8 +539,38 @@ def _entity_type_choices_for(annotators: list[str]) -> tuple[tuple[str, str], ..
 
 def _prompt_entity_types(*, input_fn: InputFn, output_fn: OutputFn, annotators: list[str]) -> list[str]:
     choices = _entity_type_choices_for(annotators)
+    if "medcat" in annotators:
+        output_fn(
+            "MedCAT entity labels depend on its loaded model pack and cannot be "
+            "listed in advance. Type 'all' to retain every returned label."
+        )
     while True:
-        entity_types = _prompt_multi_choice(input_fn=input_fn, output_fn=output_fn, title="Choose entity types to include, or press Enter for all entity types", choices=choices, default_values=[], allow_empty=True)
+        entity_types = _prompt_multi_choice(
+            input_fn=input_fn,
+            output_fn=output_fn,
+            title="Choose entity types to include",
+            choices=choices,
+            default_values=[],
+            allow_all=True,
+            all_returns_empty=True,
+        )
+        if entity_types and "medcat" in annotators:
+            emit(
+                output_fn,
+                warning_lines(
+                    "MedCAT filter compatibility is model-dependent",
+                    [
+                        "Selected filters are matched against MedCAT's returned entity "
+                        "labels. Some model packs may use labels outside this list; "
+                        "type 'all' to retain every MedCAT result."
+                    ],
+                ),
+            )
+            if not _prompt_yes_no(
+                input_fn=input_fn,
+                prompt="Continue with these filters for MedCAT? [y/N]: ",
+            ):
+                continue
         unsupported = find_unsupported_entity_types(annotators, entity_types)
         if not unsupported:
             return entity_types
@@ -388,14 +583,26 @@ def _prompt_entity_types(*, input_fn: InputFn, output_fn: OutputFn, annotators: 
             return entity_types
 
 
-def _prompt_choice(*, input_fn: InputFn, output_fn: OutputFn, title: str, choices: tuple[tuple[str, str], ...]) -> str:
+def _prompt_choice(
+    *,
+    input_fn: InputFn,
+    output_fn: OutputFn,
+    title: str,
+    choices: tuple[tuple[str, str], ...],
+    default_value: str | None = None,
+) -> str:
     output_fn("")
-    emit(output_fn, choice_lines(title, choices))
+    default_indexes = [i for i, (value, _) in enumerate(choices, start=1) if value == default_value]
+    emit(output_fn, choice_lines(title, choices, default_indexes=default_indexes))
+    prompt = f"Choose one [default: {default_indexes[0]}]: " if default_indexes else "Choose one: "
     while True:
-        raw = input_fn("Choose one: ").strip()
+        raw = input_fn(prompt).strip()
+        if not raw and default_value is not None:
+            return default_value
         if raw.isdigit() and 1 <= int(raw) <= len(choices):
             return choices[int(raw) - 1][0]
-        output_fn(f"Please choose one of: {', '.join(str(i) for i in range(1, len(choices) + 1))}")
+        default_hint = f" or press Enter for default ({default_indexes[0]})" if default_indexes else ""
+        output_fn(f"Please choose one of: {', '.join(str(i) for i in range(1, len(choices) + 1))}{default_hint}")
 
 
 def _prompt_multi_choice(
@@ -406,14 +613,22 @@ def _prompt_multi_choice(
     choices: tuple[tuple[str, str], ...],
     default_values: list[str],
     allow_empty: bool = False,
+    allow_all: bool = False,
+    all_returns_empty: bool = False,
     validate_values: Callable[[list[str]], None] | None = None,
 ) -> list[str]:
     output_fn("")
     default_indexes = [i for i, (v, _) in enumerate(choices, start=1) if v in default_values]
     emit(output_fn, choice_lines(title, choices, default_indexes=default_indexes))
     default_hint = f" [default: {', '.join(str(i) for i in default_indexes)}]" if default_indexes else ""
+    all_hint = ", or type 'all' for all options" if allow_all else ""
     while True:
-        raw = input_fn(f"Choose comma-separated numbers{default_hint}: ").strip()
+        raw = input_fn(f"Choose comma-separated numbers{all_hint}{default_hint}: ").strip()
+        if allow_all and raw.lower() == "all":
+            selected = [] if all_returns_empty else [value for value, _ in choices]
+            if validate_values:
+                validate_values(selected)
+            return selected
         if not raw and default_values:
             selected = list(default_values)
             if validate_values:
@@ -439,10 +654,39 @@ def _prompt_multi_choice(
         output_fn("Please choose valid comma-separated numbers.")
 
 
-def _validate_selected_annotators(annotators: list[str]) -> None:
+def _validate_selected_annotators(
+    annotators: list[str],
+    *,
+    domain: str | None = None,
+    task: str | None = None,
+    input_mode: str | None = None,
+) -> None:
     unsupported = [a for a in annotators if a not in SUPPORTED_ANNOTATORS]
     if unsupported:
         raise ValueError(f"Unsupported annotators requested: {', '.join(unsupported)}")
+    if domain is None or task is None or input_mode is None:
+        return
+    input_kind = "plain_text" if input_mode == "plain_text" else "pmid"
+    required_tasks = {"NER", "NEN"} if task == "both" else {task}
+    incompatible = []
+    for annotator in annotators:
+        available_tasks = set(
+            annotator_tasks_for_selection(
+                annotator,
+                flair_linking=task in {"NEN", "both"},
+            )
+        )
+        if (
+            not _domain_matches_capability(domain, annotator_domains(annotator))
+            or input_kind not in annotator_input_modes(annotator)
+            or not required_tasks.issubset(available_tasks)
+        ):
+            incompatible.append(_annotator_label(annotator))
+    if incompatible:
+        raise ValueError(
+            f"Selected annotators do not support {domain} {task} for {input_kind}: "
+            f"{', '.join(incompatible)}"
+        )
 
 
 def _prompt_pmids(*, input_fn: InputFn) -> list[str]:
@@ -509,6 +753,24 @@ def _input_mode_label(input_mode: str) -> str:
         "pmid_file": "PubMed articles from a PMID file",
         "plain_text": "Plain text",
     }.get(input_mode, input_mode)
+
+
+def _domain_label(domain: str) -> str:
+    return {
+        "biomedical": "Biomedical",
+        "clinical": "Clinical",
+        "both": "Biomedical and Clinical",
+    }.get(domain, domain)
+
+
+def _domain_matches_capability(domain: str, supported_domains: tuple[str, ...]) -> bool:
+    if domain == "both":
+        return bool(supported_domains)
+    return domain in supported_domains
+
+
+def _task_label(task: str) -> str:
+    return {"NER": "NER", "NEN": "NEN", "both": "NER and NEN"}.get(task, task)
 
 
 def _annotator_label(annotator: str) -> str:
