@@ -7,6 +7,7 @@ from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.terminal_ui import (
     TerminalUIAnswers,
     _entity_type_choices_for,
+    annotator_choices_for,
     build_terminal_ui_config_text,
     create_run_paths,
     find_unsupported_entity_types,
@@ -335,7 +336,13 @@ def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) 
     def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmids"
-        assert config.annotators == ["pubtator3", "bern2", "flair"]
+        expected = [
+            annotator
+            for annotator, _ in annotator_choices_for(
+                domain="biomedical", input_kind="pmid", task="NER"
+            )
+        ]
+        assert config.annotators == expected
         return {
             "document_count": 1,
             "annotation_summary": {"annotation_count": 0},
