@@ -15,6 +15,8 @@ That means you can use standard PubMed Boolean operators and field tags, includi
 
 Each repeated `--filter` value is appended to the query with `AND`.
 
+BioAnnoHub always excludes citations tagged by PubMed with the `Retracted Publication` publication type. That tag applies to the retracted article; its separate retraction notice is a different citation and is not excluded. This relies on PubMed's current indexing, so a newly retracted article may still appear before PubMed updates its record.
+
 ## Examples
 
 Free-text search:
