@@ -9,7 +9,7 @@ from bio_annotation.entity_proposal._shared import make_annotation, pick_first
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-DEFAULT_BERN2_API_URL = "http://bern2.korea.ac.kr/plain"
+DEFAULT_BERN2_API_URL = "https://bern2.korea.ac.kr/plain"
 LOCAL_BERN2_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 
