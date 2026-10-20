@@ -7,6 +7,7 @@ from pathlib import Path
 
 from bio_annotation._cli_arg_validator import positive_int
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
+from bio_annotation.benchmarking.download import download_benchmarks
 from bio_annotation.benchmarking.preflight import BenchmarkPreflightError
 from bio_annotation.benchmarking.runner import run_ncbi_review_evaluation
 from bio_annotation.io.search import search_pubmed_pmids, write_pmids
@@ -151,6 +152,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=25,
         help="Print benchmark progress every N documents. Default: 25.",
     )
+    download_parser = subparsers.add_parser(
+        "download-benchmarks",
+        help="Download benchmark corpora into benchmarks/data/ (pick from a list, or --all).",
+    )
+    download_parser.add_argument("--all", action="store_true", help="Download every public benchmark.")
+    download_parser.add_argument("--list", action="store_true", help="Show the benchmark table and exit.")
     search_parser = subparsers.add_parser("search-pmids", help="Search PubMed and write matching PMIDs to a file.")
     search_parser.add_argument("--query", required=True, help="PubMed query string.")
     search_parser.add_argument(
@@ -192,6 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         print("Preview documents: uv run bioannohub load-documents")
         print("Run config: uv run bioannohub run-config")
         print("Review benchmark: uv run bioannohub evaluate-ncbi-review")
+        print("Download benchmarks: uv run --extra benchmarks bioannohub download-benchmarks")
         print("Search PMIDs: uv run bioannohub search-pmids --query '...' --output data/inputs/query_pmids.txt")
         return 0
 
@@ -299,6 +307,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         print_benchmark_review_summary(payload, args.output_dir)
         return 0
+
+    if args.command == "download-benchmarks":
+        return download_benchmarks(download_all=args.all, list_only=args.list)
 
     if args.command == "search-pmids":
         try:
