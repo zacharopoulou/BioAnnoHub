@@ -228,3 +228,112 @@ def test_split_with_title_rebases_abstract_by_two() -> None:
     title_anns, abstract_anns = _split_annotations_by_region(ann, 5)
     assert title_anns == [{"start": 0, "end": 3, "entity_type": "gene"}]
     assert abstract_anns == [{"start": 0, "end": 5, "entity_type": "disease"}]
+
+
+def _one_document_report(tmp_path: Path, abstract: str, annotations: list[dict]) -> str:
+    payload = {
+        "document_count": 1,
+        "annotation_summary": {"annotation_count": len(annotations)},
+        "documents": [{"document_id": "D1", "title": "", "abstract": abstract}],
+        "annotations": [{"document_id": "D1", **a} for a in annotations],
+    }
+    return write_html_report(payload, tmp_path / "report.html").read_text(encoding="utf-8")
+
+
+def test_every_annotator_gets_a_colour_family_and_type_label(tmp_path: Path) -> None:
+    html = _one_document_report(
+        tmp_path,
+        "Chest pain after a chest CT.",
+        [
+            {"source": "clinicalbert", "span_text": "Chest pain", "entity_type": "problem", "start": 0, "end": 10},
+            {"source": "d4data", "span_text": "chest CT", "entity_type": "diagnostic_procedure", "start": 19, "end": 27},
+        ],
+    )
+    assert 'data-family="disease" data-label="problem"' in html
+    assert 'data-family="procedure" data-label="diagnostic procedure"' in html
+    assert 'value="clinicalbert"' in html and 'value="d4data"' in html  # annotator filters
+
+
+def test_medcat_semantic_type_shows_code_and_name(tmp_path: Path) -> None:
+    html = _one_document_report(
+        tmp_path,
+        "Breast cancer was found.",
+        [{"source": "medcat", "span_text": "Breast cancer", "entity_type": "T191", "start": 0, "end": 13}],
+    )
+    assert 'data-family="disease" data-label="T191 · neoplastic process"' in html
+    assert "T191 · Neoplastic Process" in html  # comparison table and popup title
+
+
+def test_normalization_score_reaches_popup_and_comparison(tmp_path: Path) -> None:
+    html = _one_document_report(
+        tmp_path,
+        "Fatigue was reported.",
+        [{"source": "scispacy", "span_text": "Fatigue", "entity_type": "disease", "start": 0, "end": 7,
+          "canonical_id": "C0015672", "normalization_score": 0.91234}],
+    )
+    assert "norm score 0.912" in html
+    assert "&quot;normalization_score&quot;: 0.91234" in html
+
+
+def test_spaces_around_a_span_are_not_highlighted(tmp_path: Path) -> None:
+    html = _one_document_report(
+        tmp_path,
+        "The  breast  cancer  cells.",
+        [
+            {"source": "pubtator3", "span_text": " breast  cancer ", "entity_type": "disease", "start": 4, "end": 20},
+            {"source": "bern2", "span_text": "breast cancer", "entity_type": "disease", "start": 5, "end": 18},
+        ],
+    )
+    assert re.search(r'role="button">breast  cancer</mark>', html)
+    # one comparison row: extra spaces do not make a different keyword
+    assert "1 unique keyword found" in html
+    assert "<code>breast cancer</code>" in html
+
+
+def test_sentence_spans_split_on_sentence_ends_and_line_breaks() -> None:
+    from bio_annotation.report.html_report import sentence_spans
+
+    text = "BRCA1 is a gene.  It causes e.g. cancer in 2 cases. (Rare) forms exist!\nNew line"
+    assert [text[a:b] for a, b in sentence_spans(text)] == [
+        "BRCA1 is a gene.", "It causes e.g. cancer in 2 cases.", "(Rare) forms exist!", "New line",
+    ]
+
+
+def test_graph_data_merges_keywords_and_records_sentences() -> None:
+    from bio_annotation.report.html_report import build_graph_data
+
+    title, abstract = "Tamoxifen in breast cancer", "Tamoxifen  helps. Breast cancer is common."
+    text = f"{title}\n\n{abstract}"
+
+    def ann(span: str, entity_type: str, source: str, nth: int = 0) -> dict:
+        start = -1
+        for _ in range(nth + 1):
+            start = text.index(span, start + 1)
+        return {"document_id": "D1", "source": source, "span_text": span, "entity_type": entity_type,
+                "start": start, "end": start + len(span)}
+
+    data = build_graph_data(
+        [{"document_id": "D1", "pmid": "7", "title": title, "abstract": abstract}],
+        [ann("Tamoxifen", "drug", "pubtator3"), ann("breast cancer", "disease", "pubtator3"),
+         ann("Tamoxifen  ", "drug", "bern2"), ann("Breast cancer", "problem", "clinicalbert")],
+    )
+    assert data["docs"][0]["sentences"] == [title, "Tamoxifen  helps.", "Breast cancer is common."]
+    assert [n["label"] for n in data["nodes"]] == ["Tamoxifen", "breast cancer"]  # case-insensitive merge
+    assert data["nodes"][1]["fam"] == "disease"
+    # [node, document, sentence, annotator, family, start, end] with the span trimmed
+    assert data["mentions"] == [
+        [0, 0, 0, "pubtator3", "drug", 0, 9],
+        [1, 0, 0, "pubtator3", "disease", 13, 26],
+        [0, 0, 1, "bern2", "drug", 0, 9],
+        [1, 0, 2, "clinicalbert", "disease", 0, 13],
+    ]
+
+
+def test_report_has_entity_graph_only_when_there_are_annotations(tmp_path: Path) -> None:
+    html = write_html_report(sample_payload(), tmp_path / "a.html").read_text(encoding="utf-8")
+    assert 'id="entity-graph"' in html and 'id="graph-data"' in html
+    graph_json = re.search(r'<script type="application/json" id="graph-data">(.*?)</script>', html, re.S).group(1)
+    assert json.loads(graph_json)["nodes"]
+
+    empty = {"document_count": 1, "documents": [{"document_id": "D1", "title": "T", "abstract": "A."}], "annotations": []}
+    assert 'id="entity-graph"' not in write_html_report(empty, tmp_path / "b.html").read_text(encoding="utf-8")

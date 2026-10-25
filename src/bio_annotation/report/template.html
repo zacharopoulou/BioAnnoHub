@@ -81,16 +81,6 @@ a:hover { border-bottom-color: var(--accent); }
   cursor: default;
   user-select: none;
 }
-.legend-chip-gene      { background: #cfe8c9; color: #235c27; }
-.legend-chip-disease   { background: #f6cccb; color: #7a2a2a; }
-.legend-chip-drug      { background: #fbddae; color: #6b4310; }
-.legend-chip-species   { background: #c6d9f6; color: #1f4a82; }
-.legend-chip-variant   { background: #ecc8ec; color: #6a2f7a; }
-.legend-chip-cell_line { background: #d3c4f0; color: #45308f; }
-.legend-chip-dna       { background: #b6e6da; color: #0f5d51; }
-.legend-chip-rna       { background: #f1e59f; color: #6b5810; }
-.legend-chip-cell_type { background: #e0d3c2; color: #5e4630; }
-.legend-chip-unmatched { background: #fbeb8a; color: #5c4910; }
 
 .hint {
   font-size: 0.9em;
@@ -157,17 +147,57 @@ mark.entity {
 }
 mark.entity:hover { border-bottom-color: rgba(31, 29, 43, 0.4); }
 mark.entity           { background: transparent; }
-mark.entity-gene      { background: #cfe8c9; color: #235c27; }
-mark.entity-disease   { background: #f6cccb; color: #7a2a2a; }
-mark.entity-drug      { background: #fbddae; color: #6b4310; }
-mark.entity-species   { background: #c6d9f6; color: #1f4a82; }
-mark.entity-variant   { background: #ecc8ec; color: #6a2f7a; }
-mark.entity-cell_line { background: #d3c4f0; color: #45308f; }
-mark.entity-dna       { background: #b6e6da; color: #0f5d51; }
-mark.entity-rna       { background: #f1e59f; color: #6b5810; }
-mark.entity-cell_type { background: #e0d3c2; color: #5e4630; }
-mark.entity-unknown   { background: #e6e3ec; color: var(--text-muted); }
 mark.entity-unmatched { background: #fbeb8a; color: #5c4910; border-bottom: 1px dashed #b8941c; }
+/* One colour family per group of entity types (see entity_family in html_report.py). */
+.fam-gene, mark.entity[data-family="gene"] { --fbg: #cfe8c9; --ffg: #235c27; --fbar: #a6d49b; --fseg: #5fa052; --flab: #5f8a52; }
+.fam-drug, mark.entity[data-family="drug"] { --fbg: #fbddae; --ffg: #6b4310; --fbar: #f2c47c; --fseg: #d99a3e; --flab: #9c7321; }
+.fam-disease, mark.entity[data-family="disease"] { --fbg: #f6cccb; --ffg: #7a2a2a; --fbar: #eaa9a8; --fseg: #c96b6b; --flab: #b35a5a; }
+.fam-species, mark.entity[data-family="species"] { --fbg: #c6d9f6; --ffg: #1f4a82; --fbar: #9fbeea; --fseg: #5a86c4; --flab: #4f7aac; }
+.fam-variant, mark.entity[data-family="variant"] { --fbg: #ecc8ec; --ffg: #6a2f7a; --fbar: #d9a7d9; --fseg: #b25fb2; --flab: #9c5172; }
+.fam-cell, mark.entity[data-family="cell"] { --fbg: #d3c4f0; --ffg: #45308f; --fbar: #b7a3e5; --fseg: #7d5fc4; --flab: #6a5aa0; }
+.fam-anatomy, mark.entity[data-family="anatomy"] { --fbg: #b6e6da; --ffg: #0f5d51; --fbar: #8ad6c4; --fseg: #2fa899; --flab: #2f8f80; }
+.fam-procedure, mark.entity[data-family="procedure"] { --fbg: #f1e59f; --ffg: #6b5810; --fbar: #e2d06a; --fseg: #c9b03e; --flab: #9c842a; }
+.fam-clinical, mark.entity[data-family="clinical"] { --fbg: #e0d3c2; --ffg: #5e4630; --fbar: #ccb89c; --fseg: #9c7a52; --flab: #876b4a; }
+.fam-other, mark.entity[data-family="other"] { --fbg: #e6e3ec; --ffg: #4f4c5c; --fbar: #cfcbd9; --fseg: #8c8aa1; --flab: #6b6878; }
+mark.entity[data-family] { background: var(--fbg); color: var(--ffg); }
+.legend-chip[class*="fam-"] { background: var(--fbg); color: var(--ffg); cursor: help; }
+.stats-group[class*="fam-"] .stats-type { color: var(--flab); }
+.stats-group[class*="fam-"] .stats-bar-fill { background: var(--fbar); }
+.stats-group[class*="fam-"] .stats-keyword { background: var(--fbg); color: var(--ffg); }
+.hist-row[class*="fam-"] .hist-label { color: var(--flab); }
+.hist-row[class*="fam-"] .hist-fill { background: var(--fbar); }
+.doc-seg[class*="fam-"] { background: var(--fseg); }
+
+/* The entity type, as a small label inside each highlight ("Show type labels"). */
+body.show-type-labels mark.entity[data-label]::after {
+  content: attr(data-label);
+  font-family: var(--sans);
+  font-size: 0.6em;
+  font-weight: 700;
+  margin-left: 0.35em;
+  padding: 0 0.3em;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ffg);
+  vertical-align: 0.15em;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em 1.6em;
+  margin: -1em 0 2em;
+  padding: 0.8em 1.2em;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+.filter-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; }
+.filter-title { font-size: 0.85em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-right: 0.3em; }
+.filter-chip { display: inline-flex; align-items: center; gap: 0.3em; padding: 2px 8px; border-radius: 3px; background: var(--accent-bg); color: var(--text); cursor: pointer; user-select: none; }
+.filter-chip[class*="fam-"] { background: var(--fbg); color: var(--ffg); }
+.filter-chip input { margin: 0; cursor: pointer; }
 mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .stats-panel {
@@ -179,6 +209,9 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
 }
 .stats-panel h4 { margin-bottom: 1em; }
+/* Many entity types (clinical annotators) would make the panel very tall: scroll instead. */
+.stats-panel { max-height: 460px; overflow-y: auto; }
+.summary { align-items: start; }
 .stats-group { margin-bottom: 0.3em; }
 .stats-group:last-of-type { margin-bottom: 0; }
 .stats-group summary {
@@ -210,15 +243,6 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-weight: 700;
   flex: 1;
 }
-.stats-group-disease .stats-type   { color: #b35a5a; }
-.stats-group-drug .stats-type      { color: #9c7321; }
-.stats-group-gene .stats-type      { color: #5f8a52; }
-.stats-group-species .stats-type   { color: #4f7aac; }
-.stats-group-variant .stats-type   { color: #9c5172; }
-.stats-group-cell_line .stats-type { color: #6a5aa0; }
-.stats-group-dna .stats-type       { color: #2f8f80; }
-.stats-group-rna .stats-type       { color: #9c842a; }
-.stats-group-cell_type .stats-type { color: #876b4a; }
 .stats-type-total {
   font-size: 0.78em;
   color: var(--text-soft);
@@ -261,25 +285,6 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   border-radius: 3px;
   transition: width 200ms;
 }
-.stats-group-disease .stats-bar-fill   { background: #eaa9a8; }
-.stats-group-drug .stats-bar-fill      { background: #f2c47c; }
-.stats-group-gene .stats-bar-fill      { background: #a6d49b; }
-.stats-group-species .stats-bar-fill   { background: #9fbeea; }
-.stats-group-variant .stats-bar-fill   { background: #d9a7d9; }
-.stats-group-cell_line .stats-bar-fill { background: #b7a3e5; }
-.stats-group-dna .stats-bar-fill       { background: #8ad6c4; }
-.stats-group-rna .stats-bar-fill       { background: #e2d06a; }
-.stats-group-cell_type .stats-bar-fill { background: #ccb89c; }
-/* Each bioconcept carries the same highlight color it has in the text. */
-.stats-group-gene      .stats-keyword { background: #cfe8c9; color: #235c27; }
-.stats-group-disease   .stats-keyword { background: #f6cccb; color: #7a2a2a; }
-.stats-group-drug      .stats-keyword { background: #fbddae; color: #6b4310; }
-.stats-group-species   .stats-keyword { background: #c6d9f6; color: #1f4a82; }
-.stats-group-variant   .stats-keyword { background: #ecc8ec; color: #6a2f7a; }
-.stats-group-cell_line .stats-keyword { background: #d3c4f0; color: #45308f; }
-.stats-group-dna       .stats-keyword { background: #b6e6da; color: #0f5d51; }
-.stats-group-rna       .stats-keyword { background: #f1e59f; color: #6b5810; }
-.stats-group-cell_type .stats-keyword { background: #e0d3c2; color: #5e4630; }
 .stats-count {
   color: var(--text-soft);
   font-variant-numeric: tabular-nums;
@@ -314,15 +319,6 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   font-weight: 700;
   color: var(--text-muted);
 }
-.hist-row-disease .hist-label   { color: #b35a5a; }
-.hist-row-drug .hist-label      { color: #9c7321; }
-.hist-row-gene .hist-label      { color: #5f8a52; }
-.hist-row-species .hist-label   { color: #4f7aac; }
-.hist-row-variant .hist-label   { color: #9c5172; }
-.hist-row-cell_line .hist-label { color: #6a5aa0; }
-.hist-row-dna .hist-label       { color: #2f8f80; }
-.hist-row-rna .hist-label       { color: #9c842a; }
-.hist-row-cell_type .hist-label { color: #876b4a; }
 .hist-track {
   height: 10px;
   background: var(--border-soft);
@@ -336,15 +332,6 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   background: var(--accent-soft);
   transition: width 250ms ease-out;
 }
-.hist-row-disease .hist-fill   { background: #eaa9a8; }
-.hist-row-drug .hist-fill      { background: #f2c47c; }
-.hist-row-gene .hist-fill      { background: #a6d49b; }
-.hist-row-species .hist-fill   { background: #9fbeea; }
-.hist-row-variant .hist-fill   { background: #d9a7d9; }
-.hist-row-cell_line .hist-fill { background: #b7a3e5; }
-.hist-row-dna .hist-fill       { background: #8ad6c4; }
-.hist-row-rna .hist-fill       { background: #e2d06a; }
-.hist-row-cell_type .hist-fill { background: #ccb89c; }
 .hist-count {
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -387,19 +374,6 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   overflow: hidden;
 }
 .doc-seg { display: block; height: 100%; }
-.doc-seg-disease   { background: #c96b6b; }
-.doc-seg-drug      { background: #d99a3e; }
-.doc-seg-gene      { background: #5fa052; }
-.doc-seg-species   { background: #5a86c4; }
-.doc-seg-variant   { background: #b25fb2; }
-.doc-seg-cell_line { background: #7d5fc4; }
-.doc-seg-dna       { background: #2fa899; }
-.doc-seg-rna       { background: #c9b03e; }
-.doc-seg-cell_type { background: #9c7a52; }
-.doc-seg-rna       { background: #5e8b8f; }
-.doc-seg-dna       { background: #88a0a3; }
-.doc-seg-cell_type { background: #ae7c92; }
-.doc-seg-unknown   { background: var(--text-soft); }
 .doc-count {
   font-variant-numeric: tabular-nums;
   color: var(--text);
@@ -431,7 +405,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .comparison-section .hint { margin: 0; }
 .comparison-scroll {
   max-height: 60vh;
-  overflow-y: auto;
+  overflow: auto;  /* one column per annotator: scroll sideways when there are many */
   margin-top: 0.8em;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -451,6 +425,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .comparison th, .comparison td {
   text-align: left;
+  min-width: 9em;
   padding: 0.7em 1em;
   border-bottom: 1px solid var(--border-soft);
   vertical-align: top;
@@ -560,9 +535,42 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   .doc-grid { grid-template-columns: 1fr; }
   .stats-panel { order: 2; }
 }
+
+/* Entity graph */
+.graph-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1.2em 1.5em 1.5em; margin-top: 2em; }
+.graph-section h3 { margin-top: 0; }
+.graph-controls { display: flex; flex-wrap: wrap; gap: 0.6em 1.6em; align-items: center; font-size: 0.9em; margin: 0.8em 0; color: var(--text-muted); }
+.graph-controls select, .graph-controls input { font: inherit; vertical-align: middle; }
+.graph-controls select { max-width: 22em; }
+.graph-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1em; }
+.graph-canvas { border: 1px solid var(--border); border-radius: 4px; background: #fbfaff; position: relative; min-width: 0; }
+.graph-canvas svg { width: 100%; height: 560px; display: block; touch-action: none; }
+.graph-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; }
+.graph-empty[hidden] { display: none; }
+.graph-link { stroke: #b9b3cc; stroke-opacity: 0.75; cursor: pointer; }
+.graph-link:hover, .graph-link.active { stroke: var(--accent-soft); stroke-opacity: 1; }
+.graph-node { cursor: grab; outline: none; }
+.graph-node circle { fill: var(--fbar); stroke: var(--fseg); stroke-width: 1.5; }
+.graph-node text { font-size: 11px; fill: var(--text); pointer-events: none; paint-order: stroke; stroke: #fbfaff; stroke-width: 3px; display: none; }
+.graph-node.labelled text, .graph-node.near text, .graph-node:hover text, .graph-node:focus text { display: block; }
+.graph-node.selected circle, .graph-node:focus circle { stroke: var(--accent); stroke-width: 3; }
+.graph-node.dimmed, .graph-link.dimmed { opacity: 0.12; }
+.graph-panel { border: 1px solid var(--border); border-radius: 4px; padding: 0.9em 1em; max-height: 560px; overflow-y: auto; font-size: 0.9em; min-width: 0; }
+.graph-panel h4 { text-transform: none; letter-spacing: 0; font-size: 1.1em; font-family: var(--serif); color: var(--text); margin-bottom: 0.4em; }
+.graph-panel h5 { margin: 1em 0 0.4em; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.graph-meta { margin: 0.3em 0; color: var(--text-muted); }
+.graph-neighbours { display: flex; flex-wrap: wrap; gap: 4px; }
+.graph-neighbour { font: inherit; font-size: 0.9em; border: 0; border-radius: 3px; padding: 2px 7px; margin: 0 4px 4px 0; cursor: pointer; background: var(--fbg); color: var(--ffg); }
+.graph-sentence { margin: 0 0 0.7em; padding-left: 0.7em; border-left: 3px solid var(--border); line-height: 1.5; }
+.graph-term { background: var(--fbg); color: var(--ffg); padding: 0 2px; border-radius: 2px; }
+.graph-doc { font-size: 0.85em; white-space: nowrap; }
+@media (max-width: 860px) {
+  .graph-layout { grid-template-columns: 1fr; }
+  .graph-canvas svg { height: 420px; }
+}
 </style>
 </head>
-<body>
+<body class="show-type-labels">
 <header class="site-header">
   <h1>BioAnnoHub</h1>
   <p>Static annotation report. Re-open this file any time to revisit the run.</p>
@@ -591,19 +599,16 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   const sourcesEl = popup.querySelector(".entity-popup-sources");
   const closeBtn = popup.querySelector(".entity-popup-close");
 
-  const ENTITY_TYPE_LABELS = {
-    gene: "Gene / protein",
-    disease: "Disease",
-    drug: "Chemical / drug",
-    species: "Species",
-    variant: "Variant / mutation",
-    cell_line: "Cell line",
-    unknown: "Entity",
-  };
-  const ANNOTATOR_LABELS = {
-    pubtator3: "PubTator3",
-    bern2: "BERN2",
-    flair: "Flair / HunFlair",
+  // Labels and annotator order written by html_report.py for this run.
+  let CONFIG = {};
+  try { CONFIG = JSON.parse((document.getElementById("report-config") || {}).textContent || "{}"); }
+  catch (err) { console.error("Failed to parse report config", err); }
+  const ENTITY_TYPE_LABELS = Object.assign({ unknown: "Entity" }, CONFIG.type_labels || {});
+  const ANNOTATOR_LABELS = Object.assign({}, CONFIG.annotator_labels || {});
+  const ANNOTATOR_ORDER = CONFIG.annotator_order || [];
+  const rank = (name) => {
+    const i = ANNOTATOR_ORDER.indexOf(name);
+    return i === -1 ? ANNOTATOR_ORDER.length : i;
   };
 
   // Display IDs with a consistent prefix casing regardless of which annotator
@@ -692,6 +697,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   function appendDetail(parent, hit) {
     const detail = [];
     if (typeof hit.confidence === "number") detail.push("conf " + hit.confidence.toFixed(3));
+    if (typeof hit.normalization_score === "number") detail.push("norm score " + hit.normalization_score.toFixed(3));
     const mentions = typeof hit.mentions === "number" ? hit.mentions : 1;
     if (mentions > 1) detail.push(mentions + " mentions");
     if (detail.length === 0) return;
@@ -779,9 +785,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     appendInfo("Canonical id", formatId(data.canonical_id, data.entity_type), idLink ? idLink.url : null);
 
     const sources = data.by_source || {};
-    // Shows annotators in this order: PubTator3, then BERN2, then Flair.
-    const SOURCE_ORDER = { pubtator3: 0, bern2: 1, flair: 2 };
-    const rank = (n) => (n in SOURCE_ORDER ? SOURCE_ORDER[n] : 99);
+    // Annotators in the run's order (PubTator3, BERN2, Flair first, then the rest).
     const names = Object.keys(sources).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
     if (names.length === 0) {
       const note = document.createElement("p");
@@ -819,6 +823,433 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     if (event.key === "Escape" && !popup.classList.contains("hidden")) closePopup();
   });
   closeBtn.addEventListener("click", closePopup);
+
+  // ---- Filters: redraw the highlights for the annotators and families switched on ----
+  const shownSources = new Set();
+  const shownFamilies = new Set();
+  document.querySelectorAll('input[data-filter="source"]').forEach((box) => { if (box.checked) shownSources.add(box.value); });
+  document.querySelectorAll('input[data-filter="family"]').forEach((box) => { if (box.checked) shownFamilies.add(box.value); });
+
+  function appendPlain(parent, text) {
+    const lines = text.split("\n");
+    lines.forEach((line, i) => {
+      if (i > 0) parent.appendChild(document.createElement("br"));
+      if (line) parent.appendChild(document.createTextNode(line));
+    });
+  }
+
+  // Same rule as render_highlighted_text in html_report.py: where highlights
+  // overlap, the earlier start wins, then the higher-priority annotator, then
+  // the longer span. Hidden annotators and families take no part.
+  function redraw(container) {
+    let items;
+    try { items = JSON.parse(container.dataset.annotations || "[]"); }
+    catch (err) { console.error("Failed to parse annotations", err); return; }
+    const text = container.dataset.text || "";
+    const visible = items
+      .filter((it) => shownSources.has(it.src) && shownFamilies.has(it.fam))
+      .sort((a, b) => a.s - b.s || rank(a.src) - rank(b.src) || a.src.localeCompare(b.src) || (b.e - b.s) - (a.e - a.s));
+    const chosen = [];
+    let lastEnd = -1;
+    for (const it of visible) {
+      if (it.s >= lastEnd) { chosen.push(it); lastEnd = it.e; }
+    }
+    const frag = document.createDocumentFragment();
+    let position = 0;
+    for (const it of chosen) {
+      if (it.s > position) appendPlain(frag, text.slice(position, it.s));
+      const mark = document.createElement("mark");
+      mark.className = "entity entity-" + it.type;
+      mark.dataset.family = it.fam;
+      mark.dataset.label = it.lab;
+      mark.dataset.entity = JSON.stringify(it.p);
+      mark.tabIndex = 0;
+      mark.setAttribute("role", "button");
+      mark.textContent = text.slice(it.s, it.e);
+      frag.appendChild(mark);
+      position = it.e;
+    }
+    if (position < text.length) appendPlain(frag, text.slice(position));
+    container.replaceChildren(frag);
+  }
+  function redrawAll() {
+    document.querySelectorAll("[data-annotations]").forEach(redraw);
+  }
+
+  document.addEventListener("change", (event) => {
+    const box = event.target;
+    if (!box.matches || !box.matches("input[data-filter]")) return;
+    const kind = box.dataset.filter;
+    if (kind === "labels") { document.body.classList.toggle("show-type-labels", box.checked); return; }
+    const set = kind === "source" ? shownSources : shownFamilies;
+    if (box.checked) set.add(box.value); else set.delete(box.value);
+    redrawAll();
+  });
+})();
+</script>
+<script>
+// Entity graph: entities found by the annotators, linked when mentioned in the
+// same sentence (or document). Plain JavaScript and SVG, so the report keeps
+// working offline. Data comes from build_graph_data in html_report.py.
+(() => {
+  const section = document.getElementById("entity-graph");
+  if (!section) return;
+  let DATA;
+  try { DATA = JSON.parse(document.getElementById("graph-data").textContent); }
+  catch (err) { console.error("Failed to parse graph data", err); return; }
+  let CONFIG = {};
+  try { CONFIG = JSON.parse((document.getElementById("report-config") || {}).textContent || "{}"); }
+  catch (err) { /* labels fall back to raw names */ }
+  const ANNOTATOR_LABELS = CONFIG.annotator_labels || {};
+  const FAMILY_LABELS = CONFIG.family_labels || {};
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = section.querySelector("svg");
+  const panel = section.querySelector(".graph-panel");
+  const empty = section.querySelector(".graph-empty");
+  const control = (name) => section.querySelector('[data-graph="' + name + '"]');
+  const scopeEl = control("scope"), modeEl = control("mode"), topEl = control("top"), minEl = control("min");
+  const PANEL_HINT = panel.innerHTML;
+  const WIDTH = 900, HEIGHT = 560;
+
+  const positions = new Map();  // node -> {x, y}, kept so the layout stays put between redraws
+  let graph = { nodes: [], links: [], byId: new Map() };
+  let selected = null;
+
+  function el(tag, attrs, text) {
+    const node = document.createElementNS(NS, tag);
+    for (const key in attrs || {}) node.setAttribute(key, attrs[key]);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function html(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function checked(kind) {
+    const set = new Set();
+    document.querySelectorAll('input[data-filter="' + kind + '"]').forEach((box) => { if (box.checked) set.add(box.value); });
+    return set;
+  }
+
+  function build() {
+    const scope = scopeEl.value, mode = modeEl.value;
+    const top = +topEl.value, minTogether = +minEl.value;
+    const sources = checked("source"), families = checked("family");
+    const perNode = new Map();
+    const contexts = new Map();
+    for (const m of DATA.mentions) {
+      const [n, d, s, src, fam] = m;
+      if (scope !== "all" && d !== +scope) continue;
+      if (!sources.has(src) || !families.has(fam)) continue;
+      let entry = perNode.get(n);
+      if (!entry) { entry = { places: new Set(), sources: new Set(), mentions: [] }; perNode.set(n, entry); }
+      entry.places.add(d + ":" + s + ":" + m[5]);
+      entry.sources.add(src);
+      entry.mentions.push(m);
+      const ctx = mode === "sentence" ? d + ":" + s : String(d);
+      if (!contexts.has(ctx)) contexts.set(ctx, new Set());
+      contexts.get(ctx).add(n);
+    }
+    const ranked = [...perNode.entries()].sort((a, b) => b[1].places.size - a[1].places.size || a[0] - b[0]);
+    const kept = ranked.slice(0, top);
+    const nodes = kept.map(([n, entry], rank) => {
+      const info = DATA.nodes[n];
+      const pos = positions.get(n) || {
+        x: WIDTH / 2 + Math.cos(n * 2.39996) * (40 + 6 * Math.sqrt(n)),
+        y: HEIGHT / 2 + Math.sin(n * 2.39996) * (40 + 6 * Math.sqrt(n)),
+      };
+      return { id: n, rank, label: info.label, fam: info.fam, types: info.types, count: entry.places.size,
+               sources: entry.sources, mentions: entry.mentions, x: pos.x, y: pos.y, vx: 0, vy: 0,
+               r: 5 + 3 * Math.sqrt(entry.places.size) };
+    });
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const linkMap = new Map();
+    for (const [ctx, members] of contexts) {
+      const ids = [...members].filter((n) => byId.has(n)).sort((a, b) => a - b);
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const key = ids[i] + "|" + ids[j];
+          if (!linkMap.has(key)) linkMap.set(key, { a: byId.get(ids[i]), b: byId.get(ids[j]), contexts: [] });
+          linkMap.get(key).contexts.push(ctx);
+        }
+      }
+    }
+    const links = [...linkMap.values()].filter((link) => link.contexts.length >= minTogether);
+    graph = { nodes, links, byId, mode };
+    if (selected && !(selected.node ? byId.has(selected.node) : linkMap.has(selected.link))) selected = null;
+    layout();
+    render();
+  }
+
+  function layout() {
+    const { nodes, links } = graph;
+    const fresh = nodes.some((node) => !positions.has(node.id));
+    const steps = fresh ? 320 : 120;
+    for (let step = 0; step < steps; step++) {
+      const alpha = 1 - step / steps;
+      for (let i = 0; i < nodes.length; i++) {
+        const a = nodes[i];
+        for (let j = i + 1; j < nodes.length; j++) {
+          const b = nodes[j];
+          let dx = b.x - a.x, dy = b.y - a.y;
+          let d2 = dx * dx + dy * dy;
+          if (d2 < 0.01) { dx = 0.1 * (i - j); dy = 0.1; d2 = dx * dx + dy * dy; }
+          const d = Math.sqrt(d2);
+          let f = 5000 / d2;
+          const gap = a.r + b.r + 6;
+          if (d < gap) f += (gap - d) * 0.5;
+          const fx = (dx / d) * f, fy = (dy / d) * f;
+          a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+        }
+      }
+      for (const link of links) {
+        const { a, b } = link;
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        const k = ((d - (60 + a.r + b.r)) / d) * 0.04 * Math.min(link.contexts.length, 4);
+        a.vx += dx * k; a.vy += dy * k; b.vx -= dx * k; b.vy -= dy * k;
+      }
+      for (const node of nodes) {
+        node.vx += (WIDTH / 2 - node.x) * 0.012;
+        node.vy += (HEIGHT / 2 - node.y) * 0.012;
+        const speed = Math.hypot(node.vx, node.vy), cap = 30 * alpha + 1;
+        if (speed > cap) { node.vx *= cap / speed; node.vy *= cap / speed; }
+        node.x += node.vx; node.y += node.vy;
+        node.vx *= 0.55; node.vy *= 0.55;
+      }
+    }
+    for (const node of nodes) positions.set(node.id, { x: node.x, y: node.y });
+  }
+
+  function fitView() {
+    const { nodes } = graph;
+    if (!nodes.length) return;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const node of nodes) {
+      x0 = Math.min(x0, node.x - node.r); x1 = Math.max(x1, node.x + node.r + 90);
+      y0 = Math.min(y0, node.y - node.r); y1 = Math.max(y1, node.y + node.r);
+    }
+    // never zoom in further than the default size, so a small graph keeps readable labels
+    const pad = 20;
+    const w = Math.max(x1 - x0 + 2 * pad, WIDTH * 0.6), h = Math.max(y1 - y0 + 2 * pad, HEIGHT * 0.6);
+    svg.setAttribute("viewBox", [(x0 + x1) / 2 - w / 2, (y0 + y1) / 2 - h / 2, w, h].join(" "));
+  }
+
+  function linkWidth(link) { return 1 + Math.min(6, Math.log2(link.contexts.length) * 1.6); }
+
+  function render() {
+    svg.replaceChildren();
+    empty.hidden = graph.nodes.length > 0;
+    if (!graph.nodes.length) { showHint(); return; }
+    fitView();
+    const linkLayer = el("g", { class: "graph-links" });
+    const nodeLayer = el("g", { class: "graph-nodes" });
+    const showAllLabels = graph.nodes.length <= 40;
+    for (const link of graph.links) {
+      const line = el("line", { class: "graph-link", "stroke-width": linkWidth(link) });
+      const together = link.contexts.length;
+      line.appendChild(el("title", {}, link.a.label + " and " + link.b.label + ": together in " + together + " "
+        + graph.mode + (together === 1 ? "" : "s")));
+      line.addEventListener("click", (event) => { event.stopPropagation(); select({ link: link.a.id + "|" + link.b.id }); });
+      link.line = line;
+      linkLayer.appendChild(line);
+    }
+    for (const node of graph.nodes) {
+      const g = el("g", { class: "graph-node fam-" + node.fam + (showAllLabels || node.rank < 25 ? " labelled" : ""), tabindex: "0", role: "button" });
+      g.appendChild(el("circle", { r: node.r.toFixed(1) }));
+      g.appendChild(el("text", { x: (node.r + 3).toFixed(1), y: "4" }, node.label));
+      g.appendChild(el("title", {}, node.label + " (" + (FAMILY_LABELS[node.fam] || node.fam) + ", " + node.count + " mention" + (node.count === 1 ? "" : "s") + ")"));
+      g.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select({ node: node.id }); } });
+      g.addEventListener("click", (event) => event.stopPropagation());  // selection happens on pointerup
+      dragNode(g, node);
+      node.g = g;
+      nodeLayer.appendChild(g);
+    }
+    svg.appendChild(linkLayer);
+    svg.appendChild(nodeLayer);
+    place();
+    applySelection();
+  }
+
+  function place() {
+    for (const link of graph.links) {
+      link.line.setAttribute("x1", link.a.x.toFixed(1)); link.line.setAttribute("y1", link.a.y.toFixed(1));
+      link.line.setAttribute("x2", link.b.x.toFixed(1)); link.line.setAttribute("y2", link.b.y.toFixed(1));
+    }
+    for (const node of graph.nodes) node.g.setAttribute("transform", "translate(" + node.x.toFixed(1) + "," + node.y.toFixed(1) + ")");
+  }
+
+  function dragNode(g, node) {
+    let start = null;
+    g.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      g.setPointerCapture(event.pointerId);
+      start = { x: event.clientX, y: event.clientY, moved: false };
+    });
+    g.addEventListener("pointermove", (event) => {
+      if (!start) return;
+      if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 3) start.moved = true;
+      if (!start.moved) return;
+      const point = svg.createSVGPoint();
+      point.x = event.clientX; point.y = event.clientY;
+      const local = point.matrixTransform(svg.getScreenCTM().inverse());
+      node.x = local.x; node.y = local.y;
+      positions.set(node.id, { x: node.x, y: node.y });
+      place();
+    });
+    g.addEventListener("pointerup", () => {
+      if (start && !start.moved) select({ node: node.id });
+      start = null;
+    });
+  }
+
+  function select(what) {
+    selected = what;
+    applySelection();
+  }
+
+  function applySelection() {
+    const nodeId = selected && selected.node !== undefined ? selected.node : null;
+    const linkKey = selected && selected.link ? selected.link : null;
+    const near = new Set();
+    for (const link of graph.links) {
+      const key = link.a.id + "|" + link.b.id;
+      const touches = nodeId !== null ? (link.a.id === nodeId || link.b.id === nodeId) : key === linkKey;
+      if (touches) { near.add(link.a.id); near.add(link.b.id); }
+      link.line.classList.toggle("dimmed", !!selected && !touches);
+      link.line.classList.toggle("active", !!selected && touches);
+    }
+    if (nodeId !== null) near.add(nodeId);
+    for (const node of graph.nodes) {
+      node.g.classList.toggle("dimmed", !!selected && !near.has(node.id));
+      node.g.classList.toggle("near", !!selected && near.has(node.id));
+      node.g.classList.toggle("selected", node.id === nodeId);
+    }
+    if (nodeId !== null) showNode(graph.byId.get(nodeId));
+    else if (linkKey) showLink(graph.links.find((link) => link.a.id + "|" + link.b.id === linkKey));
+    else showHint();
+  }
+
+  function showHint() { panel.innerHTML = PANEL_HINT; }
+
+  // Sentence with the given entities marked, plus a link to its document.
+  function sentenceBlock(d, s, spans) {
+    const doc = DATA.docs[d];
+    const text = doc.sentences[s] || "";
+    const p = html("p", "graph-sentence");
+    let position = 0;
+    spans.sort((a, b) => a[0] - b[0] || b[1] - a[1]);
+    for (const [a, b, fam] of spans) {
+      if (a < position) continue;
+      if (a > position) p.appendChild(document.createTextNode(text.slice(position, a)));
+      p.appendChild(html("mark", "graph-term fam-" + fam, text.slice(a, b)));
+      position = b;
+    }
+    if (position < text.length) p.appendChild(document.createTextNode(text.slice(position)));
+    if (DATA.docs.length > 1 || doc.pmid) {
+      const link = html("a", "graph-doc", doc.pmid ? "PMID " + doc.pmid : doc.title);
+      link.href = "#" + doc.anchor;
+      link.addEventListener("click", () => { const target = document.getElementById(doc.anchor); if (target) target.open = true; });
+      p.appendChild(document.createTextNode(" "));
+      p.appendChild(link);
+    }
+    return p;
+  }
+
+  // Sentences of these nodes' mentions, limited to the given contexts if any.
+  function sentencesOf(nodes, contexts) {
+    const bySentence = new Map();
+    for (const node of nodes) {
+      for (const m of node.mentions) {
+        const [, d, s, , fam, a, b] = m;
+        if (contexts && !contexts.has(graph.mode === "sentence" ? d + ":" + s : String(d))) continue;
+        const key = d + ":" + s;
+        if (!bySentence.has(key)) bySentence.set(key, { d, s, spans: [] });
+        const spans = bySentence.get(key).spans;
+        if (!spans.some((x) => x[0] === a && x[1] === b)) spans.push([a, b, fam]);
+      }
+    }
+    return [...bySentence.values()].sort((x, y) => x.d - y.d || x.s - y.s);
+  }
+
+  function appendSentences(list) {
+    const LIMIT = 30;
+    panel.appendChild(html("h5", "", list.length + " sentence" + (list.length === 1 ? "" : "s")));
+    for (const item of list.slice(0, LIMIT)) panel.appendChild(sentenceBlock(item.d, item.s, item.spans));
+    if (list.length > LIMIT) panel.appendChild(html("p", "hint", "and " + (list.length - LIMIT) + " more"));
+  }
+
+  function chip(fam) { return html("span", "legend-chip fam-" + fam, FAMILY_LABELS[fam] || fam); }
+
+  function showNode(node) {
+    panel.replaceChildren();
+    panel.appendChild(html("h4", "", node.label));
+    const meta = html("p", "graph-meta");
+    meta.appendChild(chip(node.fam));
+    const types = node.types.filter((type) => type !== FAMILY_LABELS[node.fam]);
+    if (types.length) meta.appendChild(document.createTextNode(" " + types.join(", ")));
+    panel.appendChild(meta);
+    const found = [...node.sources].map((src) => ANNOTATOR_LABELS[src] || src).join(", ");
+    panel.appendChild(html("p", "graph-meta", node.count + " mention" + (node.count === 1 ? "" : "s") + ", found by " + found));
+    const neighbours = graph.links
+      .filter((link) => link.a === node || link.b === node)
+      .map((link) => ({ other: link.a === node ? link.b : link.a, times: link.contexts.length }))
+      .sort((x, y) => y.times - x.times);
+    if (neighbours.length) {
+      panel.appendChild(html("h5", "", "Linked to " + neighbours.length + " entit" + (neighbours.length === 1 ? "y" : "ies")));
+      const list = html("div", "graph-neighbours");
+      for (const { other, times } of neighbours.slice(0, 20)) {
+        const button = html("button", "graph-neighbour fam-" + other.fam, other.label + " · " + times);
+        button.type = "button";
+        button.addEventListener("click", () => select({ link: Math.min(node.id, other.id) + "|" + Math.max(node.id, other.id) }));
+        list.appendChild(button);
+      }
+      panel.appendChild(list);
+    }
+    appendSentences(sentencesOf([node], null));
+  }
+
+  function showLink(link) {
+    panel.replaceChildren();
+    const title = html("h4", "");
+    title.appendChild(html("span", "", link.a.label));
+    title.appendChild(document.createTextNode(" and "));
+    title.appendChild(html("span", "", link.b.label));
+    panel.appendChild(title);
+    const times = link.contexts.length;
+    panel.appendChild(html("p", "graph-meta", "Together in " + times + " " + graph.mode + (times === 1 ? "" : "s")));
+    for (const node of [link.a, link.b]) {
+      const button = html("button", "graph-neighbour fam-" + node.fam, "Show " + node.label);
+      button.type = "button";
+      button.addEventListener("click", () => select({ node: node.id }));
+      panel.appendChild(button);
+    }
+    appendSentences(sentencesOf([link.a, link.b], new Set(link.contexts)));
+  }
+
+  svg.addEventListener("click", () => { if (selected) select(null); });
+
+  let pending = 0;
+  function rebuildSoon() {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(build);
+  }
+  section.addEventListener("input", (event) => {
+    const name = event.target.dataset && event.target.dataset.graph;
+    if (!name) return;
+    const value = section.querySelector('[data-graph-value="' + name + '"]');
+    if (value) value.textContent = event.target.value;
+    rebuildSoon();
+  });
+  section.addEventListener("change", (event) => { if (event.target.dataset && event.target.dataset.graph) rebuildSoon(); });
+  document.addEventListener("change", (event) => {
+    const box = event.target;
+    if (box.matches && box.matches('input[data-filter="source"], input[data-filter="family"]')) rebuildSoon();
+  });
+  build();
 })();
 </script>
 </body>

@@ -2,22 +2,127 @@ from __future__ import annotations
 
 import json
 import math
-from collections import defaultdict
+import re
+from bisect import bisect_right
+from collections import Counter, defaultdict
 from html import escape
 from pathlib import Path
 from typing import Any
 
 _TEMPLATE_PATH = Path(__file__).resolve().parent / "template.html"
 
-# When annotators overlap on the same span, this is the order they appear in.
+# When annotators overlap on the same span, the first one in this order is drawn;
+# any annotator not listed comes after these, in alphabetical order.
 _SOURCE_PRIORITY: dict[str, int] = {"pubtator3": 0, "bern2": 1, "flair": 2}
 
 # Show each annotator by its canonical display name (the same label used in the
 # terminal menu), not its internal id. Falls back to the raw id for anything not
 # in the capability registry.
 from bio_annotation.entity_types import ANNOTATOR_DISPLAY_NAMES
+from bio_annotation.report.umls_semantic_types import UMLS_SEMANTIC_TYPE_NAMES
 
 _ANNOTATOR_LABELS: dict[str, str] = dict(ANNOTATOR_DISPLAY_NAMES)
+
+# Every entity type belongs to one colour family, so types added by new annotators
+# get a colour without touching the CSS. The family colours are defined in
+# template.html; the type itself is shown as a small label inside the highlight.
+_FAMILY_LABELS: dict[str, str] = {
+    "gene": "Gene / protein",
+    "drug": "Chemical / drug",
+    "disease": "Disease / problem",
+    "species": "Species",
+    "variant": "Variant",
+    "cell": "Cell",
+    "anatomy": "Anatomy",
+    "procedure": "Test / treatment",
+    "clinical": "Clinical detail",
+    "other": "Other",
+}
+_FAMILY_OF_TYPE: dict[str, str] = {
+    **dict.fromkeys(("gene", "dna", "rna", "sequence_ontology"), "gene"),
+    **dict.fromkeys(("drug", "amino_acid"), "drug"),
+    **dict.fromkeys(
+        ("disease", "problem", "sign_symptom", "cancer", "pathological_formation", "observation"), "disease"
+    ),
+    "species": "species",
+    "variant": "variant",
+    **dict.fromkeys(("cell_line", "cell_type", "cell", "cell_component", "cellular_component"), "cell"),
+    **dict.fromkeys(
+        (
+            "anatomical", "anatomical_system", "organ", "tissue", "multi_tissue_structure",
+            "organism_subdivision", "organism_substance", "immaterial_anatomical_entity",
+            "developing_anatomical_structure", "biological_structure",
+        ),
+        "anatomy",
+    ),
+    **dict.fromkeys(
+        ("test", "treatment", "diagnostic_procedure", "therapeutic_procedure", "lab_value", "dosage", "administration"),
+        "procedure",
+    ),
+    **dict.fromkeys(
+        (
+            "anatomy_modifier", "observation_modifier", "uncertainty", "severity", "detailed_description",
+            "color", "shape", "texture", "area", "volume", "distance", "height", "weight", "mass",
+            "quantitative_concept", "qualitative_concept", "frequency", "duration", "date", "time", "age",
+            "sex", "subject", "occupation", "history", "family_history", "personal_background", "activity",
+            "clinical_event", "outcome", "nonbiological_location", "biological_attribute", "coreference",
+            "other_event", "other_entity",
+        ),
+        "clinical",
+    ),
+}
+# MedCAT returns UMLS semantic type codes (TUIs) instead of type names.
+_FAMILY_OF_TUI: dict[str, str] = {
+    **dict.fromkeys(("T028", "T086", "T114", "T116", "T087", "T088"), "gene"),
+    **dict.fromkeys(
+        ("T103", "T104", "T109", "T120", "T121", "T122", "T123", "T125", "T126", "T127", "T129",
+         "T130", "T131", "T167", "T192", "T195", "T196", "T197", "T200"),
+        "drug",
+    ),
+    **dict.fromkeys(
+        ("T019", "T020", "T033", "T037", "T046", "T047", "T048", "T049", "T050", "T184", "T190", "T191"), "disease"
+    ),
+    **dict.fromkeys(
+        ("T001", "T002", "T004", "T005", "T007", "T008", "T010", "T011", "T012", "T013", "T014",
+         "T015", "T016", "T194", "T204"),
+        "species",
+    ),
+    **dict.fromkeys(("T025", "T026"), "cell"),
+    **dict.fromkeys(("T017", "T018", "T021", "T022", "T023", "T024", "T029", "T030", "T031"), "anatomy"),
+    **dict.fromkeys(("T058", "T059", "T060", "T061", "T063"), "procedure"),
+    **dict.fromkeys(("T034", "T201"), "clinical"),
+}
+
+
+def entity_family(entity_type: str | None) -> str:
+    """The colour family of an entity type ("other" for anything unknown)."""
+    key = (entity_type or "").strip()
+    if key.upper() in _FAMILY_OF_TUI:
+        return _FAMILY_OF_TUI[key.upper()]
+    return _FAMILY_OF_TYPE.get(key.lower(), "other")
+
+
+def _tui_name(entity_type: str | None) -> str | None:
+    """Name of a UMLS semantic type code (MedCAT), e.g. "T191" -> "Neoplastic Process"."""
+    return UMLS_SEMANTIC_TYPE_NAMES.get((entity_type or "").strip().upper())
+
+
+def _type_label(entity_type: str | None) -> str:
+    """Readable label of an entity type: known label, else the type with spaces."""
+    tui_name = _tui_name(entity_type)
+    if tui_name:
+        return f"{(entity_type or '').strip().upper()} · {tui_name}"
+    key = (entity_type or "unknown").lower()
+    return _ENTITY_TYPE_LABELS.get(key) or (entity_type or "unknown").replace("_", " ").capitalize()
+
+
+def _short_type_label(entity_type: str | None) -> str:
+    """The small label shown inside a highlight, e.g. "organ" or "T047 · disease or syndrome"."""
+    raw = (entity_type or "unknown").strip()
+    tui_name = _tui_name(raw)
+    if tui_name:
+        return f"{raw.upper()} · {tui_name.lower()}"
+    return raw.replace("_", " ").lower()
 
 _ENTITY_TYPE_LABELS: dict[str, str] = {
     "gene": "Gene / protein",
@@ -154,7 +259,7 @@ def _render_body(payload: dict[str, Any]) -> str:
     annotations = list(payload.get("annotations") or [])
 
     annotators_used = sorted(
-        {a.get("source") for a in annotations if a.get("source")}
+        {a.get("source") for a in annotations if a.get("source")}, key=_source_priority
     )
     annotators_text = ", ".join(
         _ANNOTATOR_LABELS.get(name, name) for name in annotators_used
@@ -181,6 +286,8 @@ def _render_body(payload: dict[str, Any]) -> str:
         ))
     parts.append("</section>")
     parts.append(_render_legend(annotations))
+    if annotations:
+        parts.append(_render_filter_bar(annotators_used, annotations))
 
     if annotations:
         parts.append(_render_type_histogram(annotations))
@@ -188,11 +295,195 @@ def _render_body(payload: dict[str, Any]) -> str:
         parts.append(_render_documents_overview(documents, annotations))
 
     for document in documents:
-        parts.append(_render_document(document, annotations))
+        parts.append(_render_document(document, annotations, annotators_used))
 
     if not documents:
         parts.append('<p class="hint">No documents in this run.</p>')
 
+    if annotations and documents:
+        parts.append(_render_graph(documents, annotations))
+    parts.append(_render_config(annotators_used, annotations))
+    return "\n".join(parts)
+
+
+# A sentence ends at . ! or ? followed by space and a capital, digit or bracket, or at a line break.
+_SENTENCE_BREAK = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9(\[])|\n+")
+
+
+def sentence_spans(text: str) -> list[tuple[int, int]]:
+    """(start, end) of each sentence of the text, spaces around it excluded."""
+    spans = []
+    start = 0
+    for match in [*_SENTENCE_BREAK.finditer(text), None]:
+        end = match.start() if match else len(text)
+        piece = text[start:end]
+        if piece.strip():
+            left = start + len(piece) - len(piece.lstrip())
+            spans.append((left, start + len(piece.rstrip())))
+        if match:
+            start = match.end()
+    return spans
+
+
+def build_graph_data(documents: list[dict[str, Any]], annotations: list[dict[str, Any]]) -> dict[str, Any]:
+    """Entities and the sentences they occur in, for the co-mention graph.
+
+    One node per keyword (case and extra spaces ignored, as in the comparison
+    table), whichever annotators found it. Each mention records its document,
+    sentence, annotator and colour family, so the page can draw the links for
+    the annotators and entity types the user keeps switched on.
+    """
+    node_index: dict[str, int] = {}
+    node_forms: list[Counter] = []
+    node_families: list[Counter] = []
+    node_types: list[set[str]] = []
+    docs: list[dict[str, Any]] = []
+    mentions: list[list[Any]] = []
+
+    for document in documents:
+        document_id = document.get("document_id")
+        title_text = (document.get("title") or "").strip()
+        abstract_text = (document.get("abstract") or "").strip()
+        document_annotations = [a for a in annotations if a.get("document_id") == document_id]
+        title_annotations, abstract_annotations = _split_annotations_by_region(document_annotations, len(title_text))
+
+        sentences: list[str] = []
+        doc_number = len(docs)
+        for region_text, region_annotations in ((title_text, title_annotations), (abstract_text, abstract_annotations)):
+            if not region_text:
+                continue
+            spans = sentence_spans(region_text)
+            if not spans:
+                continue
+            starts = [start for start, _ in spans]
+            first_sentence = len(sentences)
+            sentences.extend(region_text[start:end] for start, end in spans)
+            for annotation in _trim_spans(region_text, region_annotations):
+                start, end = annotation.get("start"), annotation.get("end")
+                if start is None or end is None or end <= start:
+                    continue
+                key = _span_key(region_text[start:end])
+                if not key:
+                    continue
+                sentence = max(bisect_right(starts, start) - 1, 0)
+                sentence_start, sentence_end = spans[sentence]
+                if key not in node_index:
+                    node_index[key] = len(node_forms)
+                    node_forms.append(Counter())
+                    node_families.append(Counter())
+                    node_types.append(set())
+                node = node_index[key]
+                family = entity_family(annotation.get("entity_type"))
+                node_forms[node][" ".join(region_text[start:end].split())] += 1
+                node_families[node][family] += 1
+                node_types[node].add(_type_label(annotation.get("entity_type")))
+                mentions.append([
+                    node,
+                    doc_number,
+                    first_sentence + sentence,
+                    annotation.get("source") or "unknown",
+                    family,
+                    max(start - sentence_start, 0),
+                    min(end, sentence_end) - sentence_start,
+                ])
+        docs.append(
+            {
+                "id": str(document_id or ""),
+                "pmid": str(document.get("pmid") or ""),
+                "title": title_text or str(document_id or "Document"),
+                "anchor": _anchor_for(str(document_id or "")),
+                "sentences": sentences,
+            }
+        )
+
+    nodes = [
+        {
+            "label": forms.most_common(1)[0][0],
+            "fam": families.most_common(1)[0][0],
+            "types": sorted(types),
+        }
+        for forms, families, types in zip(node_forms, node_families, node_types)
+    ]
+    return {"docs": docs, "nodes": nodes, "mentions": mentions}
+
+
+def _render_graph(documents: list[dict[str, Any]], annotations: list[dict[str, Any]]) -> str:
+    """The co-mention graph: the section with its controls, and its data for the page's JavaScript."""
+    data = build_graph_data(documents, annotations)
+    if not data["nodes"]:
+        return ""
+    scope_options = ['<option value="all">All documents</option>'] if len(data["docs"]) > 1 else []
+    for number, doc in enumerate(data["docs"]):
+        name = doc["title"] if len(doc["title"]) <= 70 else doc["title"][:67] + "..."
+        prefix = f'PMID {doc["pmid"]}: ' if doc["pmid"] else ""
+        scope_options.append(f'<option value="{number}">{escape(prefix + name)}</option>')
+    # "</" cannot appear inside a <script> element, so escape it in the JSON.
+    payload = json.dumps(_json_safe(data), ensure_ascii=False).replace("</", "<\\/")
+    return (
+        '<section class="graph-section" id="entity-graph">'
+        "<h3>Entity graph</h3>"
+        '<p class="hint">Entities are linked when they are mentioned together. Bigger circles are mentioned more; '
+        "thicker lines link entities that occur together more often. Click a circle or a line to see the sentences. "
+        "The annotator and entity type filters above apply here too. Drag circles to rearrange them.</p>"
+        '<div class="graph-controls">'
+        f'<label>Show <select data-graph="scope">{"".join(scope_options)}</select></label>'
+        '<label>Linked when in the same <select data-graph="mode">'
+        '<option value="sentence">sentence</option><option value="document">document</option></select></label>'
+        '<label>Entities <input type="range" data-graph="top" min="5" max="200" value="50"> '
+        '<span data-graph-value="top">50</span></label>'
+        '<label>Min. times together <input type="range" data-graph="min" min="1" max="10" value="1"> '
+        '<span data-graph-value="min">1</span></label>'
+        "</div>"
+        '<div class="graph-layout">'
+        '<div class="graph-canvas"><svg role="img" aria-label="Entity co-mention graph"></svg>'
+        '<p class="graph-empty hint" hidden>No entities to show with the current filters.</p></div>'
+        '<aside class="graph-panel"><p class="hint">Click an entity or a link to see where it occurs.</p></aside>'
+        "</div>"
+        f'<script type="application/json" id="graph-data">{payload}</script>'
+        "</section>"
+    )
+
+
+def _render_config(annotators: list[str], annotations: list[dict[str, Any]]) -> str:
+    """Labels and annotator order for the page's JavaScript (popup, filters, redraw)."""
+    types = {a.get("entity_type") for a in annotations if a.get("entity_type")}
+    config = {
+        "annotator_labels": {name: _ANNOTATOR_LABELS.get(name, name) for name in annotators},
+        "annotator_order": annotators,
+        # keyed like the page's data: lowercase ("t191"), as in the popup payload
+        "type_labels": {entity_type.lower(): _type_label(entity_type) for entity_type in types},
+        "family_labels": _FAMILY_LABELS,
+    }
+    # "</" cannot appear inside a <script> element, so escape it in the JSON.
+    payload = json.dumps(config, ensure_ascii=False).replace("</", "<\\/")
+    return f'<script type="application/json" id="report-config">{payload}</script>'
+
+
+def _render_filter_bar(annotators: list[str], annotations: list[dict[str, Any]]) -> str:
+    """Checkboxes to show or hide highlights per annotator and per entity family."""
+    present_families = {entity_family(a.get("entity_type")) for a in annotations}
+    parts = ['<section class="filter-bar" aria-label="Highlight filters">']
+    parts.append('<div class="filter-group"><span class="filter-title">Annotators</span>')
+    for name in annotators:
+        parts.append(
+            f'<label class="filter-chip"><input type="checkbox" data-filter="source" '
+            f'value="{escape(name, quote=True)}" checked> {escape(_ANNOTATOR_LABELS.get(name, name))}</label>'
+        )
+    parts.append("</div>")
+    parts.append('<div class="filter-group"><span class="filter-title">Entity types</span>')
+    for family, label in _FAMILY_LABELS.items():
+        if family not in present_families:
+            continue
+        parts.append(
+            f'<label class="filter-chip fam-{family}"><input type="checkbox" data-filter="family" '
+            f'value="{family}" checked> {escape(label)}</label>'
+        )
+    parts.append("</div>")
+    parts.append(
+        '<div class="filter-group"><label class="filter-chip filter-option">'
+        '<input type="checkbox" data-filter="labels" checked> Show type labels</label></div>'
+    )
+    parts.append("</section>")
     return "\n".join(parts)
 
 
@@ -205,11 +496,11 @@ def _compute_stats(annotations: list[dict[str, Any]]) -> dict[str, list[tuple[st
     positions: dict[str, dict[str, set[tuple[Any, Any]]]] = {}
     canonical: dict[str, dict[str, str]] = {}
     for annotation in annotations:
-        span_text = (annotation.get("span_text") or "").strip()
+        span_text = " ".join((annotation.get("span_text") or "").split())
         if not span_text:
             continue
         entity_type = (annotation.get("entity_type") or "unknown").lower()
-        key = span_text.casefold()
+        key = _span_key(span_text)
         positions.setdefault(entity_type, {}).setdefault(key, set()).add(
             (annotation.get("start"), annotation.get("end"))
         )
@@ -247,10 +538,10 @@ def _render_stats_panel(
         rows = stats[entity_type]
         if not rows:
             continue
-        label = _ENTITY_TYPE_LABELS.get(entity_type, entity_type)
+        label = _type_label(entity_type)
         total = sum(count for _, count in rows)
         parts.append(
-            f'<details class="stats-group stats-group-{escape(entity_type)}">'
+            f'<details class="stats-group stats-group-{escape(entity_type)} fam-{entity_family(entity_type)}">'
             f'<summary><span class="stats-type">{escape(label)}</span>'
             f'<span class="stats-type-total">{total}</span></summary>'
         )
@@ -292,10 +583,10 @@ def _render_type_histogram(annotations: list[dict[str, Any]]) -> str:
              '<ul class="type-histogram">']
     for entity_type in ordered:
         count = counts[entity_type]
-        label = _ENTITY_TYPE_LABELS.get(entity_type, entity_type.replace("_", " ").title())
+        label = _type_label(entity_type)
         width = max(4, int(round(100 * count / max_count)))
         parts.append(
-            f'<li class="hist-row hist-row-{escape(entity_type)}">'
+            f'<li class="hist-row hist-row-{escape(entity_type)} fam-{entity_family(entity_type)}">'
             f'<span class="hist-label">{escape(label)}</span>'
             f'<span class="hist-track"><span class="hist-fill" style="width:{width}%"></span></span>'
             f'<span class="hist-count">{count}</span>'
@@ -346,9 +637,9 @@ def _render_documents_overview(
             seg_count = type_counts[entity_type]
             seg_width = 100 * seg_count / running_total if running_total else 0
             segments.append(
-                f'<span class="doc-seg doc-seg-{escape(entity_type)}" '
+                f'<span class="doc-seg doc-seg-{escape(entity_type)} fam-{entity_family(entity_type)}" '
                 f'style="width:{seg_width:.2f}%" '
-                f'title="{escape(_ENTITY_TYPE_LABELS.get(entity_type, entity_type))}: {seg_count}"></span>'
+                f'title="{escape(_type_label(entity_type))}: {seg_count}"></span>'
             )
         bar_width = max(8, int(round(100 * total / max_total)))
         parts.append(
@@ -368,34 +659,43 @@ def _anchor_for(document_id: str) -> str:
 
 
 def _render_legend(annotations: list[dict[str, Any]] | None = None) -> str:
-    """Render legend chips. If annotations are passed, only show the types
-    actually present in this run; otherwise show every known type."""
-    if annotations is not None:
-        present = {
-            (a.get("entity_type") or "unknown").lower()
-            for a in annotations
-        }
-        items = [
-            f'<span class="legend-chip legend-chip-{key}">{escape(label)}</span>'
-            for key, label in _ENTITY_TYPE_LABELS.items()
-            if key in present
-        ]
+    """One chip per colour family; hovering a chip lists the entity types it holds.
+
+    If annotations are passed, only families (and types) present in this run are
+    shown; otherwise every family is shown.
+    """
+    if annotations is None:
+        families = {family: [] for family in _FAMILY_LABELS}
     else:
-        items = [
-            f'<span class="legend-chip legend-chip-{key}">{escape(label)}</span>'
-            for key, label in _ENTITY_TYPE_LABELS.items()
-        ]
+        families: dict[str, list[str]] = {}
+        for annotation in annotations:
+            entity_type = annotation.get("entity_type") or "unknown"
+            types = families.setdefault(entity_family(entity_type), [])
+            label = _type_label(entity_type)
+            if label not in types:
+                types.append(label)
+    items = []
+    for family, label in _FAMILY_LABELS.items():
+        if family not in families:
+            continue
+        types = sorted(families[family])
+        title = f' title="{escape(", ".join(types), quote=True)}"' if types else ""
+        items.append(f'<span class="legend-chip fam-{family}"{title}>{escape(label)}</span>')
     return '<div class="legend">' + "".join(items) + "</div>"
 
 
-def _render_document(document: dict[str, Any], all_annotations: list[dict[str, Any]]) -> str:
+def _render_document(
+    document: dict[str, Any],
+    all_annotations: list[dict[str, Any]],
+    annotators: list[str] | None = None,
+) -> str:
     document_id = document.get("document_id")
     document_annotations = [
         annotation for annotation in all_annotations
         if annotation.get("document_id") == document_id
     ]
     comparison_rows = group_annotations_by_span(document_annotations)
-    cross_lookup = {row["keyword"].casefold(): row["by_source"] for row in comparison_rows}
+    cross_lookup = {_span_key(row["keyword"]): row["by_source"] for row in comparison_rows}
 
     title_text = (document.get("title") or "").strip()
     abstract_text = (document.get("abstract") or "").strip()
@@ -404,7 +704,7 @@ def _render_document(document: dict[str, Any], all_annotations: list[dict[str, A
     )
 
     title_html = (
-        render_highlighted_text(title_text, title_annotations, cross_lookup)
+        _annotated_text("span", "annotated-title", title_text, title_annotations, cross_lookup)
         if title_text
         else escape(str(document_id or "Document"))
     )
@@ -435,12 +735,10 @@ def _render_document(document: dict[str, Any], all_annotations: list[dict[str, A
     parts.append('<div class="doc-main">')
     parts.append("<h3>Abstract</h3>")
     parts.append('<p class="hint">Highlights show entities found by any annotator. Click a highlight for full details across annotators.</p>')
-    body_html = (
-        render_highlighted_text(abstract_text, abstract_annotations, cross_lookup)
-        if abstract_text
-        else '<span class="hint">No abstract available.</span>'
-    )
-    parts.append(f'<div class="annotated-text">{body_html}</div>')
+    if abstract_text:
+        parts.append(_annotated_text("div", "annotated-text", abstract_text, abstract_annotations, cross_lookup))
+    else:
+        parts.append('<div class="annotated-text"><span class="hint">No abstract available.</span></div>')
     parts.append("</div>")
     parts.append(_render_stats_panel(
         _compute_stats(document_annotations),
@@ -456,7 +754,7 @@ def _render_document(document: dict[str, Any], all_annotations: list[dict[str, A
         f'{"s" if len(comparison_rows) != 1 else ""} found by at least one annotator</span></summary>'
     )
     parts.append('<div class="comparison-scroll">')
-    parts.append(_render_comparison_table(comparison_rows))
+    parts.append(_render_comparison_table(comparison_rows, annotators))
     parts.append("</div></details>")
     parts.append("</div>")
     parts.append("</details>")
@@ -492,11 +790,13 @@ def _split_annotations_by_region(
     return title_annotations, abstract_annotations
 
 
-def _render_comparison_table(rows: list[dict[str, Any]]) -> str:
+def _render_comparison_table(rows: list[dict[str, Any]], sources: list[str] | None = None) -> str:
+    """One column per annotator: every annotator of the run, or those in these rows."""
     if not rows:
         return '<p class="hint">No annotations to compare.</p>'
 
-    sources = ("pubtator3", "bern2", "flair")
+    if not sources:
+        sources = sorted({source for row in rows for source in row["by_source"]}, key=_source_priority)
     head_cells = "".join(
         f"<th>{escape(_ANNOTATOR_LABELS.get(source, source))}</th>" for source in sources
     )
@@ -523,7 +823,7 @@ def _render_hits_cell(hits: list[dict[str, Any]]) -> str:
     lines: list[str] = []
     for hit in hits:
         entity_type = (hit.get("entity_type") or "").lower() or "unknown"
-        label = _ENTITY_TYPE_LABELS.get(entity_type, entity_type)
+        label = _type_label(entity_type)
         canonical_id = hit.get("canonical_id") if _is_real_canonical_id(hit.get("canonical_id")) else None
         canonical_name = hit.get("canonical_name")
         mentions = hit.get("mentions")
@@ -536,6 +836,9 @@ def _render_hits_cell(hits: list[dict[str, Any]]) -> str:
             line += f"<div>{code}</div>"
         if canonical_name:
             line += f"<div><small>{escape(str(canonical_name))}</small></div>"
+        score = hit.get("normalization_score")
+        if isinstance(score, (int, float)) and math.isfinite(score):
+            line += f"<div><small>norm score {score:.3f}</small></div>"
         if mentions and mentions > 1:
             line += f'<div><small>{mentions} mentions</small></div>'
         lines.append(line)
@@ -550,8 +853,9 @@ def build_canonical_text(document: dict[str, Any]) -> str:
     return title or abstract
 
 
-def _source_priority(source: str | None) -> int:
-    return _SOURCE_PRIORITY.get(source or "", 99)
+def _source_priority(source: str | None) -> tuple[int, str]:
+    """Order of annotators: the listed ones first, then the rest alphabetically."""
+    return (_SOURCE_PRIORITY.get(source or "", 99), source or "")
 
 
 def render_highlighted_text(
@@ -594,32 +898,103 @@ def render_highlighted_text(
             out.append(escape(text[position:start]).replace("\n", "<br>\n"))
         rendered_span = escape(text[start:end])
         entity_type = (annotation.get("entity_type") or "unknown").lower()
-        source = annotation.get("source") or "unknown"
-        raw_canonical_id = annotation.get("canonical_id")
-        canonical_id = raw_canonical_id if _is_real_canonical_id(raw_canonical_id) else ""
-        canonical_name = annotation.get("canonical_name") or ""
-        keyword_key = (annotation.get("span_text") or text[start:end]).strip().casefold()
-        cross_hit = cross_annotator_lookup.get(keyword_key) if cross_annotator_lookup else None
-
-        popup_payload: dict[str, Any] = {
-            "keyword": text[start:end],
-            "entity_type": entity_type,
-            "canonical_id": canonical_id or None,
-            "canonical_name": canonical_name or None,
-            "primary_source": source,
-            "by_source": cross_hit or {source: [_hit_record(annotation)]},
-        }
+        popup_payload = _popup_payload(annotation, text, start, end, cross_annotator_lookup)
         data_attribute = escape(json.dumps(_json_safe(popup_payload), default=str), quote=True)
 
-        css_type = entity_type
         out.append(
-            f'<mark class="entity entity-{escape(css_type)}" '
+            f'<mark class="entity entity-{escape(entity_type)}" '
+            f'data-family="{entity_family(annotation.get("entity_type"))}" '
+            f'data-label="{escape(_short_type_label(annotation.get("entity_type")), quote=True)}" '
             f'data-entity="{data_attribute}" tabindex="0" role="button">{rendered_span}</mark>'
         )
         position = end
     if position < len(text):
         out.append(escape(text[position:]).replace("\n", "<br>\n"))
     return "".join(out)
+
+
+def _popup_payload(
+    annotation: dict[str, Any],
+    text: str,
+    start: int,
+    end: int,
+    cross_annotator_lookup: dict[str, dict[str, list[dict[str, Any]]]] | None,
+) -> dict[str, Any]:
+    """What the popup shows for a highlight: the entity plus every annotator's hits."""
+    source = annotation.get("source") or "unknown"
+    raw_canonical_id = annotation.get("canonical_id")
+    canonical_id = raw_canonical_id if _is_real_canonical_id(raw_canonical_id) else ""
+    keyword_key = _span_key(annotation.get("span_text") or text[start:end])
+    cross_hit = cross_annotator_lookup.get(keyword_key) if cross_annotator_lookup else None
+    return {
+        "keyword": text[start:end],
+        "entity_type": (annotation.get("entity_type") or "unknown").lower(),
+        "canonical_id": canonical_id or None,
+        "canonical_name": annotation.get("canonical_name") or None,
+        "primary_source": source,
+        "by_source": cross_hit or {source: [_hit_record(annotation)]},
+    }
+
+
+def _trim_spans(text: str, annotations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Move span offsets past leading/trailing spaces, so highlights hold only the entity."""
+    trimmed = []
+    for annotation in annotations:
+        start, end = annotation.get("start"), annotation.get("end")
+        if start is None or end is None or end <= start:
+            trimmed.append(annotation)
+            continue
+        while start < end and text[start:start + 1].isspace():
+            start += 1
+        while end > start and text[end - 1:end].isspace():
+            end -= 1
+        if (start, end) != (annotation["start"], annotation["end"]):
+            annotation = {**annotation, "start": start, "end": end, "span_text": text[start:end]}
+        trimmed.append(annotation)
+    return trimmed
+
+
+def _span_key(span_text: str) -> str:
+    """Comparison key of a keyword: case and extra spaces ignored ("Breast  cancer " = "breast cancer")."""
+    return " ".join(span_text.split()).casefold()
+
+
+def _annotated_text(
+    tag: str,
+    css_class: str,
+    text: str,
+    annotations: list[dict[str, Any]],
+    cross_annotator_lookup: dict[str, dict[str, list[dict[str, Any]]]] | None,
+) -> str:
+    """Highlighted text, plus the data the page needs to redraw it when filters change.
+
+    The highlights are drawn here, so the page works without JavaScript; the
+    data-* attributes let the browser redraw them for the annotators and entity
+    types the user keeps switched on (revealing tags hidden under others).
+    """
+    annotations = _trim_spans(text, annotations)
+    items = []
+    for annotation in annotations:
+        start, end = annotation.get("start"), annotation.get("end")
+        if start is None or end is None or end <= start:
+            continue
+        items.append(
+            {
+                "s": start,
+                "e": end,
+                "src": annotation.get("source") or "unknown",
+                "type": (annotation.get("entity_type") or "unknown").lower(),
+                "fam": entity_family(annotation.get("entity_type")),
+                "lab": _short_type_label(annotation.get("entity_type")),
+                "p": _popup_payload(annotation, text, start, end, cross_annotator_lookup),
+            }
+        )
+    data = escape(json.dumps(_json_safe(items), default=str), quote=True)
+    body = render_highlighted_text(text, annotations, cross_annotator_lookup)
+    return (
+        f'<{tag} class="{css_class}" data-text="{escape(text, quote=True)}" '
+        f'data-annotations="{data}">{body}</{tag}>'
+    )
 
 
 def group_annotations_by_span(annotations: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -631,10 +1006,10 @@ def group_annotations_by_span(annotations: list[dict[str, Any]]) -> list[dict[st
     """
     groups: dict[str, dict[str, Any]] = {}
     for annotation in annotations:
-        span_text = (annotation.get("span_text") or "").strip()
+        span_text = " ".join((annotation.get("span_text") or "").split())
         if not span_text:
             continue
-        key = span_text.casefold()
+        key = _span_key(span_text)
         bucket = groups.setdefault(
             key,
             {
@@ -672,13 +1047,14 @@ def _hit_record(annotation: dict[str, Any]) -> dict[str, Any]:
         "start": annotation.get("start"),
         "end": annotation.get("end"),
         "confidence": annotation.get("confidence"),
+        "normalization_score": annotation.get("normalization_score"),
     }
 
 
 def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Collapse hits with identical (entity_type, canonical_id, canonical_name).
 
-    Keeps the highest confidence and tracks how many mentions collapsed.
+    Keeps the highest confidence and normalization score, and tracks how many mentions collapsed.
     """
     deduped: dict[tuple[Any, Any, Any], dict[str, Any]] = {}
     for hit in hits:
@@ -688,10 +1064,11 @@ def _dedupe_hits(hits: list[dict[str, Any]]) -> list[dict[str, Any]]:
             deduped[key] = {**hit, "mentions": 1}
             continue
         existing["mentions"] += 1
-        new_conf = hit.get("confidence")
-        old_conf = existing.get("confidence")
-        if isinstance(new_conf, (int, float)) and (
-            not isinstance(old_conf, (int, float)) or new_conf > old_conf
-        ):
-            existing["confidence"] = new_conf
+        for score in ("confidence", "normalization_score"):
+            new_value = hit.get(score)
+            old_value = existing.get(score)
+            if isinstance(new_value, (int, float)) and (
+                not isinstance(old_value, (int, float)) or new_value > old_value
+            ):
+                existing[score] = new_value
     return list(deduped.values())
