@@ -516,6 +516,7 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
     def fake_bern2(document):
         assert document.document_id == "12345678"
         return {
+            "text": document.text,
             "annotations": [
                 {
                     "mention": "Glioblastoma",
