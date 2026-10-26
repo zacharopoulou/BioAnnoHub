@@ -943,6 +943,40 @@ def test_scispacy_scibert_adapter_keeps_top_linker_candidate() -> None:
     assert annotations[0].normalization_score == 0.91
 
 
+def test_scispacy_scibert_trims_trailing_newlines_from_offsets() -> None:
+    document = Document(
+        document_id="PMID:41614420",
+        pmid="41614420",
+        title="",
+        abstract="RhoG.\n\nFollowing text",
+        source="pubtator3",
+    )
+    response = [FakeScispacyEntity("RhoG.", "ENTITY", 0, 7)]
+
+    annotations = annotate_with_scispacy_scibert(document, response=response)
+
+    assert len(annotations) == 1
+    assert (annotations[0].start, annotations[0].end) == (0, 5)
+    assert document.text[annotations[0].start : annotations[0].end] == annotations[0].span_text
+
+
+def test_scispacy_scibert_leaves_nonmatching_offset_unplaced() -> None:
+    document = Document(
+        document_id="PMID:repeated",
+        title="",
+        abstract="RhoGx followed by RhoG.",
+        source="pubtator3",
+    )
+    response = [FakeScispacyEntity("RhoG", "ENTITY", 0, 5)]
+
+    annotations = annotate_with_scispacy_scibert(document, response=response)
+
+    assert len(annotations) == 1
+    assert annotations[0].span_text == "RhoG"
+    assert annotations[0].start is None
+    assert annotations[0].end is None
+
+
 def test_scispacy_md_links_entities_to_umls_like_scibert() -> None:
     from bio_annotation.annotators.scispacy import (
         SCISPACY_LINKER_NAME_BY_ANNOTATOR,
