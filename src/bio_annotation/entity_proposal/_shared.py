@@ -89,9 +89,15 @@ def make_annotation(
     canonical_name: Any = None,
     confidence: Any = None,
     normalization_score: Any = None,
+    infer_missing_offsets: bool = True,
 ) -> Annotation:
     normalized_span = str(span_text).strip()
-    resolved_start, resolved_end = resolve_offsets(document, normalized_span, start, end)
+    if infer_missing_offsets:
+        resolved_start, resolved_end = resolve_offsets(document, normalized_span, start, end)
+    elif start is not None and end is not None:
+        resolved_start, resolved_end = int(start), int(end)
+    else:
+        resolved_start, resolved_end = None, None
     normalized_type = normalize_entity_type(entity_type)
     annotation_id = build_annotation_id(
         source=source,
