@@ -59,6 +59,7 @@ def sample_document() -> Document:
 def test_bern2_adapter_normalizes_records() -> None:
     document = sample_document()
     response = {
+        "text": document.text,
         "annotations": [
             {
                 "mention": "PTEN",
@@ -84,7 +85,99 @@ def test_bern2_adapter_normalizes_records() -> None:
     assert annotations[0].entity_type == "gene"
     assert annotations[0].canonical_id == "NCBIGene:5728"
     assert annotations[0].confidence == 0.98
+    assert document.text[annotations[0].start : annotations[0].end] == "PTEN"
     assert annotations[1].entity_type == "disease"
+
+
+def test_bern2_maps_offsets_from_changed_response_text() -> None:
+    document = Document(
+        document_id="PMID:41252671",
+        pmid="41252671",
+        title="Pyrimidine-Induced study",
+        abstract="Glioma cells were examined.",
+        source="pubtator3",
+    )
+    response_text = document.text.replace("Induced", "Induc").replace("\n\n", "  ")
+    bern_start = response_text.index("Glioma")
+    response = {
+        "text": response_text,
+        "annotations": [
+            {
+                "mention": "Glioma",
+                "span": {"begin": bern_start, "end": bern_start + len("Glioma")},
+                "type": "Disease",
+            }
+        ],
+    }
+
+    annotations = annotate_with_bern2(document, response=response)
+
+    assert len(annotations) == 1
+    assert (annotations[0].start, annotations[0].end) == (
+        document.text.index("Glioma"),
+        document.text.index("Glioma") + len("Glioma"),
+    )
+    assert document.text[annotations[0].start : annotations[0].end] == "Glioma"
+
+
+def test_bern2_leaves_span_unplaced_when_response_dropped_text_inside_mention() -> None:
+    document = Document(
+        document_id="PMID:unicode",
+        title="",
+        abstract="IL-β2 variant",
+        source="pubtator3",
+    )
+    response = {
+        "text": "IL-2 variant",
+        "annotations": [
+            {"mention": "IL-2", "span": {"begin": 0, "end": 4}, "type": "Gene"}
+        ],
+    }
+
+    annotations = annotate_with_bern2(document, response=response)
+
+    assert len(annotations) == 1
+    assert annotations[0].span_text == "IL-2"
+    assert annotations[0].start is None
+    assert annotations[0].end is None
+
+
+def test_bern2_does_not_infer_offsets_without_response_text() -> None:
+    document = Document(
+        document_id="PMID:repeated",
+        title="",
+        abstract="EGFR and EGFR",
+        source="pubtator3",
+    )
+    response = {"annotations": [{"mention": "EGFR", "type": "Gene"}]}
+
+    annotations = annotate_with_bern2(document, response=response)
+
+    assert len(annotations) == 1
+    assert annotations[0].span_text == "EGFR"
+    assert annotations[0].start is None
+    assert annotations[0].end is None
+
+
+def test_bern2_leaves_ambiguous_repeated_text_unplaced() -> None:
+    document = Document(
+        document_id="PMID:ambiguous",
+        title="",
+        abstract="aa",
+        source="pubtator3",
+    )
+    response = {
+        "text": "a",
+        "annotations": [
+            {"mention": "a", "span": {"begin": 0, "end": 1}, "type": "Gene"}
+        ],
+    }
+
+    annotations = annotate_with_bern2(document, response=response)
+
+    assert len(annotations) == 1
+    assert annotations[0].start is None
+    assert annotations[0].end is None
 
 
 def test_bern2_call_surfaces_connection_failures(monkeypatch) -> None:
