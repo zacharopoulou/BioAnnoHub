@@ -11,11 +11,6 @@ import pytest
 
 from bio_annotation.cli import main
 from bio_annotation.annotators import flatten_annotations, run_all_annotators
-from bio_annotation.annotators.aioner import (
-    annotate_with_aioner,
-    build_aioner_pubtator_input,
-    call_aioner,
-)
 from bio_annotation.annotators.clinicalbert import (
     DEFAULT_CLINICALBERT_MODEL,
     annotate_with_clinicalbert,
@@ -178,6 +173,36 @@ def test_bern2_leaves_ambiguous_repeated_text_unplaced() -> None:
     assert len(annotations) == 1
     assert annotations[0].start is None
     assert annotations[0].end is None
+
+
+def test_bern2_default_request_succeeds_over_https_and_keeps_plain_post(monkeypatch) -> None:
+    document = sample_document()
+    requests: list[request.Request] = []
+
+    class FakeOpener:
+        def open(self, http_request: request.Request, timeout: int) -> object:
+            requests.append(http_request)
+            return StringIOResponse(b'{"annotations": []}')
+
+    class StringIOResponse:
+        def __init__(self, payload: bytes) -> None:
+            self.payload = payload
+
+        def __enter__(self) -> StringIOResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return self.payload
+
+    monkeypatch.setattr(request, "build_opener", lambda *args: FakeOpener())
+
+    assert call_bern2(document) == {"annotations": []}
+    assert len(requests) == 1
+    assert requests[0].full_url == "https://bern2.korea.ac.kr/plain"
+    assert requests[0].get_method() == "POST"
 
 
 def test_bern2_call_surfaces_connection_failures(monkeypatch) -> None:
@@ -570,68 +595,6 @@ def test_pubtator3_returns_nothing_without_publication_identifiers() -> None:
     assert call_pubtator3(document, client=FakeClient()) is None
 
 
-def test_aioner_adapter_parses_pubtator_output_and_normalizes_types() -> None:
-    document = sample_document()
-    # AIONER emits 5-column PubTator (no identifier; NER only). "Chemical" and
-    # "CellLine" must normalize to the canonical "drug" / "cell_line" types.
-    response = (
-        "PMID:12345678|t|PTEN regulates glioblastoma\n"
-        "PMID:12345678|a|\n"
-        "PMID:12345678\t0\t4\tPTEN\tGene\n"
-        "PMID:12345678\t15\t27\tglioblastoma\tDisease\n"
-        "PMID:12345678\t40\t48\tcisplatin\tChemical\n"
-        "PMID:12345678\t60\t65\tHeLa\tCellLine\n"
-    )
-
-    annotations = annotate_with_aioner(document, response=response)
-
-    assert len(annotations) == 4
-    assert all(annotation.source == "aioner" for annotation in annotations)
-    assert annotations[0].entity_type == "gene"
-    assert annotations[0].start == 0
-    assert annotations[0].end == 4
-    assert annotations[1].entity_type == "disease"
-    assert annotations[2].entity_type == "drug"
-    assert annotations[3].entity_type == "cell_line"
-    assert all(annotation.canonical_id is None for annotation in annotations)
-
-
-def test_aioner_adapter_uses_request_fn() -> None:
-    document = sample_document()
-    calls: list[Document] = []
-
-    def fake_request(doc: Document) -> str:
-        calls.append(doc)
-        return "PMID:12345678\t0\t4\tPTEN\tGene\n"
-
-    annotations = annotate_with_aioner(document, request_fn=fake_request)
-
-    assert calls == [document]
-    assert len(annotations) == 1
-    assert annotations[0].entity_type == "gene"
-
-
-def test_aioner_input_flattens_newlines_preserving_offsets() -> None:
-    document = sample_document()
-    rendered = build_aioner_pubtator_input(document)
-
-    title_line = rendered.splitlines()[0]
-    assert title_line.startswith("PMID:12345678|t|")
-    flat_text = title_line.split("|t|", 1)[1]
-    assert "\n" not in flat_text
-    # Length is preserved so AIONER's absolute offsets map onto document.text.
-    assert len(flat_text) == len(document.text)
-
-
-def test_aioner_call_requires_configuration(monkeypatch) -> None:
-    document = sample_document()
-    monkeypatch.delenv("AIONER_REPO", raising=False)
-    monkeypatch.delenv("AIONER_MODEL", raising=False)
-
-    with pytest.raises(RuntimeError, match="AIONER repo path is not configured"):
-        call_aioner(document)
-
-
 def test_clinicalbert_adapter_parses_pipeline_output_and_normalizes_types() -> None:
     document = sample_document()
     # HuggingFace token-classification output. The clinical labels problem / test
@@ -718,54 +681,6 @@ def test_clinicalbert_adapter_trims_leading_articles_and_drops_noise() -> None:
     spans = [annotation.span_text for annotation in annotations]
     assert spans == ["stop codon", "11-base pair insertion", "breast cancer"]
     assert all(annotation.entity_type == "problem" for annotation in annotations)
-
-
-def test_aioner_windows_runner_uses_posix_paths_and_utf8(monkeypatch, tmp_path) -> None:
-    # The Windows runner must hand AIONER forward-slash paths (it splits the model
-    # path on "/") and decode the subprocess as UTF-8. Imported directly so the
-    # test runs on any OS.
-    from pathlib import Path
-
-    from bio_annotation.entity_proposal import aioner_windows
-
-    repo = tmp_path / "aioner"
-    (repo / "src").mkdir(parents=True)
-    (repo / "src" / "AIONER_Run.py").write_text("", encoding="utf-8")
-    (repo / "vocab").mkdir()
-    (repo / "vocab" / "AIO_label.vocab").write_text("", encoding="utf-8")
-    model = tmp_path / "models" / "AIONER.h5"
-    model.parent.mkdir()
-    model.write_text("", encoding="utf-8")
-
-    captured: dict = {}
-
-    class FakeCompleted:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    def fake_run(command, **kwargs):
-        captured["command"] = command
-        captured["kwargs"] = kwargs
-        out_dir = Path(command[command.index("-o") + 1])
-        (out_dir / "document.txt").write_text("doc\t0\t4\tPTEN\tGene\n", encoding="utf-8")
-        return FakeCompleted()
-
-    monkeypatch.setattr(aioner_windows.subprocess, "run", fake_run)
-
-    document = sample_document()
-    out = aioner_windows.call_aioner(
-        document, repo=str(repo), model=str(model), python="python"
-    )
-
-    cmd = captured["command"]
-    model_arg = cmd[cmd.index("-m") + 1]
-    assert "\\" not in model_arg
-    assert model_arg.endswith("/models/AIONER.h5")
-    assert "\\" not in cmd[cmd.index("-i") + 1]
-    assert "\\" not in cmd[cmd.index("-o") + 1]
-    assert captured["kwargs"].get("encoding") == "utf-8"
-    assert "PTEN" in out
 
 
 def test_apollo_adapter_parses_pipeline_output_and_normalizes_types() -> None:

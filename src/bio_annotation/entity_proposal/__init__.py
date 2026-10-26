@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from typing import Any
 
 from bio_annotation.entity_proposal.apollo_proposer import annotate_with_apollo
@@ -29,14 +28,6 @@ from bio_annotation.entity_proposal.stanza_proposer import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-# AIONER's subprocess runner differs on Windows (see aioner_windows); resolve the
-# same platform-specific implementation the annotators.aioner shim uses so this
-# package's public API and run_all_annotators don't bypass it on Windows.
-if sys.platform == "win32":
-    from bio_annotation.entity_proposal.aioner_windows import annotate_with_aioner
-else:
-    from bio_annotation.entity_proposal.aioner_proposer import annotate_with_aioner
-
 
 def run_all_annotators(
     document: Document,
@@ -50,8 +41,6 @@ def run_all_annotators(
     pubtator3_response: Any = None,
     pubtator3_request_fn: Any = None,
     pubtator3_endpoint: str | None = None,
-    aioner_response: Any = None,
-    aioner_request_fn: Any = None,
     bent_response: Any = None,
     bent_request_fn: Any = None,
     clinicalbert_response: Any = None,
@@ -108,13 +97,6 @@ def run_all_annotators(
             endpoint=pubtator3_endpoint,
         ),
     }
-    # Only invoke AIONER when a response or request function is provided.
-    if aioner_response is not None or aioner_request_fn is not None:
-        results["aioner"] = annotate_with_aioner(
-            document,
-            response=aioner_response,
-            request_fn=aioner_request_fn,
-        )
     # Only invoke BENT when a response or request function is provided.
     if bent_response is not None or bent_request_fn is not None:
         results["bent"] = annotate_with_bent(
@@ -249,7 +231,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "bern2",
         "flair",
         "pubtator3",
-        "aioner",
         "bent",
         "clinicalbert",
         "apollo",
@@ -268,7 +249,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
 
 
 __all__ = [
-    "annotate_with_aioner",
     "annotate_with_apollo",
     "annotate_with_bent",
     "annotate_with_bern2",

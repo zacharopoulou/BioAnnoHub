@@ -531,7 +531,7 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     seen_linkers: list[object] = []
 
     def fake_find_spec(name: str) -> object | None:
-        assert name == "flair"
+        assert name in {"flair", "pyab3p"}
         return object()
 
     def fake_tagger_loader(model: str) -> object:
@@ -849,3 +849,38 @@ def test_aggregate_annotator_statuses_sums_counts_timing_and_errors() -> None:
         {"name": "bern2", "status": "produced_annotations", "annotation_count": 2, "duration_seconds": 1.5, "failed_documents": 1, "errors": ["timeout"]},
         {"name": "medcat", "status": "failed", "annotation_count": 0, "duration_seconds": 0.5, "failed_documents": 2, "errors": ["Connection refused"]},
     ]
+
+    
+def test_each_pipeline_run_resets_medcat_failure_reporting(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                'source = "entrez"',
+                "",
+                "[enrichment]",
+                "sources = []",
+                "",
+                "[annotators]",
+                'enabled = ["bern2"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    resets: list[None] = []
+    monkeypatch.setattr("bio_annotation.pipeline_runner.reset_reported_endpoints", lambda: resets.append(None))
+
+    for _ in range(2):
+        run_pipeline_from_config(
+            config_path,
+            orchestrator_factory=_stub_orchestrator,
+            bern2_request_fn=lambda document: {"annotations": []},
+        )
+
+    assert len(resets) == 2

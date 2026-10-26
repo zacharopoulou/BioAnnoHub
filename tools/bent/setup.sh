@@ -86,27 +86,45 @@ fi
 
 # BENT base setup installs medic and chebi. Include them here because this script
 # replaces the upstream bent_setup shell script to keep Python/pip paths correct.
-BENT_KBS="${BENT_KBS:-medic,chebi,ncbi_gene,ncbi_taxon,uberon,cellosaurus,go_bp,go_cc,cell_ontology}"
-DOWNLOAD_KBS="$BENT_KBS"
-# BENT 0.0.80 documents cell_ontology, but its shell downloader names that
-# archive cl. Download cl and then expose it under the documented name.
-if [[ ",$DOWNLOAD_KBS," == *,cell_ontology,* ]]; then
-  DOWNLOAD_KBS="${DOWNLOAD_KBS/cell_ontology/cl}"
-fi
+BENT_KBS="${BENT_KBS-medic,chebi,ncbi_gene,ncbi_taxon,uberon,cellosaurus,go_bp,go_cc,cell_ontology}"
+# Files every BENT KB dictionary ships with; keep in sync with BENT_KB_FILES in deps.py.
+KB_FILES=(id_to_info.json id_to_name.json name_to_id.json node_to_node.json synonym_to_id.json)
+kb_complete() {
+  local file
+  for file in "${KB_FILES[@]}"; do
+    [ -s "$1/$file" ] || return 1
+  done
+}
+
 if [ -n "$BENT_KBS" ]; then
   echo "==> Downloading BENT KB dictionaries: $BENT_KBS"
-  mkdir -p "$BENT_ROOT/data/kbs/dicts"
-  "$BENT_PY" -c "from bent.get_kbs import get_additional_kbs; get_additional_kbs([kb.strip() for kb in '$DOWNLOAD_KBS'.split(',') if kb.strip()])"
-  if [ -d "$BENT_ROOT/data/kbs/dicts/cl" ] && [ ! -e "$BENT_ROOT/data/kbs/dicts/cell_ontology" ]; then
-    mv "$BENT_ROOT/data/kbs/dicts/cl" "$BENT_ROOT/data/kbs/dicts/cell_ontology"
-  fi
+  DICTS_DIR="$BENT_ROOT/data/kbs/dicts"
+  mkdir -p "$DICTS_DIR"
+  rm -rf "$BENT_ROOT/data/kbs/.staging."*
   missing_kbs=()
   IFS=, read -ra requested_kbs <<< "$BENT_KBS"
   for kb in "${requested_kbs[@]}"; do
     kb="${kb//[[:space:]]/}"
-    if [ -n "$kb" ] && [ ! -d "$BENT_ROOT/data/kbs/dicts/$kb" ]; then
+    [ -n "$kb" ] || continue
+    if kb_complete "$DICTS_DIR/$kb"; then
+      echo "    $kb already installed, skipping."
+      continue
+    fi
+    # BENT 0.0.80 documents cell_ontology, but its shell downloader names that
+    # archive cl. Download cl and then expose it under the documented name.
+    archive="$kb"
+    [ "$kb" = "cell_ontology" ] && archive="cl"
+    # Extract outside dicts/ and move the KB in only once complete, so an
+    # interrupted download is retried instead of leaving a partial KB behind.
+    staging="$(mktemp -d "$BENT_ROOT/data/kbs/.staging.XXXXXX")"
+    bash "$BENT_ROOT/get_kb_dicts.sh" "$archive" "$staging/" || true
+    if kb_complete "$staging/$archive"; then
+      rm -rf "${DICTS_DIR:?}/$kb"
+      mv "$staging/$archive" "$DICTS_DIR/$kb"
+    else
       missing_kbs+=("$kb")
     fi
+    rm -rf "$staging"
   done
   if [ "${#missing_kbs[@]}" -gt 0 ]; then
     echo "error: missing BENT KB dictionaries after setup: ${missing_kbs[*]}" >&2

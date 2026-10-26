@@ -17,20 +17,62 @@ data/processed/
 data/inputs/query_*.txt
 data/corpora/query_*.json
 
-# Can be regenerated locally with benchmarks/scripts/ncbi.py
-benchmarks/data/ncbi/train.jsonl
-benchmarks/data/ncbi/validation.jsonl
+# Benchmark data files are not committed: download them with
+#   uv run --extra benchmarks bioannohub download-benchmarks
+benchmarks/data/**/*.jsonl
+benchmarks/data/**/*.json
+benchmarks/data/**/*.txt
+# Half-written downloads (renamed to the real file only when complete)
+benchmarks/data/**/*.part
 
-# Can be regenerated locally with benchmarks/scripts/bc5cdr.py
-benchmarks/data/bc5cdr/train.jsonl
-benchmarks/data/bc5cdr/validation.jsonl
+# RadGraph-XL is PhysioNet credentialed data and must not be shared: nothing in
+# its folder is committed. Regenerate locally with benchmarks/scripts/radgraph_xl.py
+benchmarks/data/radgraph_xl/*
 
-# Can be regenerated locally with benchmarks/scripts/gnormplus.py
-benchmarks/data/gnormplus/train.jsonl
-
-# Can be regenerated locally with benchmarks/scripts/bc2gm.py
-benchmarks/data/bc2gm/train.jsonl
-benchmarks/data/bc2gm/validation.jsonl
+# Per-benchmark READMEs are local notes only (too verbose for the repo)
+benchmarks/data/anatem/README.md
+benchmarks/data/bc2gm/README.md
+benchmarks/data/bc4chemd/README.md
+benchmarks/data/bc5cdr/README.md
+benchmarks/data/bioid/README.md
+benchmarks/data/bionlp09/README.md
+benchmarks/data/bionlp11epi/README.md
+benchmarks/data/bionlp11id/README.md
+benchmarks/data/bionlp13cg/README.md
+benchmarks/data/bionlp13ge/README.md
+benchmarks/data/bionlp13pc/README.md
+benchmarks/data/biored/README.md
+benchmarks/data/cellfinder/README.md
+benchmarks/data/chebi/README.md
+benchmarks/data/chemprot/README.md
+benchmarks/data/craft/README.md
+benchmarks/data/ddi/README.md
+benchmarks/data/dna_methylation/README.md
+benchmarks/data/europepmc/README.md
+benchmarks/data/fsu_prge/README.md
+benchmarks/data/gnormplus/README.md
+benchmarks/data/jnlpba/README.md
+benchmarks/data/linnaeus/README.md
+benchmarks/data/maccrobat/README.md
+benchmarks/data/mantra/README.md
+benchmarks/data/medmentions/README.md
+benchmarks/data/mirna/README.md
+benchmarks/data/mlee/README.md
+benchmarks/data/mtor/README.md
+benchmarks/data/ncbi/README.md
+benchmarks/data/nlm_gene/README.md
+benchmarks/data/nlmchem/README.md
+benchmarks/data/osiris/README.md
+benchmarks/data/pgxcorpus/README.md
+benchmarks/data/phaedra/README.md
+benchmarks/data/radgraph_xl/README.md
+benchmarks/data/rate_ner/README.md
+benchmarks/data/scai_disease/README.md
+benchmarks/data/scai_snp/README.md
+benchmarks/data/seth/README.md
+benchmarks/data/snpphena/README.md
+benchmarks/data/species_800/README.md
+benchmarks/data/tmvar_v3/README.md
 
 # AIONER repository and downloaded models
 AIONER/

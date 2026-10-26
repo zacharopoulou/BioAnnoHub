@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from bio_annotation.annotators.aioner import annotate_with_aioner
 from bio_annotation.annotators.apollo import annotate_with_apollo
 from bio_annotation.annotators.bent import annotate_with_bent
 from bio_annotation.annotators.bern2 import annotate_with_bern2
@@ -42,8 +41,6 @@ def run_all_annotators(
     pubtator3_response: Any = None,
     pubtator3_request_fn: Any = None,
     pubtator3_endpoint: str | None = None,
-    aioner_response: Any = None,
-    aioner_request_fn: Any = None,
     bent_response: Any = None,
     bent_request_fn: Any = None,
     clinicalbert_response: Any = None,
@@ -98,15 +95,6 @@ def run_all_annotators(
             endpoint=pubtator3_endpoint,
         ),
     }
-    # AIONER runs in a separate environment, so only invoke it when an explicit
-    # response or request function is supplied (avoids spawning the subprocess in
-    # callers that don't use it, e.g. the demo command).
-    if aioner_response is not None or aioner_request_fn is not None:
-        results["aioner"] = annotate_with_aioner(
-            document,
-            response=aioner_response,
-            request_fn=aioner_request_fn,
-        )
     # BENT runs in a separate environment, so only invoke it when an explicit
     # response or request function is supplied.
     if bent_response is not None or bent_request_fn is not None:
@@ -250,7 +238,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
         "bern2",
         "flair",
         "pubtator3",
-        "aioner",
         "bent",
         "clinicalbert",
         "apollo",
@@ -268,7 +255,6 @@ def flatten_annotations(results: dict[str, list[Annotation]]) -> list[Annotation
     return annotations
 
 __all__ = [
-    "annotate_with_aioner",
     "annotate_with_apollo",
     "annotate_with_bent",
     "annotate_with_bern2",
