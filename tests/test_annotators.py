@@ -203,7 +203,6 @@ def test_bern2_leaves_ambiguous_repeated_text_unplaced() -> None:
     assert len(annotations) == 1
     assert annotations[0].start is None
     assert annotations[0].end is None
->>>>>>> f64c13c (Align BERN2 offsets to submitted text)
 
 def test_bern2_call_surfaces_connection_failures(monkeypatch) -> None:
     document = sample_document()

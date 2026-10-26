@@ -7,7 +7,7 @@ from difflib import SequenceMatcher
 from typing import Any, Callable
 from urllib import error, parse, request
 
-from bio_annotation.entity_proposal._shared import make_annotation, pick_first
+from bio_annotation.entity_proposal._shared import align_span_offsets, make_annotation, pick_first
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -75,9 +75,15 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
 
         start, end = _record_offsets(record)
         if text_matches:
-            mapped = _validated_offsets(document.text, str(mention).strip(), start, end, None)
+            mapped = align_span_offsets(document.text, mention, start, end)
         elif offset_map is not None:
-            mapped = _validated_offsets(document.text, str(mention).strip(), start, end, offset_map)
+            mapped = align_span_offsets(
+                document.text,
+                mention,
+                start,
+                end,
+                offset_map=offset_map,
+            )
         else:
             mapped = None
         if mapped is None:
@@ -140,36 +146,6 @@ def _record_offsets(record: dict[str, Any]) -> tuple[Any, Any]:
         pick_first(record.get("start"), span.get("begin"), span.get("start")),
         pick_first(record.get("end"), span.get("end")),
     )
-
-
-def _validated_offsets(
-    document_text: str,
-    mention: str,
-    start: Any,
-    end: Any,
-    offset_map: dict[int, int] | None,
-) -> tuple[int, int] | None:
-    try:
-        response_start, response_end = int(start), int(end)
-    except (TypeError, ValueError):
-        return None
-
-    if response_start < 0 or response_end < response_start:
-        return None
-
-    if offset_map is None:
-        mapped_start, mapped_end = response_start, response_end
-    else:
-        if response_start not in offset_map or response_end not in offset_map:
-            return None
-        mapped_start = offset_map[response_start]
-        mapped_end = offset_map[response_end]
-
-    if mapped_end > len(document_text):
-        return None
-    if document_text[mapped_start:mapped_end] != mention:
-        return None
-    return mapped_start, mapped_end
 
 
 def _unique_offset_map(

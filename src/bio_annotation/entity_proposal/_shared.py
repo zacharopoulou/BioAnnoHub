@@ -43,6 +43,48 @@ def resolve_offsets(document: Document, span_text: str, start: Any, end: Any) ->
     return index, index + len(span_text)
 
 
+def align_span_offsets(
+    document_text: str,
+    span_text: Any,
+    start: Any,
+    end: Any,
+    *,
+    offset_map: dict[int, int] | None = None,
+) -> tuple[int, int] | None:
+    """Map and verify span offsets against the canonical document text."""
+    mention = str(span_text).strip()
+    try:
+        source_start, source_end = int(start), int(end)
+    except (TypeError, ValueError):
+        return None
+
+    if source_start < 0 or source_end < source_start:
+        return None
+
+    if offset_map is None:
+        start_offset, end_offset = source_start, source_end
+    else:
+        if source_start not in offset_map or source_end not in offset_map:
+            return None
+        start_offset = offset_map[source_start]
+        end_offset = offset_map[source_end]
+
+    if start_offset < 0 or end_offset < start_offset or end_offset > len(document_text):
+        return None
+
+    selected_text = document_text[start_offset:end_offset]
+    if selected_text == mention:
+        return start_offset, end_offset
+    if selected_text.strip() != mention:
+        return None
+
+    start_offset += len(selected_text) - len(selected_text.lstrip())
+    end_offset -= len(selected_text) - len(selected_text.rstrip())
+    if document_text[start_offset:end_offset] != mention:
+        return None
+    return start_offset, end_offset
+
+
 def sanitize_identifier(value: Any) -> str | None:
     if value is None:
         return None

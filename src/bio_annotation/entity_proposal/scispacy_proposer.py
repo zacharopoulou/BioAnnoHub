@@ -4,7 +4,7 @@ import logging
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import align_span_offsets, make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -73,37 +73,6 @@ def _linker_canonical_name(linker: Any, cui: str) -> str | None:
     return str(canonical_name).strip() if canonical_name else None
 
 
-def _align_scispacy_offsets(
-    document_text: str,
-    span_text: str,
-    start: Any,
-    end: Any,
-) -> tuple[int | None, int | None]:
-    """Trim offset edges only when the selected text verifies that exact trim."""
-    normalized_span = span_text.strip()
-    try:
-        start_offset, end_offset = int(start), int(end)
-    except (TypeError, ValueError):
-        return None, None
-
-    if start_offset < 0 or end_offset < start_offset or end_offset > len(document_text):
-        return None, None
-
-    selected_text = document_text[start_offset:end_offset]
-    if selected_text == normalized_span:
-        return start_offset, end_offset
-    if selected_text.strip() != normalized_span:
-        return None, None
-
-    leading_whitespace = len(selected_text) - len(selected_text.lstrip())
-    trailing_whitespace = len(selected_text) - len(selected_text.rstrip())
-    start_offset += leading_whitespace
-    end_offset -= trailing_whitespace
-    if document_text[start_offset:end_offset] != normalized_span:
-        return None, None
-    return start_offset, end_offset
-
-
 def parse_scispacy_response(
     document: Document,
     payload: Iterable[Any] | None,
@@ -132,9 +101,12 @@ def parse_scispacy_response(
         if not raw_span_text:
             continue
         if source == SCISPACY_SCIBERT_ANNOTATOR:
-            start, end = _align_scispacy_offsets(document.text, str(raw_span_text), start, end)
-            if start is None or end is None:
+            aligned = align_span_offsets(document.text, raw_span_text, start, end)
+            if aligned is None:
                 unplaced_span_count += 1
+                start = end = None
+            else:
+                start, end = aligned
         annotations.append(
             make_annotation(
                 document=document,
