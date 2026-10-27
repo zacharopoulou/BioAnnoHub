@@ -10,7 +10,8 @@ This package contains the current implementation of the BioAnnoHub pipeline.
 - `annotators/`: primary annotator adapter API
 - `entity_proposal/`: compatibility layer for the older annotator package name
 - `pipeline_config.py`: config parsing and validation
-- `pipeline_runner.py`: end-to-end corpus and annotation orchestration
+- `pipeline/`: pipeline orchestration split across runner, execution, options, output, manifest, and progress modules
+- `pipeline_runner.py`: backward-compatible imports for the pipeline package
 - `cli.py`: repo-facing command-line entry points
 
 ## Direction
