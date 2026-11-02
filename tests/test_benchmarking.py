@@ -419,7 +419,7 @@ def test_evaluate_annotator_matches_only_within_same_document() -> None:
 def test_benchmark_annotator_options_include_runtime_defaults() -> None:
     options = benchmark_annotator_options()
 
-    assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
+    assert options["bern2"]["endpoint"] == "https://bern2.korea.ac.kr/plain"
     assert options["flair"]["model"] == "hunflair2"
     assert options["flair"]["linking"] is False
     assert options["flair"]["linkers"] == ["disease-linker"]
@@ -429,7 +429,7 @@ def test_benchmark_annotator_options_allow_targeted_overrides() -> None:
     options = benchmark_annotator_options({"flair": {"model": "custom-model"}})
 
     assert options["flair"]["model"] == "custom-model"
-    assert options["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
+    assert options["bern2"]["endpoint"] == "https://bern2.korea.ac.kr/plain"
 
 
 def test_preflight_reports_remote_and_loads_flair_once() -> None:
@@ -535,7 +535,7 @@ def test_review_runner_uses_mocked_annotators_and_writes_outputs(tmp_path) -> No
 
     assert payload["document_count"] == 1
     assert payload["gold_count"] == 1
-    assert payload["annotator_options"]["bern2"]["endpoint"] == "http://bern2.korea.ac.kr/plain"
+    assert payload["annotator_options"]["bern2"]["endpoint"] == "https://bern2.korea.ac.kr/plain"
     assert payload["preflight"][0]["name"] == "bern2"
     assert payload["metrics"][0]["strict"]["true_positive"] == 1
     assert payload["metrics"][0]["strict_normalization"]["correct"] == 1

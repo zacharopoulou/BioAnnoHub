@@ -82,6 +82,36 @@ def test_bern2_adapter_normalizes_records() -> None:
     assert annotations[1].entity_type == "disease"
 
 
+def test_bern2_default_request_succeeds_over_https_and_keeps_plain_post(monkeypatch) -> None:
+    document = sample_document()
+    requests: list[request.Request] = []
+
+    class FakeOpener:
+        def open(self, http_request: request.Request, timeout: int) -> object:
+            requests.append(http_request)
+            return StringIOResponse(b'{"annotations": []}')
+
+    class StringIOResponse:
+        def __init__(self, payload: bytes) -> None:
+            self.payload = payload
+
+        def __enter__(self) -> StringIOResponse:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return self.payload
+
+    monkeypatch.setattr(request, "build_opener", lambda *args: FakeOpener())
+
+    assert call_bern2(document) == {"annotations": []}
+    assert len(requests) == 1
+    assert requests[0].full_url == "https://bern2.korea.ac.kr/plain"
+    assert requests[0].get_method() == "POST"
+
+
 def test_bern2_call_surfaces_connection_failures(monkeypatch) -> None:
     document = sample_document()
 

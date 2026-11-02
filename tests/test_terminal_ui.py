@@ -125,7 +125,7 @@ def test_build_terminal_ui_config_includes_bern2_endpoint(tmp_path) -> None:
     config_text = build_terminal_ui_config_text(answers, paths)
 
     assert "[annotators.bern2]" in config_text
-    assert 'endpoint = "http://bern2.korea.ac.kr/plain"' in config_text
+    assert 'endpoint = "https://bern2.korea.ac.kr/plain"' in config_text
 
 
 def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:

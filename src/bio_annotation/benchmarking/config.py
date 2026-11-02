@@ -10,7 +10,7 @@ DEFAULT_BENCHMARK_ANNOTATOR_OPTIONS: dict[str, dict[str, Any]] = {
     "bern2": {
         "runtime": "remote_api",
         "base_url": "http://127.0.0.1:8888",
-        "endpoint": "http://bern2.korea.ac.kr/plain",
+        "endpoint": "https://bern2.korea.ac.kr/plain",
     },
     "flair": {
         "runtime": "local_model",

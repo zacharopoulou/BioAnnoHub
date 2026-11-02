@@ -145,3 +145,4 @@ def _parse_date(value: str, *, upper: bool) -> date:
     else:
         day = calendar.monthrange(year, month)[1] if upper else 1
     return date(year, month, day)
+
