@@ -45,6 +45,7 @@ def search_pubmed_pmids(
     date_to: str | None = None,
     sort_by: str = "relevance",
     filters: list[str] | None = None,
+    include_retracted: bool = False,
     timeout: int = 30,
     esearch_fn: Callable[[str], dict[str, Any]] | None = None,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
@@ -58,7 +59,9 @@ def search_pubmed_pmids(
     # Apply this outside the user's query group so OR clauses cannot bypass it.
     # PubMed assigns this type to the article that was retracted; the separate
     # retraction notice remains a distinct citation.
-    term = f"({term}) NOT {_RETRACTED_PUBLICATION_FILTER}"
+    term = f"({term})"
+    if not include_retracted:
+        term += f" NOT {_RETRACTED_PUBLICATION_FILTER}"
     fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
     lo = _parse_date(date_from, upper=False) if date_from else date(1950, 1, 1)

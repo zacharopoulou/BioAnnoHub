@@ -197,7 +197,8 @@ Notes:
   Use PubMed field tags such as [MeSH Terms], [Publication Type],
   [Language], and [Date - Publication]. Each --filter is appended
   to the query with AND.
-  Results tagged by PubMed as Retracted Publication are always excluded.
+  Results tagged by PubMed as Retracted Publication are excluded by default.
+  Use --include-retracted to allow them when they match your query.
   Separate retraction notices are not excluded.
 """,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -219,6 +220,11 @@ Notes:
     search_parser.add_argument("--date-from", help="Optional publication start date.")
     search_parser.add_argument("--date-to", help="Optional publication end date.")
     search_parser.add_argument("--sort-by", default="relevance", help="PubMed sort order.")
+    search_parser.add_argument(
+        "--include-retracted",
+        action="store_true",
+        help="Include matching retracted articles, which are excluded by default.",
+    )
     search_parser.add_argument(
         "--filter",
         action="append",
@@ -378,6 +384,7 @@ def main(argv: list[str] | None = None) -> int:
                 date_to=args.date_to,
                 sort_by=args.sort_by,
                 filters=args.filter,
+                include_retracted=args.include_retracted,
                 progress_callback=print_pubmed_search_progress,
             )
             write_pmids(args.output, pmids)

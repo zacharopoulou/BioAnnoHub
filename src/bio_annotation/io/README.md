@@ -15,7 +15,7 @@ That means you can use standard PubMed Boolean operators and field tags, includi
 
 Each repeated `--filter` value is appended to the query with `AND`.
 
-BioAnnoHub always excludes citations tagged by PubMed with the `Retracted Publication` publication type. That tag applies to the retracted article; its separate retraction notice is a different citation and is not excluded. This relies on PubMed's current indexing, so a newly retracted article may still appear before PubMed updates its record.
+By default, BioAnnoHub excludes citations tagged by PubMed with the `Retracted Publication` publication type. Use `--include-retracted` to allow those articles when they match your query. That tag applies to the retracted article; its separate retraction notice is a different citation and is not excluded. This relies on PubMed's current indexing, so a newly retracted article may still appear before PubMed updates its record.
 
 ## Examples
 
@@ -53,6 +53,15 @@ uv run bioannohub search-pmids \
   --filter 'english[Language]' \
   --date-from 2020 \
   --date-to 2024 \
+  --output data/inputs/query_pmids.txt
+```
+
+Include matching retracted articles:
+
+```bash
+uv run bioannohub search-pmids \
+  --query 'glioblastoma AND microRNA' \
+  --include-retracted \
   --output data/inputs/query_pmids.txt
 ```
 
