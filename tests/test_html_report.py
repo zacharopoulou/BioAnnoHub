@@ -187,6 +187,24 @@ def test_compute_stats_counts_unique_positions_not_annotations() -> None:
     assert stats["disease"] == [("Glio", 2)]
 
 
+def test_run_counts_keep_documents_separate_and_match_distribution() -> None:
+    from bio_annotation.report.html_report import _compute_stats, _render_type_histogram
+
+    annotations = [
+        {"document_id": doc, "source": source, "span_text": "cancer",
+         "entity_type": "disease", "start": 0, "end": 6}
+        for doc in ("D1", "D2") for source in ("pubtator3", "bern2")
+    ]
+    assert _compute_stats(annotations)["disease"] == [("cancer", 2)]
+    assert '<span class="hist-count">2</span>' in _render_type_histogram(annotations)
+
+
+def test_documents_and_comparison_are_expanded(tmp_path: Path) -> None:
+    html = write_html_report(sample_payload(), tmp_path / "expanded.html").read_text(encoding="utf-8")
+    assert re.search(r'<details class="document"[^>]* open>', html)
+    assert '<details class="comparison-section" open>' in html
+
+
 def test_stats_panel_renders_per_document_and_run(tmp_path: Path) -> None:
     output = tmp_path / "results.html"
     write_html_report(sample_payload(), output)
@@ -337,3 +355,28 @@ def test_report_has_entity_graph_only_when_there_are_annotations(tmp_path: Path)
 
     empty = {"document_count": 1, "documents": [{"document_id": "D1", "title": "T", "abstract": "A."}], "annotations": []}
     assert 'id="entity-graph"' not in write_html_report(empty, tmp_path / "b.html").read_text(encoding="utf-8")
+
+
+def test_summary_has_annotator_table_instead_of_legend(tmp_path: Path) -> None:
+    html = _one_document_report(
+        tmp_path,
+        "Chest pain and tamoxifen.",
+        [
+            {"source": "pubtator3", "span_text": "tamoxifen", "entity_type": "drug", "start": 15, "end": 24,
+             "canonical_id": "MESH:D013629"},
+            {"source": "clinicalbert", "span_text": "Chest pain", "entity_type": "problem", "start": 0, "end": 10},
+            {"source": "clinicalbert", "span_text": "tamoxifen", "entity_type": "treatment", "start": 15, "end": 24},
+        ],
+    )
+    table = re.search(r'<table class="annotator-table">.*?</table>', html, re.S).group(0)
+    assert "<td>PubTator3</td><td>Biomedical</td><td class=\"nowrap\">NER + NEN</td>" in table
+    assert "<td>ClinicalBERT</td><td>Clinical</td><td class=\"nowrap\">NER</td>" in table
+    assert '<td class="num">2</td>' in table  # ClinicalBERT's annotations
+    assert 'class="legend"' not in html
+
+
+def test_distribution_opens_from_a_button(tmp_path: Path) -> None:
+    html = write_html_report(sample_payload(), tmp_path / "report.html").read_text(encoding="utf-8")
+    assert 'data-open-dialog="distribution-dialog"' in html
+    dialog = re.search(r'<dialog class="dist-dialog" id="distribution-dialog".*?</dialog>', html, re.S).group(0)
+    assert 'class="type-histogram"' in dialog

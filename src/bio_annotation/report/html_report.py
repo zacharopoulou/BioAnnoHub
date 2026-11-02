@@ -15,10 +15,16 @@ _TEMPLATE_PATH = Path(__file__).resolve().parent / "template.html"
 # any annotator not listed comes after these, in alphabetical order.
 _SOURCE_PRIORITY: dict[str, int] = {"pubtator3": 0, "bern2": 1, "flair": 2}
 
+# Clinical annotators (trained on clinical notes or case reports); every other
+# annotator is biomedical. Shown in the report's annotator table only.
+_CLINICAL_ANNOTATORS: frozenset[str] = frozenset(
+    {"clinicalbert", "stanza_i2b2", "stanza_radiology", "medcat", "d4data", "apollo"}
+)
+
 # Show each annotator by its canonical display name (the same label used in the
 # terminal menu), not its internal id. Falls back to the raw id for anything not
 # in the capability registry.
-from bio_annotation.entity_types import ANNOTATOR_DISPLAY_NAMES
+from bio_annotation.entity_types import ANNOTATOR_DISPLAY_NAMES, annotator_tasks
 from bio_annotation.report.umls_semantic_types import UMLS_SEMANTIC_TYPE_NAMES
 
 _ANNOTATOR_LABELS: dict[str, str] = dict(ANNOTATOR_DISPLAY_NAMES)
@@ -129,11 +135,11 @@ _ENTITY_TYPE_LABELS: dict[str, str] = {
     "disease": "Disease",
     "drug": "Chemical / drug",
     "species": "Species",
-    "variant": "Variant / mutation",
+    "variant": "Variation",
     "cell_line": "Cell line",
     # BERN2-only categories, kept as their own buckets.
     "dna": "DNA",
-    "rna": "RNA ",
+    "rna": "RNA",
     "cell_type": "Cell type",
 }
 
@@ -261,9 +267,6 @@ def _render_body(payload: dict[str, Any]) -> str:
     annotators_used = sorted(
         {a.get("source") for a in annotations if a.get("source")}, key=_source_priority
     )
-    annotators_text = ", ".join(
-        _ANNOTATOR_LABELS.get(name, name) for name in annotators_used
-    ) or "none"
     total_annotations = summary.get("annotation_count", len(annotations))
     document_count = payload.get("document_count", len(documents))
 
@@ -276,7 +279,14 @@ def _render_body(payload: dict[str, Any]) -> str:
         f'<span class="big-number">{document_count}</span> '
         f'document{"s" if document_count != 1 else ""}</p>'
     )
-    parts.append(f'<p class="meta">Annotators: {escape(annotators_text)}</p>')
+    if annotations:
+        parts.append(
+            '<button type="button" class="dist-button" data-open-dialog="distribution-dialog">'
+            "Show entity type distribution</button>"
+        )
+        parts.append(_render_annotator_table(annotators_used, annotations))
+    else:
+        parts.append('<p class="meta">Annotators: none</p>')
     parts.append("</div>")
     if annotations:
         parts.append(_render_stats_panel(
@@ -285,12 +295,9 @@ def _render_body(payload: dict[str, Any]) -> str:
             css_class="stats-run",
         ))
     parts.append("</section>")
-    parts.append(_render_legend(annotations))
     if annotations:
         parts.append(_render_filter_bar(annotators_used, annotations))
-
-    if annotations:
-        parts.append(_render_type_histogram(annotations))
+        parts.append(_render_distribution_dialog(annotations))
     if len(documents) > 1:
         parts.append(_render_documents_overview(documents, annotations))
 
@@ -493,7 +500,7 @@ def _compute_stats(annotations: list[dict[str, Any]]) -> dict[str, list[tuple[st
     offset count as one mention, matching PubTator3's "Bioconcepts and
     mentions" panel.
     """
-    positions: dict[str, dict[str, set[tuple[Any, Any]]]] = {}
+    positions: dict[str, dict[str, set[tuple[Any, ...]]]] = {}
     canonical: dict[str, dict[str, str]] = {}
     for annotation in annotations:
         span_text = " ".join((annotation.get("span_text") or "").split())
@@ -502,7 +509,7 @@ def _compute_stats(annotations: list[dict[str, Any]]) -> dict[str, list[tuple[st
         entity_type = (annotation.get("entity_type") or "unknown").lower()
         key = _span_key(span_text)
         positions.setdefault(entity_type, {}).setdefault(key, set()).add(
-            (annotation.get("start"), annotation.get("end"))
+            (annotation.get("document_id"), annotation.get("start"), annotation.get("end"))
         )
         canonical.setdefault(entity_type, {}).setdefault(key, span_text)
 
@@ -534,6 +541,7 @@ def _render_stats_panel(
 
     parts: list[str] = [f'<aside class="stats-panel {css_class}">']
     parts.append(f'<h4>{escape(heading)}</h4>')
+    parts.append('<p class="hint">Mentions per entity type; the same span found by several annotators counts once.</p>')
     for entity_type in type_order:
         rows = stats[entity_type]
         if not rows:
@@ -564,11 +572,63 @@ def _render_stats_panel(
     return "\n".join(parts)
 
 
-def _render_type_histogram(annotations: list[dict[str, Any]]) -> str:
-    counts: dict[str, int] = {}
+def _render_annotator_table(annotators: list[str], annotations: list[dict[str, Any]]) -> str:
+    """One row per annotator of the run: domain, task, entity types found and annotation count."""
+    types_by_source: dict[str, Counter] = defaultdict(Counter)
+    has_ids: set[str] = set()
     for annotation in annotations:
-        entity_type = (annotation.get("entity_type") or "unknown").lower()
-        counts[entity_type] = counts.get(entity_type, 0) + 1
+        source = annotation.get("source") or "unknown"
+        types_by_source[source][(annotation.get("entity_type") or "unknown").lower()] += 1
+        if _is_real_canonical_id(annotation.get("canonical_id")):
+            has_ids.add(source)
+
+    rows = []
+    for source in annotators:
+        tasks = annotator_tasks(source)
+        # annotators missing from the capability table: NEN if they returned ids in this run
+        nen = "NEN" in tasks if tasks else source in has_ids
+        domain = "Clinical" if source in _CLINICAL_ANNOTATORS else "Biomedical"
+        counts = types_by_source[source]
+        chips = "".join(
+            f'<span class="type-chip fam-{entity_family(entity_type)}" title="{count} annotations">'
+            f"{escape(_type_label(entity_type))}</span>"
+            for entity_type, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+        )
+        rows.append(
+            "<tr>"
+            f"<td>{escape(_ANNOTATOR_LABELS.get(source, source))}</td>"
+            f"<td>{domain}</td>"
+            f'<td class="nowrap">{"NER + NEN" if nen else "NER"}</td>'
+            f'<td><div class="type-chips">{chips}</div></td>'
+            f'<td class="num">{sum(counts.values())}</td>'
+            "</tr>"
+        )
+    return (
+        '<div class="annotator-table-scroll"><table class="annotator-table">'
+        "<thead><tr><th>Annotator</th><th>Domain</th><th>Task</th><th>Entity types</th>"
+        '<th class="num">Annotations</th></tr></thead>'
+        f'<tbody>{"".join(rows)}</tbody></table></div>'
+    )
+
+
+def _render_distribution_dialog(annotations: list[dict[str, Any]]) -> str:
+    """The entity type distribution, in a pop-up opened from the summary."""
+    histogram = _render_type_histogram(annotations)
+    if not histogram:
+        return ""
+    return (
+        '<dialog class="dist-dialog" id="distribution-dialog" aria-labelledby="distribution-title">'
+        '<div class="dist-dialog-body"><div class="dist-dialog-header"><h3 id="distribution-title">Entity type distribution</h3>'
+        '<button type="button" class="entity-popup-close" data-close-dialog aria-label="Close">&times;</button></div>'
+        f"{histogram}</div></dialog>"
+    )
+
+
+def _render_type_histogram(annotations: list[dict[str, Any]]) -> str:
+    counts = {
+        entity_type: sum(count for _, count in rows)
+        for entity_type, rows in _compute_stats(annotations).items()
+    }
     if not counts:
         return ""
     ordered = [
@@ -579,7 +639,7 @@ def _render_type_histogram(annotations: list[dict[str, Any]]) -> str:
     max_count = max(counts.values())
 
     parts = ['<section class="chart-card">',
-             '<h4>Entity type distribution</h4>',
+             '<p class="hint">Mentions per entity type, using the same counts as the Bioconcepts panels. Annotation totals count each annotator\'s prediction separately.</p>',
              '<ul class="type-histogram">']
     for entity_type in ordered:
         count = counts[entity_type]
@@ -658,31 +718,6 @@ def _anchor_for(document_id: str) -> str:
     return "doc-" + "".join(ch if ch.isalnum() else "-" for ch in document_id).strip("-").lower()
 
 
-def _render_legend(annotations: list[dict[str, Any]] | None = None) -> str:
-    """One chip per colour family; hovering a chip lists the entity types it holds.
-
-    If annotations are passed, only families (and types) present in this run are
-    shown; otherwise every family is shown.
-    """
-    if annotations is None:
-        families = {family: [] for family in _FAMILY_LABELS}
-    else:
-        families: dict[str, list[str]] = {}
-        for annotation in annotations:
-            entity_type = annotation.get("entity_type") or "unknown"
-            types = families.setdefault(entity_family(entity_type), [])
-            label = _type_label(entity_type)
-            if label not in types:
-                types.append(label)
-    items = []
-    for family, label in _FAMILY_LABELS.items():
-        if family not in families:
-            continue
-        types = sorted(families[family])
-        title = f' title="{escape(", ".join(types), quote=True)}"' if types else ""
-        items.append(f'<span class="legend-chip fam-{family}"{title}>{escape(label)}</span>')
-    return '<div class="legend">' + "".join(items) + "</div>"
-
 
 def _render_document(
     document: dict[str, Any],
@@ -718,7 +753,7 @@ def _render_document(
     plain_title = escape(title_text) if title_text else escape(str(document_id or "Document"))
     annotation_count = len(document_annotations)
     count_label = f'{annotation_count} annotation{"s" if annotation_count != 1 else ""}'
-    parts: list[str] = [f'<details class="document" id="{escape(anchor, quote=True)}">']
+    parts: list[str] = [f'<details class="document" id="{escape(anchor, quote=True)}" open>']
     parts.append(
         f'<summary class="doc-summary">'
         f'<span class="doc-summary-title">{plain_title}</span>'
@@ -748,7 +783,7 @@ def _render_document(
     parts.append("</div>")
 
     parts.append(
-        f'<details class="comparison-section">'
+        f'<details class="comparison-section" open>'
         f'<summary><h3>Comparison across annotators</h3>'
         f'<span class="hint">{len(comparison_rows)} unique keyword'
         f'{"s" if len(comparison_rows) != 1 else ""} found by at least one annotator</span></summary>'

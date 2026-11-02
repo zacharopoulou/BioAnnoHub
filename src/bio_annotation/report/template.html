@@ -51,8 +51,8 @@ a:hover { border-bottom-color: var(--accent); }
 
 .summary {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  gap: 2em;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1em;
   align-items: center;
   margin-bottom: 2em;
   padding: 1.6em 1.8em;
@@ -118,7 +118,7 @@ a:hover { border-bottom-color: var(--accent); }
 
 .doc-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr);  /* the document's Bioconcepts panel goes below the abstract */
   gap: 2em;
   margin-top: 1em;
   align-items: start;
@@ -150,23 +150,30 @@ mark.entity           { background: transparent; }
 mark.entity-unmatched { background: #fbeb8a; color: #5c4910; border-bottom: 1px dashed #b8941c; }
 /* One colour family per group of entity types (see entity_family in html_report.py). */
 .fam-gene, mark.entity[data-family="gene"] { --fbg: #cfe8c9; --ffg: #235c27; --fbar: #a6d49b; --fseg: #5fa052; --flab: #5f8a52; }
-.fam-drug, mark.entity[data-family="drug"] { --fbg: #fbddae; --ffg: #6b4310; --fbar: #f2c47c; --fseg: #d99a3e; --flab: #9c7321; }
+.fam-drug, mark.entity[data-family="drug"] { --fbg: #ffd3ad; --ffg: #8a3a00; --fbar: #f6a35e; --fseg: #e07a22; --flab: #b4580f; }
 .fam-disease, mark.entity[data-family="disease"] { --fbg: #f6cccb; --ffg: #7a2a2a; --fbar: #eaa9a8; --fseg: #c96b6b; --flab: #b35a5a; }
 .fam-species, mark.entity[data-family="species"] { --fbg: #c6d9f6; --ffg: #1f4a82; --fbar: #9fbeea; --fseg: #5a86c4; --flab: #4f7aac; }
 .fam-variant, mark.entity[data-family="variant"] { --fbg: #ecc8ec; --ffg: #6a2f7a; --fbar: #d9a7d9; --fseg: #b25fb2; --flab: #9c5172; }
 .fam-cell, mark.entity[data-family="cell"] { --fbg: #d3c4f0; --ffg: #45308f; --fbar: #b7a3e5; --fseg: #7d5fc4; --flab: #6a5aa0; }
 .fam-anatomy, mark.entity[data-family="anatomy"] { --fbg: #b6e6da; --ffg: #0f5d51; --fbar: #8ad6c4; --fseg: #2fa899; --flab: #2f8f80; }
-.fam-procedure, mark.entity[data-family="procedure"] { --fbg: #f1e59f; --ffg: #6b5810; --fbar: #e2d06a; --fseg: #c9b03e; --flab: #9c842a; }
-.fam-clinical, mark.entity[data-family="clinical"] { --fbg: #e0d3c2; --ffg: #5e4630; --fbar: #ccb89c; --fseg: #9c7a52; --flab: #876b4a; }
-.fam-other, mark.entity[data-family="other"] { --fbg: #e6e3ec; --ffg: #4f4c5c; --fbar: #cfcbd9; --fseg: #8c8aa1; --flab: #6b6878; }
-mark.entity[data-family] { background: var(--fbg); color: var(--ffg); }
+.fam-procedure, mark.entity[data-family="procedure"] { --fbg: #f7f29c; --ffg: #5c5700; --fbar: #e3da52; --fseg: #bdb22a; --flab: #857d0e; }
+.fam-clinical, mark.entity[data-family="clinical"] { --fbg: #dde4ec; --ffg: #34465c; --fbar: #b6c3d3; --fseg: #7b8ca1; --flab: #56687e; }
+.fam-other, mark.entity[data-family="other"] { --fbg: #ececec; --ffg: #474747; --fbar: #cfcfcf; --fseg: #999999; --flab: #666666; }
+mark.entity[data-family] { background: var(--fbg); color: var(--ffg); border: 1px solid var(--ffg); }
+/* a highlight that wraps onto the next line keeps its border on both parts */
+mark.entity { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+mark.entity.is-selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.type-chip[class*="fam-"] { background: var(--fbg); color: var(--ffg); border: 1px solid var(--fbar); }
 .legend-chip[class*="fam-"] { background: var(--fbg); color: var(--ffg); cursor: help; }
-.stats-group[class*="fam-"] .stats-type { color: var(--flab); }
+/* the type name looks like its highlights: pale fill, dark border and text */
+.stats-group[class*="fam-"] .stats-type { color: var(--ffg); background: var(--fbg); border: 1px solid var(--ffg); }
 .stats-group[class*="fam-"] .stats-bar-fill { background: var(--fbar); }
 .stats-group[class*="fam-"] .stats-keyword { background: var(--fbg); color: var(--ffg); }
 .hist-row[class*="fam-"] .hist-label { color: var(--flab); }
 .hist-row[class*="fam-"] .hist-fill { background: var(--fbar); }
-.doc-seg[class*="fam-"] { background: var(--fseg); }
+/* same colours as the highlights: pale fill, dark border */
+.doc-seg[class*="fam-"] { background: var(--fbar); }
+.doc-seg + .doc-seg { box-shadow: inset 1px 0 0 #fff; }  /* thin white gap between segments */
 
 /* The entity type, as a small label inside each highlight ("Show type labels"). */
 body.show-type-labels mark.entity[data-label]::after {
@@ -180,6 +187,9 @@ body.show-type-labels mark.entity[data-label]::after {
   background: rgba(255, 255, 255, 0.6);
   color: var(--ffg);
   vertical-align: 0.15em;
+  display: inline-block;
+  white-space: nowrap;
+  line-height: 1.3;
 }
 
 .filter-bar {
@@ -211,6 +221,15 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .stats-panel h4 { margin-bottom: 1em; }
 /* Many entity types (clinical annotators) would make the panel very tall: scroll instead. */
 .stats-panel { max-height: 460px; overflow-y: auto; }
+.stats-run, .stats-doc {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 0.3em 1.5em;
+  max-height: 280px;
+  padding: 1em;
+}
+.stats-run > h4, .stats-run > .hint, .stats-doc > h4, .stats-doc > .hint { grid-column: 1 / -1; }
+.stats-run > .stats-group, .stats-doc > .stats-group { align-self: start; min-width: 0; }
 .summary { align-items: start; }
 .stats-group { margin-bottom: 0.3em; }
 .stats-group:last-of-type { margin-bottom: 0; }
@@ -237,13 +256,14 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .stats-group[open] summary::before { transform: rotate(90deg) translateX(-1px); }
 .stats-group summary:hover { background: var(--border-soft); }
 .stats-type {
-  font-size: 0.78em;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-weight: 700;
-  flex: 1;
+  font-size: 0.85em;
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 3px;
 }
 .stats-type-total {
+  margin-left: auto;
+  padding-left: 0.6em;
   font-size: 0.78em;
   color: var(--text-soft);
   font-variant-numeric: tabular-nums;
@@ -454,27 +474,53 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .comparison .absent { color: var(--text-soft); }
 .comparison small { color: var(--text-muted); font-size: 0.85em; }
 
+/* Entity details: a side bar on the right, so the text stays visible next to it. */
 .entity-popup-overlay {
   position: fixed;
-  inset: 0;
-  background: rgba(31, 29, 43, 0.55);
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 8vh 1em 1em;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
   z-index: 1000;
-  backdrop-filter: blur(2px);
 }
 .entity-popup-overlay.hidden { display: none; }
 .entity-popup-card {
   background: var(--bg-card);
-  border-radius: 8px;
-  box-shadow: 0 20px 50px rgba(31, 29, 43, 0.3);
-  width: min(560px, 100%);
-  max-height: 80vh;
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 30px rgba(31, 29, 43, 0.15);
+  height: 100%;
   overflow-y: auto;
   padding: 1.4em 1.6em 1.6em;
 }
+/* make room for the side bar so it does not cover the text */
+body.entity-panel-open { margin-right: 430px; }
+@media (max-width: 900px) {
+  .entity-popup-overlay { top: auto; width: 100vw; height: 55vh; }
+  .entity-popup-card { border-left: 0; border-top: 1px solid var(--border); box-shadow: 0 -10px 30px rgba(31, 29, 43, 0.15); }
+  body.entity-panel-open { margin-right: auto; padding-bottom: 56vh; }
+}
+
+/* Annotator table in the summary */
+.annotator-table-scroll { overflow-x: auto; margin-top: 1em; }
+.annotator-table { border-collapse: collapse; width: 100%; font-size: 0.88em; }
+.annotator-table th { text-align: left; font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); padding: 0.4em 0.6em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.annotator-table td { padding: 0.45em 0.6em; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+.annotator-table td:first-child { font-weight: 600; white-space: nowrap; }
+.annotator-table .nowrap { white-space: nowrap; }
+.annotator-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.type-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.type-chip { font-size: 0.85em; padding: 0 6px; border-radius: 3px; white-space: nowrap; }
+
+/* Entity type distribution: a button in the summary opens it as a pop-up */
+.dist-button { font: inherit; font-size: 0.85em; margin-top: 0.6em; padding: 0.35em 0.9em; border: 1px solid var(--accent-soft); border-radius: 4px; background: var(--accent-bg); color: var(--accent); cursor: pointer; }
+.dist-button:hover { background: var(--accent); color: #fff; }
+/* padding sits on the inner body, so a click on the dialog itself means the backdrop */
+.dist-dialog-body { padding: 1.4em 1.6em 1.6em; }
+.dist-dialog { border: 0; border-radius: 8px; padding: 0; width: min(760px, 94vw); max-height: 85vh; box-shadow: 0 20px 50px rgba(31, 29, 43, 0.3); }
+.dist-dialog::backdrop { background: rgba(31, 29, 43, 0.55); }
+.dist-dialog-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-soft); padding-bottom: 0.6em; margin-bottom: 0.8em; }
+.dist-dialog-header h3 { margin: 0; }
+.dist-dialog .chart-card { border: 0; padding: 0; margin: 0; box-shadow: none; background: none; }
 .entity-popup-header {
   display: flex;
   align-items: center;
@@ -550,7 +596,8 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 .graph-link { stroke: #b9b3cc; stroke-opacity: 0.75; cursor: pointer; }
 .graph-link:hover, .graph-link.active { stroke: var(--accent-soft); stroke-opacity: 1; }
 .graph-node { cursor: grab; outline: none; }
-.graph-node circle { fill: var(--fbar); stroke: var(--fseg); stroke-width: 1.5; }
+/* same colours as the highlights in the text: pale fill, dark border */
+.graph-node circle { fill: var(--fbg); stroke: var(--ffg); stroke-width: 1.5; }
 .graph-node text { font-size: 11px; fill: var(--text); pointer-events: none; paint-order: stroke; stroke: #fbfaff; stroke-width: 3px; display: none; }
 .graph-node.labelled text, .graph-node.near text, .graph-node:hover text, .graph-node:focus text { display: block; }
 .graph-node.selected circle, .graph-node:focus circle { stroke: var(--accent); stroke-width: 3; }
@@ -578,7 +625,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 <!--CONTENT-->
 
-<div class="entity-popup-overlay hidden" id="entity-popup" aria-hidden="true" role="dialog">
+<div class="entity-popup-overlay hidden" id="entity-popup" aria-hidden="true" role="complementary" aria-label="Entity details">
   <div class="entity-popup-card">
     <div class="entity-popup-header">
       <h3 id="entity-popup-title">Entity</h3>
@@ -801,26 +848,42 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
       sourcesEl.appendChild(renderColumn("NEN", nenNames, (n) => renderNenEntry(n, sources[n], data.entity_type)));
       sourcesEl.appendChild(renderColumn("NER only", nerNames, (n) => renderNerEntry(n, sources[n])));
     }
+    document.querySelectorAll("mark.entity.is-selected").forEach((m) => m.classList.remove("is-selected"));
+    mark.classList.add("is-selected");
     popup.classList.remove("hidden");
     popup.setAttribute("aria-hidden", "false");
-    closeBtn.focus();
+    document.body.classList.add("entity-panel-open");
+    popup.querySelector(".entity-popup-card").scrollTop = 0;
   }
   function closePopup() {
     popup.classList.add("hidden");
     popup.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("entity-panel-open");
+    document.querySelectorAll("mark.entity.is-selected").forEach((m) => m.classList.remove("is-selected"));
   }
+
+  // Entity type distribution pop-up (a <dialog>: Esc closes it natively).
+  document.addEventListener("click", (event) => {
+    const opener = event.target.closest("[data-open-dialog]");
+    if (opener) {
+      const dialog = document.getElementById(opener.dataset.openDialog);
+      if (dialog && dialog.showModal) dialog.showModal();
+      return;
+    }
+    const dialog = event.target.closest("dialog");
+    if (dialog && (event.target === dialog || event.target.closest("[data-close-dialog]"))) dialog.close();
+  });
 
   document.addEventListener("click", (event) => {
     const mark = event.target.closest("mark.entity");
     if (mark && mark.dataset.entity) { event.preventDefault(); openPopup(mark); return; }
-    if (event.target === popup) closePopup();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       const mark = event.target.closest && event.target.closest("mark.entity");
       if (mark && mark.dataset.entity) { event.preventDefault(); openPopup(mark); }
     }
-    if (event.key === "Escape" && !popup.classList.contains("hidden")) closePopup();
+    if (event.key === "Escape" && !popup.classList.contains("hidden") && !document.querySelector("dialog[open]")) closePopup();
   });
   closeBtn.addEventListener("click", closePopup);
 
@@ -984,42 +1047,63 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     render();
   }
 
+  // Force layout in the style of d3-force: circles push each other away (weaker
+  // with distance, ignored beyond 320px), links pull towards a set length (links
+  // of busy entities pull less), circles never overlap, and a pull towards the
+  // centre on each axis keeps separate groups on screen.
   function layout() {
     const { nodes, links } = graph;
+    if (!nodes.length) return;
     const fresh = nodes.some((node) => !positions.has(node.id));
-    const steps = fresh ? 320 : 120;
-    for (let step = 0; step < steps; step++) {
-      const alpha = 1 - step / steps;
+    const ticks = fresh ? 300 : 120;
+    let alpha = fresh ? 1 : 0.3;
+    const alphaDecay = 1 - Math.pow(0.001, 1 / ticks);
+    const CHARGE = -260, CHARGE_MAX = 320, CENTRE = 0.06, DECAY = 0.4;
+    const degree = new Map();
+    for (const link of links) {
+      degree.set(link.a, (degree.get(link.a) || 0) + 1);
+      degree.set(link.b, (degree.get(link.b) || 0) + 1);
+    }
+    for (const node of nodes) { node.vx = 0; node.vy = 0; }
+    for (let tick = 0; tick < ticks; tick++) {
+      for (const link of links) {
+        const { a, b } = link;
+        const da = degree.get(a), db = degree.get(b);
+        let dx = b.x + b.vx - a.x - a.vx, dy = b.y + b.vy - a.y - a.vy;
+        const d = Math.hypot(dx, dy) || 0.01;
+        const strength = Math.min(1 + 0.25 * (link.contexts.length - 1), 2) / Math.min(da, db);
+        const l = ((d - (45 + a.r + b.r)) / d) * alpha * strength;
+        dx *= l; dy *= l;
+        const bias = da / (da + db);
+        b.vx -= dx * bias; b.vy -= dy * bias;
+        a.vx += dx * (1 - bias); a.vy += dy * (1 - bias);
+      }
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j++) {
           const b = nodes[j];
           let dx = b.x - a.x, dy = b.y - a.y;
           let d2 = dx * dx + dy * dy;
-          if (d2 < 0.01) { dx = 0.1 * (i - j); dy = 0.1; d2 = dx * dx + dy * dy; }
+          if (d2 < 1) { dx = (i - j) * 0.5 || 0.5; dy = 0.5; d2 = dx * dx + dy * dy; }
           const d = Math.sqrt(d2);
-          let f = 5000 / d2;
-          const gap = a.r + b.r + 6;
-          if (d < gap) f += (gap - d) * 0.5;
-          const fx = (dx / d) * f, fy = (dy / d) * f;
-          a.vx -= fx; a.vy -= fy; b.vx += fx; b.vy += fy;
+          if (d < CHARGE_MAX) {
+            const w = (CHARGE * alpha) / d2;
+            a.vx += dx * w; a.vy += dy * w; b.vx -= dx * w; b.vy -= dy * w;
+          }
+          const gap = a.r + b.r + 8;
+          if (d < gap) {
+            const push = ((gap - d) / d) * 0.35;
+            a.vx -= dx * push; a.vy -= dy * push; b.vx += dx * push; b.vy += dy * push;
+          }
         }
       }
-      for (const link of links) {
-        const { a, b } = link;
-        const dx = b.x - a.x, dy = b.y - a.y;
-        const d = Math.sqrt(dx * dx + dy * dy) || 1;
-        const k = ((d - (60 + a.r + b.r)) / d) * 0.04 * Math.min(link.contexts.length, 4);
-        a.vx += dx * k; a.vy += dy * k; b.vx -= dx * k; b.vy -= dy * k;
-      }
       for (const node of nodes) {
-        node.vx += (WIDTH / 2 - node.x) * 0.012;
-        node.vy += (HEIGHT / 2 - node.y) * 0.012;
-        const speed = Math.hypot(node.vx, node.vy), cap = 30 * alpha + 1;
-        if (speed > cap) { node.vx *= cap / speed; node.vy *= cap / speed; }
+        node.vx += (WIDTH / 2 - node.x) * CENTRE * alpha;
+        node.vy += (HEIGHT / 2 - node.y) * CENTRE * alpha;
+        node.vx *= 1 - DECAY; node.vy *= 1 - DECAY;
         node.x += node.vx; node.y += node.vy;
-        node.vx *= 0.55; node.vy *= 0.55;
       }
+      alpha += (0 - alpha) * alphaDecay;
     }
     for (const node of nodes) positions.set(node.id, { x: node.x, y: node.y });
   }
@@ -1047,7 +1131,8 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
     fitView();
     const linkLayer = el("g", { class: "graph-links" });
     const nodeLayer = el("g", { class: "graph-nodes" });
-    const showAllLabels = graph.nodes.length <= 40;
+    // with many entities only the most mentioned get a label; the rest show theirs on hover or when linked to the selection
+    const showAllLabels = graph.nodes.length <= 25;
     for (const link of graph.links) {
       const line = el("line", { class: "graph-link", "stroke-width": linkWidth(link) });
       const together = link.contexts.length;
@@ -1058,7 +1143,7 @@ mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
       linkLayer.appendChild(line);
     }
     for (const node of graph.nodes) {
-      const g = el("g", { class: "graph-node fam-" + node.fam + (showAllLabels || node.rank < 25 ? " labelled" : ""), tabindex: "0", role: "button" });
+      const g = el("g", { class: "graph-node fam-" + node.fam + (showAllLabels || node.rank < 15 ? " labelled" : ""), tabindex: "0", role: "button" });
       g.appendChild(el("circle", { r: node.r.toFixed(1) }));
       g.appendChild(el("text", { x: (node.r + 3).toFixed(1), y: "4" }, node.label));
       g.appendChild(el("title", {}, node.label + " (" + (FAMILY_LABELS[node.fam] || node.fam) + ", " + node.count + " mention" + (node.count === 1 ? "" : "s") + ")"));
