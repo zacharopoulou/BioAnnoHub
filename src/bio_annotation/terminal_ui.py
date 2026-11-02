@@ -337,6 +337,8 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
             _annotator_capability_rows(annotators, task=task)
         ),
     )
+    if "flair" in annotators and task in {"NEN", "both"}:
+        output_fn("Flair entity linkers will be enabled for NEN.")
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
     return TerminalUIAnswers(
         mode,
@@ -360,21 +362,21 @@ def _prompt_domain_and_task(
         domain = _prompt_choice(
             input_fn=input_fn,
             output_fn=output_fn,
-            title="Choose the text domain",
+            title="Filter annotators by domain",
             choices=(
-                ("biomedical", "Biomedical literature and research text"),
-                ("clinical", "Clinical notes and reports"),
-                ("both", "Biomedical and clinical annotators"),
+                ("biomedical", "Biomedical"),
+                ("clinical", "Clinical"),
+                ("both", "All domains"),
             ),
         )
         task = _prompt_choice(
             input_fn=input_fn,
             output_fn=output_fn,
-            title="Choose the annotation task",
+            title="Filter annotators by supported task",
             choices=(
-                ("NER", "Named entity recognition (NER)"),
-                ("NEN", "Named entity normalization (NEN)"),
-                ("both", "NER, NEN, or both"),
+                ("NER", "NER-capable"),
+                ("NEN", "NEN-capable"),
+                ("both", "All tasks (NER and/or NEN)"),
             ),
         )
         annotator_choices = annotator_choices_for(
@@ -501,9 +503,9 @@ def _medcat_service_reachable(endpoint: str, *, timeout: float = 3.0) -> bool:
 
 def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -> str:
     lines = [
-        "[workflow]",
-        f"domain = {_toml_string(answers.domain)}",
-        f"task = {_toml_string(answers.task)}",
+        "# Terminal annotator selection filters (informational; not pipeline settings).",
+        f"# Domain: {_domain_label(answers.domain)}",
+        f"# Supported task: {_task_label(answers.task)}",
         "",
         "[input]",
     ]
@@ -846,7 +848,7 @@ def _domain_label(domain: str) -> str:
     return {
         "biomedical": "Biomedical",
         "clinical": "Clinical",
-        "both": "Biomedical and Clinical",
+        "both": "All domains",
     }.get(domain, domain)
 
 
@@ -857,7 +859,7 @@ def _domain_matches_capability(domain: str, supported_domains: tuple[str, ...]) 
 
 
 def _task_label(task: str) -> str:
-    return {"NER": "NER", "NEN": "NEN", "both": "NER, NEN, or both"}.get(task, task)
+    return {"NER": "NER-capable", "NEN": "NEN-capable", "both": "All tasks (NER and/or NEN)"}.get(task, task)
 
 
 def _annotator_label(annotator: str) -> str:
@@ -877,3 +879,4 @@ def _toml_string(value: str) -> str:
 
 def _toml_string_list(values: list[str]) -> str:
     return "[" + ", ".join(_toml_string(v) for v in values) + "]"
+

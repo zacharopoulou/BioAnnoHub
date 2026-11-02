@@ -70,7 +70,7 @@ def help_lines() -> list[str]:
     return render_lines(
         Panel(
             Text.assemble(
-                ("Choose input, domain, annotation task, compatible annotators, and entity filters.\n", "muted"),
+                ("Choose input, filter annotators by domain and supported task, then choose annotators and entity filters.\n", "muted"),
                 ("Type 'restart' or 'exit' at any prompt; press Enter at the final prompt to run.\n", "muted"),
                 ("Each completed run writes ", "muted"),
                 ("config", "field"),
@@ -80,7 +80,7 @@ def help_lines() -> list[str]:
                 ("TSV review tables", "field"),
                 (", and a ", "muted"),
                 ("manifest", "field"),
-                (". Annotations retain their source; filters apply after execution to combined results.", "muted"),
+                (". Annotations retain their source; entity filters apply after execution to combined results.", "muted"),
             ),
             title="Workflow",
             title_align="left",
@@ -151,7 +151,7 @@ def run_plan_lines(
     *,
     input_mode: str,
     domain: str = "Biomedical",
-    task: str = "NER",
+    task: str = "NER-capable",
     annotators: list[str],
     entity_types: list[str],
 ) -> list[str]:
@@ -165,8 +165,8 @@ def run_plan_lines(
     table.add_column("Field", style="field")
     table.add_column("Value")
     table.add_row("Input", input_mode)
-    table.add_row("Domain", domain)
-    table.add_row("Task", task)
+    table.add_row("Domain filter", domain)
+    table.add_row("Task filter", task)
     table.add_row("Annotators", ", ".join(annotators) or "all")
     table.add_row("Entity filters", ", ".join(entity_types) if entity_types else "all entity types")
     return render_lines(table)
@@ -214,3 +214,4 @@ def annotator_results_lines(annotators: list[dict[str, Any]]) -> list[str]:
     if annotators:
         lines.extend(render_lines(table))
     return lines
+

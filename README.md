@@ -50,6 +50,8 @@ uv run bioannohub annotate
 
 The terminal workflow guides you through choosing documents, annotators, and entity types. Local annotators may need optional dependencies, model downloads, or a separate setup; the app will explain what is needed when you select one.
 
+Domain and supported-task choices filter the annotators offered in the terminal. `All domains` includes biomedical and clinical annotators; `All tasks (NER and/or NEN)` includes NER-only annotators as well as those supporting normalization. These choices do not restrict which annotations a selected tool returns. When Flair is selected, `NEN-capable` or `All tasks` enables its entity linkers. The saved config records the selection filters as informational comments and the actual annotator settings, including Flair linking, as runnable TOML settings.
+
 ## Common commands
 
 Run a saved example config:
@@ -102,3 +104,4 @@ Run the local demo or the test suite with:
 uv run bioannohub demo
 uv run pytest
 ```
+
