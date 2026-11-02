@@ -49,6 +49,8 @@ uv run bioannohub evaluate-ncbi-review
 
 ## Documentation
 
+- [PubMed PMID search guide](src/bio_annotation/io/README.md): query syntax, filters, date bounds, and progress output.
+
 - [Configuration guide](configs/README.md): config structure and runnable examples.
 - [Project docs](docs/README.md): workflow overview and design notes.
 - [Benchmark review guide](src/bio_annotation/benchmarking/README.md): dataset, evaluation options, outputs, and limitations.
@@ -69,3 +71,4 @@ Run the local demo or the test suite with:
 uv run bioannohub demo
 uv run pytest
 ```
+
