@@ -153,7 +153,7 @@ def test_every_stanza_annotator_has_capability_and_ui_metadata() -> None:
 def test_entity_type_metadata_exposes_labels_and_adapter_normalization_behavior() -> None:
     assert ENTITY_TYPE_DISPLAY_NAMES["gene"] == "Gene / protein"
     assert ENTITY_TYPE_DISPLAY_NAMES["drug"] == "Chemical / drug"
-    assert ENTITY_TYPE_DISPLAY_NAMES["biomedical_entity"] == "Biomedical entity"
+    assert ENTITY_TYPE_DISPLAY_NAMES["biomedical_entity"] == "Generic biomedical mention (ENTITY)"
     assert ENTITY_TYPE_DISPLAY_NAMES["cell"] == "Cell"
     assert ENTITY_TYPE_DISPLAY_NAMES["cancer"] == "Cancer"
     assert ENTITY_TYPE_DISPLAY_NAMES["pathological_formation"] == "Pathological formation"

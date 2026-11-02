@@ -30,6 +30,7 @@ _ENTITY_TYPE_LABELS: dict[str, str] = {
     "dna": "DNA",
     "rna": "RNA ",
     "cell_type": "Cell type",
+    "biomedical_entity": "Generic biomedical mention (ENTITY)",
 }
 
 
