@@ -13,6 +13,7 @@ from bio_annotation.fetch.input import (
 )
 from bio_annotation.fetch.orchestrator import (
     FetchOrchestrator,
+    PubtatorFirstOrchestrator,
     SourceNotFoundError,
     default_fetch_orchestrator,
     unite_into,
@@ -113,6 +114,71 @@ def test_origin_sources_records_only_contributors() -> None:
     orch = FetchOrchestrator(sources=[a, b])
     out = orch.fetch(FetchInput.from_pmid("1"), prefer=["a", "b"])
     assert out[0].metadata["origin_sources"] == ["a"]
+
+
+def test_pubtator_first_uses_pubtator_text_and_only_entrez_metadata() -> None:
+    @dataclass(slots=True)
+    class _RecordingSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            return _StubSource.fetch(self, request)
+
+    pubtator = _RecordingSource(
+        "pubtator3",
+        documents=[
+            _doc("2", title="P3 title", abstract="P3 abstract", source="pubtator3"),
+            _doc("1", title="P3 title 1", abstract="P3 abstract 1", source="pubtator3"),
+        ],
+    )
+    entrez = _RecordingSource(
+        "entrez",
+        documents=[
+            _doc(
+                "1",
+                title="Entrez title",
+                abstract="Entrez abstract",
+                source="entrez",
+                metadata={"pubmed_record": {"pmid": "1", "authors": ["A. Author"]}},
+            ),
+            _doc("2", title="Entrez title", abstract="Entrez abstract", source="entrez"),
+        ],
+    )
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=entrez)
+    request = FetchInput.from_pmid_list(
+        ["1", "2"],
+        fields=frozenset({"authors"}),
+        fields_per_source={"entrez": frozenset({"authors"})},
+    )
+
+    out = orchestrator.fetch(request, prefer=["pubtator3", "entrez"])
+
+    assert [doc.pmid for doc in out] == ["1", "2"]
+    assert [doc.title for doc in out] == ["P3 title 1", "P3 title"]
+    assert [doc.abstract for doc in out] == ["P3 abstract 1", "P3 abstract"]
+    assert out[0].metadata["pubmed_record"] == {"pmid": "1", "authors": ["A. Author"]}
+    assert out[1].metadata.get("pubmed_record") is None
+    assert "title" in pubtator.requests[0].fields_for("pubtator3")
+    assert "abstract" in pubtator.requests[0].fields_for("pubtator3")
+    assert entrez.requests[0].pmids == ("1", "2")
+
+
+def test_pubtator_first_skips_requested_pmids_without_text(caplog: pytest.LogCaptureFixture) -> None:
+    pubtator = _StubSource(
+        "pubtator3",
+        documents=[_doc("1", title="", abstract="", source="pubtator3")],
+    )
+    entrez = _StubSource("entrez", documents=[_doc("2", title="Entrez title", source="entrez")])
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=entrez)
+
+    out = orchestrator.fetch(
+        FetchInput.from_pmid_list(["1", "2"]),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert out == []
+    assert "1, 2" in caplog.text
 
 
 # E. Errors
