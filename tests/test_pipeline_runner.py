@@ -14,7 +14,8 @@ def _without_durations(statuses):
     return [{k: v for k, v in status.items() if k != "duration_seconds"} for status in statuses]
 
 from bio_annotation.cli import main
-from bio_annotation.fetch import FetchOrchestrator
+from bio_annotation.annotators.pubtator3 import parse_pubtator3_response
+from bio_annotation.fetch import FetchOrchestrator, PubTator3Source
 from bio_annotation.fetch.input import FetchInput, FetchKind
 from bio_annotation.deps import DISABLE_ENV_VAR
 from bio_annotation.schemas.document import Document
@@ -173,6 +174,80 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
         annotation["annotation_id"] for annotation in payload["annotations"]
     ]
     assert "annotations" not in payload["document_annotations"][0]
+
+
+def test_pipeline_reuses_pubtator3_fetch_response_for_annotations(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                'source = "pubtator3"',
+                'fields = ["title", "abstract"]',
+                "",
+                "[annotators]",
+                'enabled = ["pubtator3"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    response = {
+        "documents": [
+            {
+                "id": "12345678",
+                "infons": {"article-id_pmid": "12345678"},
+                "passages": [
+                    {
+                        "offset": 0,
+                        "text": "PTEN in cancer",
+                        "infons": {"section_type": "TITLE"},
+                        "annotations": [
+                            {
+                                "text": "PTEN",
+                                "infons": {"type": "Gene", "identifier": "5728"},
+                                "locations": [{"offset": 0, "length": 4}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    fetch_calls: list[tuple[tuple[str, ...], str, bool]] = []
+    passed_responses: list[object] = []
+
+    class CountingClient:
+        def fetch_publications_by_pmids(
+            self,
+            pmids: list[str] | tuple[str, ...],
+            *,
+            format: str,
+            full: bool,
+        ) -> dict[str, object]:
+            fetch_calls.append((tuple(pmids), format, full))
+            return response
+
+    def fake_annotator(document: Document, *, response=None, **kwargs):
+        passed_responses.append(response)
+        return parse_pubtator3_response(document, response)
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_pubtator3", fake_annotator)
+    orchestrator = FetchOrchestrator(sources=[PubTator3Source(client=CountingClient())])
+
+    payload = run_pipeline_from_config(
+        config_path,
+        orchestrator_factory=lambda: orchestrator,
+    )
+
+    assert fetch_calls == [(("12345678",), "biocjson", False)]
+    assert passed_responses == [{"documents": response["documents"]}]
+    assert payload["annotation_summary"]["annotation_count"] == 1
+    assert payload["annotations"][0]["canonical_id"] == "5728"
 
 
 def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
