@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import align_span_offsets, make_annotation
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -22,6 +23,7 @@ SCISPACY_MODEL_BY_ANNOTATOR: dict[str, str] = {
 }
 SCISPACY_SCIBERT_ANNOTATOR = "scispacy_scibert"
 SCISPACY_UMLS_LINKER = "scispacy_linker"
+logger = logging.getLogger(__name__)
 
 # The general scispaCy models (en_core_sci_scibert, en_core_sci_md) detect
 # entities and link them to a knowledge base (UMLS by default). One linker per
@@ -82,8 +84,9 @@ def parse_scispacy_response(
         return []
 
     annotations: list[Annotation] = []
+    unplaced_span_count = 0
     for entity in payload:
-        span_text = getattr(entity, "text", None)
+        raw_span_text = getattr(entity, "text", None)
         label = getattr(entity, "label_", None)
         start = getattr(entity, "start_char", None)
         end = getattr(entity, "end_char", None)
@@ -95,20 +98,34 @@ def parse_scispacy_response(
             if candidates:
                 canonical_id, normalization_score = candidates[0]
                 canonical_name = _linker_canonical_name(linker, str(canonical_id))
-        if not span_text:
+        if not raw_span_text:
             continue
+        if source == SCISPACY_SCIBERT_ANNOTATOR:
+            aligned = align_span_offsets(document.text, raw_span_text, start, end)
+            if aligned is None:
+                unplaced_span_count += 1
+                start = end = None
+            else:
+                start, end = aligned
         annotations.append(
             make_annotation(
                 document=document,
                 source=source,
-                span_text=span_text,
+                span_text=raw_span_text,
                 entity_type=label,
                 start=start,
                 end=end,
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
                 normalization_score=normalization_score,
+                infer_missing_offsets=source != SCISPACY_SCIBERT_ANNOTATOR,
             )
+        )
+    if unplaced_span_count:
+        logger.warning(
+            "scispaCy SciBERT returned %d spans for %s that could not be aligned to the document text; left unplaced",
+            unplaced_span_count,
+            document.document_id,
         )
     return annotations
 
