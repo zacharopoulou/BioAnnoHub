@@ -68,6 +68,9 @@ from bio_annotation.preprocessing.document_loader import (
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
+logger = logging.getLogger(__name__)
+
+
 def build_pipeline_output(
     documents: list[Document],
     config: PipelineConfig,

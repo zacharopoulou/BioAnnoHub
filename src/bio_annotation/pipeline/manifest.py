@@ -13,6 +13,9 @@ from bio_annotation.pipeline.output import pipeline_tsv_output_paths
 from bio_annotation.pipeline.progress import _aggregate_annotator_statuses
 from bio_annotation.pipeline_config import PipelineConfig
 
+logger = logging.getLogger(__name__)
+
+
 def create_run_dir(base_dir: Path, *, now: datetime | None = None) -> Path:
     run_dir = base_dir / (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
     run_dir.mkdir(parents=True, exist_ok=True)

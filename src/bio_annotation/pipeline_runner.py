@@ -6,6 +6,7 @@ available for existing callers and notebooks.
 from __future__ import annotations
 
 import logging
+from contextlib import contextmanager
 from functools import wraps
 
 from bio_annotation.pipeline import execution as _execution
@@ -31,24 +32,41 @@ _EXECUTION_COMPAT_NAMES = (
     "_load_flair_tagger", "_load_scispacy_model", "reset_reported_endpoints", "logger",
 )
 
-def _sync_execution_compat() -> None:
-    for name in _EXECUTION_COMPAT_NAMES:
-        if name in globals():
-            setattr(_execution, name, globals()[name])
+@contextmanager
+def _execution_compat():
+    """Apply historical monkeypatch hooks only for the duration of a call."""
+    missing = object()
+    originals = {}
+    try:
+        for name in _EXECUTION_COMPAT_NAMES:
+            if name in globals():
+                originals[name] = getattr(_execution, name, missing)
+                setattr(_execution, name, globals()[name])
+        yield
+    finally:
+        for name, value in originals.items():
+            if value is missing:
+                delattr(_execution, name)
+            else:
+                setattr(_execution, name, value)
+
 
 def build_pipeline_output(*args, **kwargs):
-    _sync_execution_compat()
-    return _execution.build_pipeline_output(*args, **kwargs)
+    with _execution_compat():
+        return _execution.build_pipeline_output(*args, **kwargs)
+
 
 def run_selected_annotators(*args, **kwargs):
-    _sync_execution_compat()
-    return _execution.run_selected_annotators(*args, **kwargs)
+    with _execution_compat():
+        return _execution.run_selected_annotators(*args, **kwargs)
+
 
 def run_selected_annotators_with_status(*args, **kwargs):
-    _sync_execution_compat()
-    return _execution.run_selected_annotators_with_status(*args, **kwargs)
+    with _execution_compat():
+        return _execution.run_selected_annotators_with_status(*args, **kwargs)
+
 
 @wraps(_runner.run_pipeline_from_config)
 def run_pipeline_from_config(*args, **kwargs):
-    _sync_execution_compat()
-    return _runner.run_pipeline_from_config(*args, **kwargs)
+    with _execution_compat():
+        return _runner.run_pipeline_from_config(*args, **kwargs)
