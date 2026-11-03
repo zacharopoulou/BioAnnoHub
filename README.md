@@ -4,6 +4,8 @@ BioAnnoHub builds biomedical literature corpora, runs selected named entity anno
 
 Use it from the terminal for an interactive run, or use a TOML config for a repeatable workflow. Inputs include PubMed IDs, PMID files, and local text tables. Runs save their configuration, annotations, and summary files together.
 
+For PMID runs, PubTator3 is the only source of annotation text. Entrez is called only when metadata is requested, and its results never fill missing title, abstract, or full text. PMIDs PubTator3 cannot supply with usable text are skipped and reported.
+
 ## Annotators and supported entity types
 
 The table lists the annotator integrations declared by BioAnnoHub and the entity types they return or map to. `NER` identifies mentions; `NEN` links mentions to concepts or identifiers. HunFlair requires its linkers for NEN. MedCAT's available labels depend on its loaded model pack. Optional models and services may need separate installation or configuration.

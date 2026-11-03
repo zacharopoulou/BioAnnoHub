@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterable
 
 from bio_annotation.fetch.entrez import EntrezSource
 from bio_annotation.fetch.europe_pmc import EuropePmcSource
 from bio_annotation.fetch.input import (
     FetchInput,
-    FetchKind,
     FetchSource,
     UnsupportedInputError,
 )
@@ -177,42 +176,143 @@ def _blank_body(document: Document) -> bool:
 
 @dataclass(slots=True)
 class PubtatorFirstOrchestrator:
-    """PubTator3 first; Entrez fills missing PMIDs and empty bodies. Unused by default loader."""
+    """Use PubTator3 as the sole PMID text source, with optional Entrez metadata."""
 
     pubtator: FetchSource
     entrez: FetchSource
 
-    def fetch(self, request: FetchInput) -> list[Document]:
-        pt_docs = self.pubtator.fetch(request)
-        kind: FetchKind = request.kind
+    def fetch(
+        self,
+        request: FetchInput,
+        *,
+        prefer: str | Iterable[str] | None = None,
+    ) -> list[Document]:
+        selected = [prefer] if isinstance(prefer, str) else list(prefer or ["pubtator3"])
+        unknown = sorted(set(selected) - {"pubtator3", "entrez"})
+        if unknown:
+            raise ValueError(
+                "PMID annotation runs support PubTator3 text and optional Entrez metadata; "
+                f"unsupported sources: {', '.join(unknown)}."
+            )
+        use_entrez = "entrez" in selected
 
-        if kind in {"pmcid", "pmcid_list"}:
-            return pt_docs
+        if request.kind in {"pmcid", "pmcid_list"}:
+            if use_entrez:
+                raise UnsupportedInputError("Entrez metadata is available only for PMID inputs.")
+            return self.pubtator.fetch(request)
 
-        # pmid / pmid_list
-        requested = set(request.pmids)
-        by_pmid = {d.pmid: d for d in pt_docs if d.pmid}
-        missing_pmids = requested - set(by_pmid.keys())
+        primary_request = _request_with_pubtator_text_fields(request)
+        returned = self.pubtator.fetch(primary_request)
+        requested_pmids = list(dict.fromkeys(request.pmids))
+        requested_set = set(requested_pmids)
+        by_pmid: dict[str, Document] = {}
+        for document in returned:
+            pmid = _document_pmid(document)
+            if pmid in requested_set and not _blank_body(document):
+                by_pmid.setdefault(pmid, document)
 
-        for pmid in sorted(missing_pmids):
-            try:
-                extra = self.entrez.fetch(FetchInput.from_pmid(pmid))
-                if extra:
-                    pt_docs.append(extra[0])
-                    by_pmid[pmid] = extra[0]
-            except Exception as exc:
-                logger.warning("entrez fallback failed for missing PMID %s: %s", pmid, exc)
+        available_pmids = [pmid for pmid in requested_pmids if pmid in by_pmid]
+        missing_pmids = [pmid for pmid in requested_pmids if pmid not in by_pmid]
+        if missing_pmids:
+            logger.warning(
+                "Skipping %d of %d requested PMID(s): PubTator3 returned no usable text. "
+                "PMIDs: %s",
+                len(missing_pmids),
+                len(requested_pmids),
+                ", ".join(missing_pmids),
+            )
 
-        for doc in pt_docs:
-            if doc.pmid and _blank_body(doc):
-                try:
-                    extras = self.entrez.fetch(FetchInput.from_pmid(doc.pmid))
-                    if extras:
-                        unite_into(doc, extras[0])
-                except Exception as exc:
-                    logger.warning("entrez fallback failed for PMID %s: %s", doc.pmid, exc)
+        documents = [by_pmid[pmid] for pmid in available_pmids]
+        if not use_entrez or not available_pmids:
+            return documents
 
-        return pt_docs
+        metadata_request = _request_for_pmids(request, available_pmids)
+        try:
+            metadata_documents = self.entrez.fetch(metadata_request)
+        except Exception as exc:
+            logger.warning("Entrez metadata fetch failed; keeping PubTator3 text only: %s", exc)
+            return documents
+
+        available_pmid_set = set(available_pmids)
+        metadata_by_pmid = {
+            pmid: document
+            for document in metadata_documents
+            if (pmid := _document_pmid(document)) in available_pmid_set
+        }
+        missing_metadata = [pmid for pmid in available_pmids if pmid not in metadata_by_pmid]
+        if missing_metadata:
+            logger.warning(
+                "Entrez returned no metadata for %d PubTator3 article(s): %s",
+                len(missing_metadata),
+                ", ".join(missing_metadata),
+            )
+
+        requested_metadata_fields = metadata_request.fields_for("entrez")
+        for pmid in available_pmids:
+            extra = metadata_by_pmid.get(pmid)
+            if extra is not None:
+                _merge_metadata_only(by_pmid[pmid], extra, requested_metadata_fields)
+        return documents
+
+
+def _document_pmid(document: Document) -> str:
+    pmid = str(document.pmid or "").strip()
+    if pmid.upper().startswith("PMID:"):
+        pmid = pmid.split(":", 1)[1].strip()
+    return pmid
+
+
+def _request_with_pubtator_text_fields(request: FetchInput) -> FetchInput:
+    fields = request.fields_for("pubtator3")
+    if fields is None:
+        return request
+    fields_per_source = dict(request.fields_per_source or {})
+    fields_per_source["pubtator3"] = fields | {"pmid", "title", "abstract"}
+    return replace(request, fields_per_source=fields_per_source)
+
+
+def _request_for_pmids(request: FetchInput, pmids: list[str]) -> FetchInput:
+    if request.kind == "pmid" and len(pmids) == 1:
+        return FetchInput.from_pmid(
+            pmids[0],
+            fields=request.fields,
+            fields_per_source=request.fields_per_source,
+        )
+    return FetchInput.from_pmid_list(
+        pmids,
+        fields=request.fields,
+        fields_per_source=request.fields_per_source,
+    )
+
+
+def _merge_metadata_only(base: Document, extra: Document, fields: frozenset[str] | None) -> None:
+    metadata = extra.metadata if isinstance(extra.metadata, dict) else {}
+    record = metadata.get("pubmed_record")
+    if isinstance(record, dict):
+        selected_record = (
+            record
+            if fields is None
+            else {key: value for key, value in record.items() if key in fields or key == "pmid"}
+        )
+        if selected_record:
+            existing = base.metadata.get("pubmed_record")
+            if isinstance(existing, dict):
+                for key, value in selected_record.items():
+                    existing.setdefault(key, value)
+            else:
+                base.metadata["pubmed_record"] = selected_record
+
+    if "pmcid" in metadata and (fields is None or "pmcid" in fields):
+        base.metadata.setdefault("pmcid", metadata["pmcid"])
+    if extra.year and (fields is None or "year" in fields) and not base.year:
+        base.year = extra.year
+
+    origins = base.metadata.get("origin_sources")
+    if not isinstance(origins, list):
+        origins = [base.source] if base.source else ["pubtator3"]
+    if extra.source not in origins:
+        origins.append(extra.source)
+    base.metadata["origin_sources"] = origins
 
 
 # C. Default wiring
