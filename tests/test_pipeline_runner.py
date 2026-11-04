@@ -645,7 +645,7 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", broken_flair)
 
-    with caplog.at_level("WARNING", logger="bio_annotation.pipeline_runner"):
+    with caplog.at_level("WARNING", logger="bio_annotation.pipeline.progress"):
         results, statuses = run_selected_annotators_with_status(
             document,
             ["flair"],
@@ -661,7 +661,8 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
             "reason": "hunflair2 is unavailable",
         }
     ]
-    assert "flair unavailable: hunflair2 is unavailable" in caplog.text
+    assert "[1/1] Flair / HunFlair failed on doc1" in caplog.text
+    assert ": hunflair2 is unavailable" in caplog.text
 
 
 def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:
