@@ -81,6 +81,7 @@ def _preflight_load(
     annotator: str,
     loader: Callable[[], Any],
     reporter: ProgressReporter,
+    failures: dict[str, str],
 ) -> Any:
     event = ProgressEvent(annotator=annotator, phase="preflight", event="start")
     reporter(event)
@@ -88,6 +89,7 @@ def _preflight_load(
     try:
         loaded = loader()
     except Exception as exc:
+        failures[annotator] = str(exc)
         reporter(
             replace(
                 event,
@@ -146,6 +148,7 @@ def build_pipeline_output(
         if annotator in STANZA_ANNOTATORS
     }
 
+    preflight_failures: dict[str, str] = {}
     flair_tagger = None
     flair_linkers: list[Any] = []
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -153,6 +156,7 @@ def build_pipeline_output(
             "flair",
             lambda: _load_flair_tagger(flair_options["model"] or "hunflair2"),
             reporter,
+            preflight_failures,
         )
         if flair_tagger is not None and flair_options.get("linking"):
             for linker_name in flair_options["linkers"]:
@@ -166,6 +170,7 @@ def build_pipeline_output(
             "clinicalbert",
             lambda: _load_clinicalbert_pipeline(clinicalbert_options["model"]),
             reporter,
+            preflight_failures,
         )
     apollo_pipeline = None
     if "apollo" in enabled_annotators and apollo_responses_by_document is None:
@@ -173,6 +178,7 @@ def build_pipeline_output(
             "apollo",
             lambda: _load_apollo_pipeline(apollo_options["model"]),
             reporter,
+            preflight_failures,
         )
     d4data_pipeline = None
     if "d4data" in enabled_annotators and d4data_responses_by_document is None:
@@ -180,6 +186,7 @@ def build_pipeline_output(
             "d4data",
             lambda: _load_d4data_pipeline(d4data_options["model"]),
             reporter,
+            preflight_failures,
         )
     scispacy_nlps: dict[str, Any] = {}
     if scispacy_responses_by_document is None:
@@ -194,6 +201,7 @@ def build_pipeline_output(
                     linker_name=options.get("linker_name"),
                 ),
                 reporter,
+                preflight_failures,
             )
             if nlp is not None:
                 scispacy_nlps[annotator] = nlp
@@ -216,6 +224,7 @@ def build_pipeline_output(
             document_index=document_index,
             document_total=len(documents),
             progress=reporter,
+            preflight_failures=preflight_failures,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
             bent_request_fn=bent_request_fn,
@@ -415,6 +424,7 @@ def run_selected_annotators_with_status(
     document_index: int | None = None,
     document_total: int | None = None,
     progress: ProgressReporter | None = None,
+    preflight_failures: dict[str, str] | None = None,
 ) -> tuple[dict[str, list[Annotation]], list[dict[str, Any]]]:
     results: dict[str, list[Annotation]] = {}
     statuses: list[dict[str, Any]] = []
@@ -422,6 +432,19 @@ def run_selected_annotators_with_status(
     reporter = progress or log_progress
 
     for annotator_index, annotator in enumerate(annotators, start=1):
+        if preflight_failures and annotator in preflight_failures:
+            # The model failed to load once already; the adapter would retry it per document.
+            results[annotator] = []
+            statuses.append(
+                {
+                    "name": annotator,
+                    "status": "failed",
+                    "annotation_count": 0,
+                    "reason": preflight_failures[annotator],
+                    "duration_seconds": 0.0,
+                }
+            )
+            continue
         event = ProgressEvent(
             annotator=annotator,
             phase="annotate",
