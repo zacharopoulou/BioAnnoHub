@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from bio_annotation.pipeline_config import load_pipeline_config
+from bio_annotation.pipeline.progress import ProgressReporter
 from bio_annotation.terminal_ui import (
     TerminalUIAnswers,
     _prompt_domain_and_task,
@@ -188,7 +189,12 @@ def test_run_terminal_annotation_ui_writes_reproducible_plain_text_run(tmp_path)
     def fake_output(message: str) -> None:
         messages.append(message)
 
-    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path,
+        *,
+        run_dir: Path | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "text_table"
         assert config.annotators == ["bern2"]
@@ -252,7 +258,12 @@ def test_run_terminal_annotation_ui_uses_one_raw_text_line_per_document(tmp_path
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path,
+        *,
+        run_dir: Path | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.text_file is not None
         assert config.text_file.read_text(encoding="utf-8") == (
@@ -298,7 +309,12 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path,
+        *,
+        run_dir: Path | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmid_file"
         assert config.pmid_file == pmid_file.resolve()
@@ -341,7 +357,12 @@ def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) 
         seen_prompts.append(prompt)
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path,
+        *,
+        run_dir: Path | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmids"
         expected = [
@@ -390,7 +411,12 @@ def test_run_terminal_annotation_ui_warns_for_unsupported_entity_types(tmp_path)
     def fake_input(prompt: str) -> str:
         return next(prompts)
 
-    def fake_pipeline_run(config_path: Path, run_dir: Path) -> dict[str, object]:
+    def fake_pipeline_run(
+        config_path: Path,
+        *,
+        run_dir: Path | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.annotators == ["bern2", "flair"]
         assert config.entity_types == ["variant", "cell_line"]
@@ -506,7 +532,7 @@ def test_restart_discards_previous_answers_before_creating_one_run(tmp_path) -> 
         assert not runs.exists()  # No files are written until setup is confirmed.
         return next(prompts)
 
-    def fake_pipeline(config_path, *, run_dir):
+    def fake_pipeline(config_path, *, run_dir, progress=None):
         config = load_pipeline_config(config_path)
         calls.append(config)
         assert config.pmids == ["456"]

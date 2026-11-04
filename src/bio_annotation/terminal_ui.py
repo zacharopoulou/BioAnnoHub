@@ -7,7 +7,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Protocol
 
 from bio_annotation.entity_proposal.apollo_proposer import DEFAULT_APOLLO_MODEL
 from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, DEFAULT_BENT_TYPES
@@ -42,6 +42,7 @@ from bio_annotation.pipeline_runner import (
     create_run_dir,
     run_pipeline_from_config,
 )
+from bio_annotation.pipeline.progress import ProgressReporter
 from bio_annotation.terminal_text_input import (
     is_text_table_file,
     prompt_existing_file,
@@ -53,6 +54,7 @@ from bio_annotation.terminal_text_input import (
 from bio_annotation.terminal_theme import (
     annotator_capability_lines,
     annotator_results_lines,
+    annotator_spinner,
     banner_lines,
     choice_lines,
     emit,
@@ -64,7 +66,16 @@ from bio_annotation.terminal_theme import (
 
 InputFn = Callable[[str], str]
 OutputFn = Callable[[str], None]
-PipelineRunFn = Callable[..., dict[str, Any]]
+
+
+class PipelineRunFn(Protocol):
+    def __call__(
+        self,
+        config_path: Path,
+        *,
+        run_dir: Path | None = None,
+        progress: ProgressReporter | None = None,
+    ) -> dict[str, Any]: ...
 
 
 class _RestartSetup(Exception):
@@ -157,8 +168,8 @@ def run_terminal_annotation_ui(
                 "annotations this run."
             )
     output_fn("")
-    output_fn("Running annotation...")
-    payload = pipeline_run_fn(paths.config_path, run_dir=paths.run_dir)
+    with annotator_spinner() as progress:
+        payload = pipeline_run_fn(paths.config_path, run_dir=paths.run_dir, progress=progress)
     output_fn("")
     emit(
         output_fn,
