@@ -9,6 +9,7 @@ from typing import Any, Callable
 from bio_annotation.pipeline.execution import build_pipeline_output, validate_optional_annotator_dependencies
 from bio_annotation.pipeline.manifest import build_run_manifest, copy_run_inputs, create_run_dir, update_latest_run_link
 from bio_annotation.pipeline.options import RUN_MANIFEST_NAME, RUN_RESULTS_DIR
+from bio_annotation.pipeline.progress import ProgressReporter
 from bio_annotation.pipeline.output import write_pipeline_output
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.preprocessing.document_loader import (
@@ -34,6 +35,7 @@ def run_pipeline_from_config(
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
     run_dir: Path | None = None,
+    progress: ProgressReporter | None = None,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
@@ -79,6 +81,7 @@ def run_pipeline_from_config(
         medcat_request_fn=medcat_request_fn,
         scispacy_responses_by_document=scispacy_responses_by_document,
         stanza_entities_by_document=stanza_entities_by_document,
+        progress=progress,
     )
     if config.output_path is not None:
         run_dir = run_dir or create_run_dir(config.output_path.parent)

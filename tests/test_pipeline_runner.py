@@ -565,6 +565,58 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     assert seen_linkers == ["gene-linker", "disease-linker"]
 
 
+def test_run_pipeline_skips_annotator_after_failed_preflight(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678", "87654321"]',
+                "",
+                "[annotators]",
+                'enabled = ["flair"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    load_attempts: list[str] = []
+
+    def failing_tagger_loader(model: str) -> object:
+        load_attempts.append(model)
+        raise RuntimeError("hunflair2 download failed")
+
+    def unexpected_flair(document: Document, **kwargs: object) -> list[Annotation]:
+        raise AssertionError("flair should be skipped after a failed preflight")
+
+    monkeypatch.setattr("bio_annotation.deps.find_spec", lambda name: object())
+    monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_tagger", failing_tagger_loader)
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", unexpected_flair)
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    assert load_attempts == ["hunflair2"]
+    for document in payload["document_annotations"]:
+        assert _without_durations(document["annotators"]) == [
+            {
+                "name": "flair",
+                "status": "failed",
+                "annotation_count": 0,
+                "reason": "hunflair2 download failed",
+            }
+        ]
+
+
 def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
     document = Document(
         document_id="doc1",
@@ -645,7 +697,7 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", broken_flair)
 
-    with caplog.at_level("WARNING", logger="bio_annotation.pipeline_runner"):
+    with caplog.at_level("WARNING", logger="bio_annotation.pipeline.progress"):
         results, statuses = run_selected_annotators_with_status(
             document,
             ["flair"],
@@ -661,7 +713,8 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
             "reason": "hunflair2 is unavailable",
         }
     ]
-    assert "flair unavailable: hunflair2 is unavailable" in caplog.text
+    assert "[1/1] Flair / HunFlair failed on doc1" in caplog.text
+    assert ": hunflair2 is unavailable" in caplog.text
 
 
 def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:
