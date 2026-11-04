@@ -52,9 +52,10 @@ def annotator_spinner(console: Console | None = None) -> Iterator[ProgressReport
         def report(event: ProgressEvent) -> None:
             if event.event == "start":
                 status.update(Text(describe(event), style="muted"))
-            elif event.event == "error":
-                # Printed above the spinner so failures survive the run.
-                console.print(Text(describe(event), style="warning"))
+            else:
+                # Printed above the spinner so outcomes survive the run.
+                style = "warning" if event.event == "error" else "ok"
+                console.print(Text(describe(event), style=style))
 
         yield report
     finally:
