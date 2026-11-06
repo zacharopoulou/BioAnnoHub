@@ -10,8 +10,8 @@ for downstream evaluation.
 
 ## Near-Term Goal
 
-Given a PubMed query, one PMID, a file containing PMIDs, a local corpus, or a
-benchmark dataset, BioAnnoHub should:
+Given a PubMed query, one PMID, a file containing PMIDs, or a local corpus,
+BioAnnoHub should:
 
 1. resolve or load the documents into one internal document format
 2. run only the annotators chosen by the user
@@ -19,7 +19,6 @@ benchmark dataset, BioAnnoHub should:
 4. preserve each annotator's original labels, offsets, and normalization IDs
 5. compute overlap-based agreement summaries across annotators
 6. export both per-annotator results and unified project outputs
-7. support benchmark-oriented evaluation on the same core document and annotation contracts
 
 In short:
 
@@ -92,11 +91,6 @@ Example:
 uv run bioannohub search-pmids --query 'glioblastoma AND microRNA' --output data/inputs/query_pmids.txt
 ```
 
-### 5. Benchmark dataset
-
-Benchmark datasets should become a first-class input path so annotators can be
-evaluated with the same pipeline abstractions used for PMIDs and local corpora.
-
 ## User Experience
 
 The primary interface should be config-first.
@@ -158,7 +152,7 @@ That means the workflow should support:
 
 From the user's perspective, the question should be:
 
-`Which annotators do I want to compare on these documents or benchmarks?`
+`Which annotators do I want to compare on these documents?`
 
 ## Entity-Type Harmonization
 

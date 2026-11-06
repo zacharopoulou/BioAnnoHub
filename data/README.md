@@ -1,14 +1,10 @@
 # Data
 
-This folder stores small local data used by the pipeline and examples.
+`inputs/` contains small PMID and text-table examples used by the annotation pipeline.
 
-## Current layout
+Use the tracked text table or PMID list with the examples in
+[the configuration guide](../configs/README.md). Corpus JSON files can also be
+loaded with `input.mode = "corpus"` and `input.corpus_path`.
 
-- `inputs/`: PMID files and query-generated PMID lists
-- `corpora/`: small local corpora for pipeline examples
-- `benchmarks/`: benchmark dataset scaffolding and notes
-
-## Notes
-
-- generated query outputs such as `query_pmids.txt` are local working files and are ignored by Git
-- large corpora or benchmark payloads should stay out of Git unless they are tiny examples
+Generated query outputs such as `query_pmids.txt` are local working files and
+are ignored by Git. Keep large corpora and generated payloads outside Git.
