@@ -78,16 +78,15 @@ uv run bioannohub load-documents --config configs/examples/pmid-single.toml
 ## Documentation
 
 - [PubMed PMID search guide](src/bio_annotation/io/README.md): query syntax, filters, date bounds, and progress output.
-
 - [Configuration guide](configs/README.md): config structure and runnable examples.
 - [Project docs](docs/README.md): workflow overview and design notes.
 - [Data guide](data/README.md): inputs, corpora, and generated data.
 - [Tests guide](tests/README.md): test coverage and development checks.
-- [Workflow specification](docs/workflow-spec.md): the broader workflow model and supported input types.
+- [Workflow specification](docs/workflow-spec.md): the current run flow, input formats, and saved outputs.
 
 ## Output
 
-Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
+Runs are saved in timestamped folders under `outputs/runs/` by default. Runs started in the same second receive distinct folders. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
 
 ## Development
 
@@ -95,6 +94,6 @@ Run the local demo or the test suite with:
 
 ```bash
 uv run bioannohub demo
-uv run pytest
+uv run pytest -m 'not integration'
 ```
 

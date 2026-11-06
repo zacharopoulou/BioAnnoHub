@@ -410,3 +410,24 @@ def test_load_documents_from_text_table_missing_column_raises(tmp_path: Path) ->
             title_column="title",
             abstract_column="abstract",
         )
+
+
+@pytest.mark.parametrize('payload', [{}, {'documents': None}, {'documents': {}}, {'documents': 'bad'}])
+def test_corpus_requires_a_documents_list(tmp_path, payload):
+    import json
+    from bio_annotation.preprocessing.document_loader import load_corpus_documents
+
+    corpus = tmp_path / 'corpus.json'
+    corpus.write_text(json.dumps(payload), encoding='utf-8')
+    with pytest.raises(ValueError, match='top-level documents list'):
+        load_corpus_documents(corpus)
+
+
+@pytest.mark.parametrize('payload', [[], {'documents': []}])
+def test_explicit_empty_corpus_is_supported(tmp_path, payload):
+    import json
+    from bio_annotation.preprocessing.document_loader import load_corpus_documents
+
+    corpus = tmp_path / 'corpus.json'
+    corpus.write_text(json.dumps(payload), encoding='utf-8')
+    assert load_corpus_documents(corpus) == []

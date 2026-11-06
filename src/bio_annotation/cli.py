@@ -73,7 +73,7 @@ def demo_payload() -> dict[str, object]:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="bioannohub",
-        description="Utilities for the BioAnnoHub biomedical annotation project.",
+        description="Build biomedical corpora, run entity annotators, and export annotation reports.",
     )
     parser.add_argument(
         "--log-level",
@@ -225,7 +225,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "annotate":
         try:
             run_terminal_annotation_ui(runs_dir=args.runs_dir)
-        except (RuntimeError, ValueError) as exc:
+        except (KeyboardInterrupt, EOFError):
+            print("\nAnnotation cancelled.", file=sys.stderr)
+            return 130
+        except (OSError, RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
         return 0
@@ -233,7 +236,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "inspect-config":
         try:
             config = load_pipeline_config(args.config)
-        except ValueError as exc:
+        except (OSError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
         print(
@@ -267,7 +270,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             config = load_pipeline_config(args.config)
             documents = load_documents_from_config(config)
-        except ValueError as exc:
+        except (OSError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
         print(
@@ -295,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             config = load_pipeline_config(args.config)
             payload = run_pipeline_from_config(args.config)
-        except (RuntimeError, ValueError) as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
         print_run_config_summary(payload, config.output_path)
@@ -319,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
                 progress_callback=print_pubmed_search_progress,
             )
             write_pmids(args.output, pmids)
-        except ValueError as exc:
+        except (OSError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
         print(

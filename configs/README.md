@@ -5,9 +5,14 @@ This directory contains runnable pipeline configurations for BioAnnoHub.
 ## Files
 
 - `pipeline.toml`
-  Default config, set up for a first live PubTator3 PMID run.
+  Default PMID config with BERN2, Flair, and PubTator3 enabled. Flair requires
+  its optional dependencies and model assets.
 - `examples/`
   Small runnable configs for common input modes, plus one advanced multi-source fetch example.
+
+Run the repository examples from the repository root. Relative input and output
+paths resolve from the working directory. `inspect-config` does not run models;
+`load-documents` fetches articles when using PMID input.
 
 ## Main Sections
 
