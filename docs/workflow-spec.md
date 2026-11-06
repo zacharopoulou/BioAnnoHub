@@ -1,7 +1,5 @@
 # Annotation workflow
 
-![BioAnnoHub workflow overview](assets/workflow-overview.svg)
-
 BioAnnoHub loads documents, runs selected annotators, and exports their results
 with source provenance. Use the interactive terminal workflow for a new run or
 save a TOML configuration for repeated use.
