@@ -86,7 +86,7 @@ uv run bioannohub load-documents --config configs/examples/pmid-single.toml
 
 ## Output
 
-Runs are saved in timestamped folders under `outputs/runs/` by default. Runs started in the same second receive distinct folders. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
+Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
 
 ## Development
 

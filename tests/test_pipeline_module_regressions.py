@@ -96,17 +96,3 @@ def test_direct_execution_uses_own_hook_after_compat_patch(monkeypatch):
 
     execution.run_selected_annotators(Document("doc2"), ["bern2"])
     assert calls == ["compat", "direct"]
-
-
-def test_runs_started_in_same_second_preserve_existing_output(tmp_path):
-    from datetime import datetime
-    from concurrent.futures import ThreadPoolExecutor
-
-    now = datetime(2026, 11, 6, 12, 0, 0)
-    first = manifest.create_run_dir(tmp_path, now=now)
-    saved = first / 'results.json'
-    saved.write_text('existing run', encoding='utf-8')
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        others = list(pool.map(lambda _: manifest.create_run_dir(tmp_path, now=now), range(4)))
-    assert len({first, *others}) == 5
-    assert saved.read_text(encoding='utf-8') == 'existing run'

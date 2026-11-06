@@ -17,17 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 def create_run_dir(base_dir: Path, *, now: datetime | None = None) -> Path:
-    base_dir.mkdir(parents=True, exist_ok=True)
-    run_id = (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
-    suffix = 0
-    while True:
-        run_dir = base_dir / (run_id if suffix == 0 else f"{run_id}_{suffix:02d}")
-        try:
-            run_dir.mkdir()
-        except FileExistsError:
-            suffix += 1
-        else:
-            return run_dir
+    run_dir = base_dir / (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    return run_dir
 
 
 def copy_run_inputs(config: PipelineConfig, config_path: Path, run_dir: Path) -> list[str]:

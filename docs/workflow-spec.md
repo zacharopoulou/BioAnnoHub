@@ -86,8 +86,7 @@ consensus confidence score.
 ## Saved run
 
 Interactive runs are saved under `outputs/runs/`. Config-based runs use the
-parent directory of `[output].path`. Every run receives a timestamped directory;
-if another run already uses that timestamp, a numeric suffix keeps them separate.
+parent directory of `[output].path`. Run directories use timestamps with second precision.
 
 | File | Purpose |
 | --- | --- |

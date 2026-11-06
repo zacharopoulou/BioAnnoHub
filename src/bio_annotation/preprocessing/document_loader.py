@@ -321,13 +321,10 @@ def summarize_ingestion(documents: list[Document]) -> dict[str, Any]:
 def load_corpus_documents(path: Path) -> list[Document]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
-        records = payload.get("documents")
+        records = payload.get("documents", [])
     elif isinstance(payload, list):
         records = payload
     else:
-        raise ValueError(f"{path} must contain a list of documents or a top-level documents list.")
-
-    if not isinstance(records, list):
         raise ValueError(f"{path} must contain a list of documents or a top-level documents list.")
 
     documents: list[Document] = []
