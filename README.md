@@ -82,7 +82,6 @@ uv run bioannohub load-documents --config configs/examples/pmid-single.toml
 - [Project docs](docs/README.md): workflow overview and design notes.
 - [Data guide](data/README.md): inputs, corpora, and generated data.
 - [Tests guide](tests/README.md): test coverage and development checks.
-- [Workflow specification](docs/workflow-spec.md): the current run flow, input formats, and saved outputs.
 
 ## Output
 
