@@ -1,17 +1,5 @@
-# Docs
+# Documentation
 
-This folder is reserved for Markdown-only project notes.
-
-Its purpose is to explain the codebase and pipeline decisions in a way that is easy to read without opening the implementation first.
-
-## Current Notes
-
-- `workflow-spec.md`
-  Near-term workflow for corpus creation, annotator execution, and harmonized outputs.
-
-## Planned Notes
-
-- benchmark dataset conventions and evaluation flow
-- standardized schema details
-- PMID/query ingestion implementation details
-- annotator integration details
+- [Configuration guide](../configs/README.md): runnable TOML settings and examples.
+- [PubMed search guide](../src/bio_annotation/io/README.md): query syntax and PMID output.
+- [Source package](../src/bio_annotation/README.md): implementation layout.

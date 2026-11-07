@@ -75,24 +75,13 @@ uv run bioannohub inspect-config --config configs/examples/pmid-single.toml
 uv run bioannohub load-documents --config configs/examples/pmid-single.toml
 ```
 
-Run the standalone NCBI Disease benchmark review:
-
-```bash
-uv sync --extra benchmarks
-uv run bioannohub evaluate-ncbi-review
-```
-
 ## Documentation
 
 - [PubMed PMID search guide](src/bio_annotation/io/README.md): query syntax, filters, date bounds, and progress output.
-
 - [Configuration guide](configs/README.md): config structure and runnable examples.
 - [Project docs](docs/README.md): workflow overview and design notes.
-- [Benchmark review guide](src/bio_annotation/benchmarking/README.md): dataset, evaluation options, outputs, and limitations.
-- [Benchmark data notes](data/benchmarks/README.md): local benchmark data conventions.
 - [Data guide](data/README.md): inputs, corpora, and generated data.
 - [Tests guide](tests/README.md): test coverage and development checks.
-- [Workflow specification](docs/workflow-spec.md): the broader workflow model and supported input types.
 
 ## Output
 
@@ -104,6 +93,6 @@ Run the local demo or the test suite with:
 
 ```bash
 uv run bioannohub demo
-uv run pytest
+uv run pytest -m 'not integration'
 ```
 
