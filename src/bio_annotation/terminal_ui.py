@@ -4,6 +4,8 @@ import csv
 import json
 import os
 import re
+import sys
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -42,7 +44,7 @@ from bio_annotation.pipeline_runner import (
     create_run_dir,
     run_pipeline_from_config,
 )
-from bio_annotation.pipeline.progress import ProgressReporter
+from bio_annotation.pipeline.progress import ProgressEvent, ProgressReporter, describe
 from bio_annotation.terminal_text_input import (
     is_text_table_file,
     prompt_existing_file,
@@ -114,6 +116,14 @@ class TerminalUIAnswers:
     task: str = "NER"
 
 
+def _text_progress_reporter(output_fn: OutputFn) -> ProgressReporter:
+    def report(event: ProgressEvent) -> None:
+        if event.event != "start":
+            output_fn(describe(event))
+
+    return report
+
+
 def run_terminal_annotation_ui(
     *,
     runs_dir: Path = Path("outputs/runs"),
@@ -168,7 +178,11 @@ def run_terminal_annotation_ui(
                 "annotations this run."
             )
     output_fn("")
-    with annotator_spinner() as progress:
+    if output_fn is print and sys.stdout.isatty():
+        progress_display = annotator_spinner()
+    else:
+        progress_display = nullcontext(_text_progress_reporter(output_fn))
+    with progress_display as progress:
         payload = pipeline_run_fn(paths.config_path, run_dir=paths.run_dir, progress=progress)
     output_fn("")
     emit(
