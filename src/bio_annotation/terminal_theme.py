@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ctypes
-import logging
 import os
 import sys
 import threading
@@ -14,7 +13,6 @@ from typing import Any
 from rich import box
 from rich.align import Align
 from rich.console import Console
-from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.table import Table
 from rich.theme import Theme
@@ -46,11 +44,6 @@ def annotator_spinner() -> Iterator[ProgressReporter]:
     terminal = os.fdopen(os.dup(1), "w", encoding="utf-8", errors="replace")
     console = Console(file=terminal, theme=BIOANNOHUB_THEME)
     status = console.status("Running annotation...", spinner="dots")
-    root = logging.getLogger()
-    previous_handlers = root.handlers[:]
-    handler = RichHandler(console=console, show_path=False)
-    handler.setFormatter(logging.Formatter("%(name)s: %(message)s"))
-    root.handlers = [handler]
     status.start()
     try:
         with _native_output_above(console):
@@ -66,7 +59,6 @@ def annotator_spinner() -> Iterator[ProgressReporter]:
             yield report
     finally:
         status.stop()
-        root.handlers = previous_handlers
 
 
 @contextmanager
