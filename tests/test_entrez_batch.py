@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 
 from bio_annotation.fetch.entrez import EntrezSource
 from bio_annotation.fetch.input import FetchInput
-from bio_annotation.io.readers import fetch_pubmed_records
+from bio_annotation.io.readers import _fetch_semantic_scholar, fetch_pubmed_records
 
 
 def _article(pmid: str, title: str) -> ET.Element:
@@ -137,6 +137,43 @@ def test_entrez_source_retries_only_pmids_omitted_from_response() -> None:
 
     assert [document.pmid for document in documents] == ["1", "3", "2"]
     assert client.calls == [["1", "2", "3"], ["2"]]
+
+
+def test_entrez_source_stops_when_singleton_response_has_wrong_pmid() -> None:
+    class _MismatchedClient:
+        calls = 0
+
+        def fetch_pubmed_many(self, pmids, *, enrichments=None):
+            self.calls += 1
+            return [{"pmid": "999", "title": "Different article"}]
+
+    client = _MismatchedClient()
+    documents = EntrezSource(client=client).fetch(FetchInput.from_pmid("1"))
+
+    assert documents == []
+    assert client.calls == 1
+
+
+def test_semantic_scholar_accepts_null_reference_data(monkeypatch) -> None:
+    responses = iter(
+        [
+            {"paperId": "paper-1"},
+            {"data": None},
+            {"data": [{"citingPaper": {"paperId": "citing-1"}}]},
+        ]
+    )
+    monkeypatch.setattr(
+        "bio_annotation.io.readers._fetch_json",
+        lambda *_args, **_kwargs: next(responses),
+    )
+
+    result = _fetch_semantic_scholar("1", timeout=1)
+
+    assert result == {
+        "s2_paper": {"paperId": "paper-1"},
+        "s2_references": [],
+        "s2_citations": [{"paperId": "citing-1"}],
+    }
 
 
 def test_entrez_source_retries_429_then_returns_metadata(monkeypatch) -> None:

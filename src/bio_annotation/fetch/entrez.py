@@ -175,6 +175,13 @@ class EntrezSource:
         if not missing_pmids:
             return documents, False
 
+        if len(pmids) == 1:
+            # A singleton response with no matching PMID cannot be split further.
+            logger.warning(
+                "Entrez returned no record matching requested PMID %s",
+                pmids[0],
+            )
+            return documents, False
         logger.warning(
             "Entrez returned %d of %d requested PMID records; retrying %d missing PMID(s)",
             len(records_by_pmid),
