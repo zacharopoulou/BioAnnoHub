@@ -102,6 +102,16 @@ class EntrezSource:
                     documents.append(document)
             return documents
 
+        if request.pmids:
+            if self.enrichments:
+                logger.info(
+                    "Fetching Entrez metadata for %d PMID(s); optional enrichments: %s",
+                    len(request.pmids),
+                    ", ".join(self.enrichments),
+                )
+            else:
+                logger.info("Fetching Entrez metadata for %d PMID(s)", len(request.pmids))
+
         for start in range(0, len(request.pmids), ENTREZ_BATCH_SIZE):
             pmid_batch = list(request.pmids[start : start + ENTREZ_BATCH_SIZE])
             batch_documents, stop = self._fetch_batch_with_fallback(pmid_batch, effective_fields)

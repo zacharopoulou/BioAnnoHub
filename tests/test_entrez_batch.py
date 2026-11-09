@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from email.message import Message
+import logging
 from urllib.error import HTTPError
 from urllib.parse import parse_qs
 import xml.etree.ElementTree as ET
@@ -64,6 +65,31 @@ def test_fetch_pubmed_records_posts_ids_and_parses_each_record(monkeypatch) -> N
     assert request.method == "POST"
     assert parse_qs(request.data.decode())["id"] == ["38123456,38123457"]
     assert timeout == 15
+
+
+def test_fetch_pubmed_records_logs_enrichment_progress(monkeypatch, caplog) -> None:
+    monkeypatch.setattr(
+        "urllib.request.urlopen",
+        lambda *_args, **_kwargs: _Response(
+            _batch_xml(
+                _article("38123456", "First title"),
+                _article("38123457", "Second title"),
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "bio_annotation.io.readers._fetch_crossref",
+        lambda _doi, *, timeout: {"crossref_references": []},
+    )
+
+    with caplog.at_level(logging.INFO, logger="bio_annotation.io.readers"):
+        fetch_pubmed_records(["38123456", "38123457"], enrichments=["crossref"])
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("PMID 38123456 (1/2): enrichment 1/1 crossref started" in m for m in messages)
+    assert any("PMID 38123456 (1/2): enrichment 1/1 crossref finished" in m for m in messages)
+    assert any("PMID 38123457 (2/2): enrichment 1/1 crossref started" in m for m in messages)
+    assert any("PMID 38123457 (2/2): enrichment 1/1 crossref finished" in m for m in messages)
 
 
 class _FakeBatchClient:

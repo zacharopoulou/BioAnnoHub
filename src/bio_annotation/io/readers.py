@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 import json
 import os
 import socket
+import time
 from urllib.parse import urlencode
 import urllib.error
 import urllib.request
@@ -46,6 +48,8 @@ _SEMANTIC_SCHOLAR_FIELDS = ",".join(
 )
 _SEMANTIC_SCHOLAR_LINK_FIELDS = "title,year,authors,externalIds,citationCount,venue"
 
+logger = logging.getLogger(__name__)
+
 
 def fetch_pubmed_record(
     pmid: str,
@@ -82,6 +86,7 @@ def fetch_pubmed_record(
         parsed,
         timeout=timeout,
         enrichments=enrichments,
+        progress=(1, 1),
     )
 
     return parsed
@@ -125,7 +130,8 @@ def fetch_pubmed_records(
         raise ValueError("PubMed returned no article records for the requested PMID batch.")
 
     records: list[dict[str, Any]] = []
-    for article in articles:
+    article_count = len(articles)
+    for index, article in enumerate(articles, start=1):
         medline = article.find("MedlineCitation")
         if medline is None:
             raise ValueError("PubMed batch response contains an article without MedlineCitation.")
@@ -137,6 +143,7 @@ def fetch_pubmed_records(
             parsed,
             timeout=timeout,
             enrichments=enrichments,
+            progress=(index, article_count),
         )
         records.append(parsed)
 
@@ -489,21 +496,46 @@ def _build_enrichment_bundle(
     *,
     timeout: int,
     enrichments: list[str] | None,
+    progress: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     requested = set(enrichments or [])
     bundle: dict[str, Any] = {}
-    if "elinks" in requested:
-        _merge_dict(bundle, _fetch_elinks(record.get("pmid"), timeout=timeout))
-    if "crossref" in requested:
-        _merge_dict(bundle, _fetch_crossref(record.get("doi"), timeout=timeout))
-    if "europe_pmc" in requested:
-        _merge_dict(bundle, _fetch_europe_pmc(record.get("pmid"), timeout=timeout))
-    if "semantic_scholar" in requested:
-        _merge_dict(bundle, _fetch_semantic_scholar(record.get("pmid"), timeout=timeout))
-    if "unpaywall" in requested:
-        _merge_dict(bundle, _fetch_unpaywall(record.get("doi"), timeout=timeout))
-    if "biorxiv" in requested:
-        _merge_dict(bundle, _fetch_biorxiv(record.get("doi"), timeout=timeout))
+    pmid = _clean_optional_text(str(record.get("pmid") or "")) or "unknown"
+    operations = [
+        ("elinks", lambda: _fetch_elinks(record.get("pmid"), timeout=timeout)),
+        ("crossref", lambda: _fetch_crossref(record.get("doi"), timeout=timeout)),
+        ("europe_pmc", lambda: _fetch_europe_pmc(record.get("pmid"), timeout=timeout)),
+        ("semantic_scholar", lambda: _fetch_semantic_scholar(record.get("pmid"), timeout=timeout)),
+        ("unpaywall", lambda: _fetch_unpaywall(record.get("doi"), timeout=timeout)),
+        ("biorxiv", lambda: _fetch_biorxiv(record.get("doi"), timeout=timeout)),
+    ]
+    selected = [(name, operation) for name, operation in operations if name in requested]
+    for source_index, (source_name, operation) in enumerate(selected, start=1):
+        progress_label = f"PMID {pmid}"
+        if progress is not None:
+            progress_label += f" ({progress[0]}/{progress[1]})"
+        logger.info(
+            "%s: enrichment %s/%s %s started",
+            progress_label,
+            source_index,
+            len(selected),
+            source_name,
+        )
+        started = time.monotonic()
+        try:
+            result = operation()
+        except Exception as exc:
+            logger.warning("%s: enrichment %s failed: %s", progress_label, source_name, exc)
+            continue
+        _merge_dict(bundle, result)
+        logger.info(
+            "%s: enrichment %s/%s %s finished in %.1fs",
+            progress_label,
+            source_index,
+            len(selected),
+            source_name,
+            time.monotonic() - started,
+        )
     return bundle
 
 
