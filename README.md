@@ -1,6 +1,6 @@
 # BioAnnoHub
 
-BioAnnoHub builds biomedical literature corpora, runs selected named entity annotators, and saves results in a format that can be inspected and reused.
+BioAnnoHub brings together 24 annotator and model integrations for biomedical and clinical text. The terminal menu filters them by input, domain, and task; see the [annotator guide](docs/annotators.md) for the full catalog.
 
 Use it from the terminal for an interactive run, or use a TOML config for a repeatable workflow. Inputs include PubMed IDs, PMID files, and local text tables. Runs save their configuration, annotations, and summary files together.
 

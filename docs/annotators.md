@@ -2,7 +2,7 @@
 
 ## Supported annotators and entity types
 
-The table lists the annotator integrations declared by BioAnnoHub and the entity types they return or map to. `NER` identifies mentions; `NEN` links mentions to concepts or identifiers. HunFlair requires its linkers for NEN. MedCAT's available labels depend on its loaded model pack. Optional models and services may need separate installation or configuration.
+The 24 entries include model-specific integrations from the same tool family, such as scispaCy and Stanza. `NER` identifies mentions; `NEN` links mentions to concepts or identifiers. HunFlair requires its linkers for NEN. MedCAT's available labels depend on its loaded model pack. Optional models and services may need separate installation or configuration.
 
 | Annotator | Domain | NER | NEN | Entity types |
 |---|---|:---:|:---:|---|
