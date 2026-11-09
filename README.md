@@ -41,7 +41,7 @@ uv run bioannohub search-pmids \
 Each run creates a timestamped folder with the config, input, JSON results, TSV tables, and HTML report. The JSON keeps returned metadata and nested enrichment data. The document TSV has compact columns for filtering; keyword and annotation TSVs contain the extracted results.
 
 For PMID runs, PubTator3 supplies the title and abstract used for annotation. Entrez and Europe PMC add metadata. A PMID without usable PubTator3 text is skipped.
-The terminal asks whether to fetch additional metadata for PMID inputs; choosing yes enables all supported enrichment sources.
+For PMID inputs, the terminal lets you choose additional metadata sources. Entrez, Crossref, and Europe PMC are selected by default; optional citation and access sources can be added. Europe PMC lookups are sent in batches of 100 PMIDs.
 
 ## Help
 

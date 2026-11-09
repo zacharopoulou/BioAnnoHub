@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import socket
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable
@@ -10,8 +11,10 @@ from urllib import error, parse, request
 EUROPE_PMC_API_BASE_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 DEFAULT_PAGE_SIZE = 25
 MAX_PAGE_SIZE = 1000
+PMID_QUERY_BATCH_SIZE = 100
 
 RequestOpener = Callable[[request.Request, int], bytes]
+logger = logging.getLogger(__name__)
 
 
 def _default_open(http_request: request.Request, timeout: int) -> bytes:
@@ -94,13 +97,53 @@ class EuropePmcClient:
         cleaned = _clean(pmids)
         if not cleaned:
             return {"resultList": {"result": []}}
-        terms = " OR ".join(f"EXT_ID:{pmid}" for pmid in cleaned)
-        query = f"({terms}) AND SRC:MED"
-        return self.search(
-            query,
-            max_pages=max_pages,
-            page_size=page_size,
-        )
+        if max_pages < 1:
+            raise ValueError("max_pages must be >= 1.")
+        if page_size is not None:
+            self._resolve_page_size(page_size)
+        batch_size = min(PMID_QUERY_BATCH_SIZE, page_size or PMID_QUERY_BATCH_SIZE)
+        merged: dict[str, Any] = {}
+        for start in range(0, len(cleaned), batch_size):
+            batch = cleaned[start : start + batch_size]
+            terms = " OR ".join(f"EXT_ID:{pmid}" for pmid in batch)
+            query = f"({terms}) AND SRC:MED"
+            try:
+                payload = self.search(
+                    query,
+                    max_pages=max_pages,
+                    # The query is limited to this many exact PMIDs; request enough
+                    # results to retrieve the entire batch in one page by default.
+                    page_size=page_size or len(batch),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Europe PMC failed for a batch of %d PMID(s); retaining results from other batches: %s",
+                    len(batch),
+                    exc,
+                )
+                continue
+            if isinstance(payload, dict):
+                if not merged:
+                    merged = {key: value for key, value in payload.items() if key != "resultList"}
+                    first_result_list = payload.get("resultList")
+                    merged["resultList"] = (
+                        {
+                            key: value
+                            for key, value in first_result_list.items()
+                            if key != "result"
+                        }
+                        if isinstance(first_result_list, dict)
+                        else {}
+                    )
+                    merged["resultList"]["result"] = []
+                result_list = payload.get("resultList")
+                results = result_list.get("result", []) if isinstance(result_list, dict) else []
+                if isinstance(results, list):
+                    merged["resultList"]["result"].extend(results)
+        if not merged:
+            return {"resultList": {"result": []}}
+        merged["hitCount"] = len(merged["resultList"]["result"])
+        return merged
 
     def fetch_by_pmcids(
         self,
@@ -198,5 +241,6 @@ __all__ = [
     "EUROPE_PMC_API_BASE_URL",
     "EuropePmcClient",
     "MAX_PAGE_SIZE",
+    "PMID_QUERY_BATCH_SIZE",
     "RequestOpener",
 ]

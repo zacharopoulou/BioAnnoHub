@@ -7,10 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from bio_annotation.pipeline_config import SUPPORTED_ENRICHMENT_SOURCES, load_pipeline_config
+from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline.progress import ProgressReporter
 from bio_annotation.terminal_ui import (
     TerminalUIAnswers,
+    _prompt_metadata_enrichment,
     _prompt_domain_and_task,
     _terminal_annotator_results,
     _entity_type_choices_for,
@@ -26,6 +27,17 @@ from bio_annotation.terminal_theme import run_plan_lines
 
 def test_parse_pmids_deduplicates_common_separators() -> None:
     assert parse_pmids("123, 456\n123 789") == ["123", "456", "789"]
+
+
+def test_metadata_enrichment_prompt_defaults_to_common_sources() -> None:
+    prompts = iter(["1", ""])
+
+    sources = _prompt_metadata_enrichment(
+        input_fn=lambda _: next(prompts),
+        output_fn=lambda _: None,
+    )
+
+    assert sources == ["elinks", "crossref", "europe_pmc"]
 
 
 def test_entity_type_choices_are_annotator_aware() -> None:
@@ -349,6 +361,7 @@ def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) 
             "1",  # PMIDs
             "123",
             "1",  # fetch additional metadata
+            "1,3",  # choose specific metadata sources
             "1",  # biomedical domain
             "1",  # NER task
             "all",  # all compatible annotators
@@ -370,7 +383,7 @@ def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) 
     ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmids"
-        assert config.enrichment_sources == SUPPORTED_ENRICHMENT_SOURCES
+        assert config.enrichment_sources == ["elinks", "europe_pmc"]
         expected = [
             annotator
             for annotator, _ in annotator_choices_for(

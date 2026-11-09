@@ -402,7 +402,24 @@ def _prompt_metadata_enrichment(*, input_fn: InputFn, output_fn: OutputFn) -> li
         ),
         default_value="no",
     )
-    return list(SUPPORTED_ENRICHMENT_SOURCES) if include_metadata == "yes" else []
+    if include_metadata != "yes":
+        return []
+    labels = {
+        "elinks": "Entrez citation and related-article links",
+        "crossref": "Crossref citation metadata",
+        "europe_pmc": "Europe PMC metadata and citations",
+        "semantic_scholar": "Semantic Scholar citations",
+        "unpaywall": "Open-access status and links",
+        "biorxiv": "bioRxiv/medRxiv preprint links",
+    }
+    return _prompt_multi_choice(
+        input_fn=input_fn,
+        output_fn=output_fn,
+        title="Choose metadata sources",
+        choices=tuple((source, labels[source]) for source in SUPPORTED_ENRICHMENT_SOURCES),
+        default_values=["elinks", "crossref", "europe_pmc"],
+        allow_all=True,
+    )
 
 
 def _prompt_domain_and_task(
