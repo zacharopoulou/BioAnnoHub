@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
+from email.message import Message
 from typing import Iterable
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -67,6 +68,39 @@ def test_default_orchestrator_registers_three_sources() -> None:
 def test_default_orchestrator_excludes_raw_text() -> None:
     orch = default_fetch_orchestrator()
     assert "raw_text" not in orch.names()
+
+
+def test_default_orchestrator_keeps_entrez_metadata_out_of_text(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "bio_annotation.fetch.pubtator3.PubTator3Source.fetch",
+        lambda _self, _request: [_doc("1", title="PubTator title", source="pubtator3")],
+    )
+    monkeypatch.setattr(
+        "bio_annotation.fetch.entrez.EntrezSource.fetch",
+        lambda _self, _request: [
+            _doc(
+                "1",
+                title="Entrez title",
+                abstract="Entrez abstract",
+                full_text="Entrez full text",
+                year="2024",
+                source="entrez",
+                metadata={"pubmed_record": {"pmid": "1", "authors": ["A. Author"]}},
+            )
+        ],
+    )
+    orch = default_fetch_orchestrator()
+
+    out = orch.fetch(
+        FetchInput.from_pmid("1"),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert len(out) == 1
+    assert out[0].title == "PubTator title"
+    assert out[0].abstract == ""
+    assert out[0].full_text is None
+    assert out[0].metadata["pubmed_record"]["authors"] == ["A. Author"]
 
 
 # C. FetchOrchestrator.fetch — single source
@@ -236,6 +270,42 @@ def test_pubtator_first_retries_transient_batch_error_without_splitting(monkeypa
 
     assert [document.pmid for document in out] == ["1", "2"]
     assert pubtator.attempts == 3
+
+
+@pytest.mark.parametrize(
+    ("status", "retry_after", "expected_delay"),
+    [(408, None, 1.0), (429, "7", 7.0)],
+)
+def test_pubtator_first_retries_http_errors_and_respects_retry_after(
+    monkeypatch,
+    status: int,
+    retry_after: str | None,
+    expected_delay: float,
+) -> None:
+    @dataclass(slots=True)
+    class _HttpErrorSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            if self.attempts == 1:
+                headers = Message()
+                if retry_after is not None:
+                    headers["Retry-After"] = retry_after
+                error = HTTPError("https://pubtator3", status, "temporary", headers, None)
+                raise ValueError("PubTator3 request failed") from error
+            return [_doc(pmid, title="PubTator title", source="pubtator3") for pmid in request.pmids]
+
+    delays: list[float] = []
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", delays.append)
+    pubtator = _HttpErrorSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert pubtator.attempts == 2
+    assert delays == [expected_delay]
 
 
 def test_pubtator_first_skips_batch_after_persistent_transient_error(monkeypatch) -> None:

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-import logging
-from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 import json
+import logging
 import socket
 import time
+from dataclasses import dataclass, replace
 from typing import Iterable
 from urllib.error import HTTPError, URLError
 
@@ -270,7 +272,7 @@ class PubtatorFirstOrchestrator:
         except Exception as exc:
             if _is_transient_pubtator_failure(exc):
                 for attempt in range(2):
-                    delay = float(2**attempt)
+                    delay = _pubtator_retry_delay(exc, attempt)
                     logger.warning(
                         "Temporary PubTator3 error for a batch of %d PMID(s); "
                         "retrying in %.1f seconds (%d/2): %s",
@@ -319,14 +321,42 @@ def _document_pmid(document: Document) -> str:
 
 
 def _is_transient_pubtator_failure(error: Exception) -> bool:
+    http_error = _find_http_error(error)
+    if http_error is not None:
+        return http_error.code in {408, 429} or http_error.code >= 500
+
     current: BaseException | None = error
     while current is not None:
-        if isinstance(current, HTTPError):
-            return current.code == 429 or current.code >= 500
         if isinstance(current, (URLError, TimeoutError, socket.timeout, json.JSONDecodeError)):
             return True
         current = current.__cause__ or current.__context__
     return False
+
+
+def _find_http_error(error: BaseException) -> HTTPError | None:
+    current: BaseException | None = error
+    while current is not None:
+        if isinstance(current, HTTPError):
+            return current
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _pubtator_retry_delay(error: Exception, attempt: int) -> float:
+    http_error = _find_http_error(error)
+    retry_after = http_error.headers.get("Retry-After") if http_error and http_error.headers else None
+    if retry_after:
+        try:
+            return max(0.0, float(retry_after))
+        except ValueError:
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is None:
+                    retry_at = retry_at.replace(tzinfo=timezone.utc)
+                return max(0.0, (retry_at - datetime.now(timezone.utc)).total_seconds())
+            except (TypeError, ValueError, OverflowError):
+                pass
+    return float(2**attempt)
 
 
 def _request_with_pubtator_text_fields(request: FetchInput) -> FetchInput:
@@ -384,10 +414,29 @@ def _merge_metadata_only(base: Document, extra: Document, fields: frozenset[str]
 
 # C. Default wiring
 
-def default_fetch_orchestrator() -> FetchOrchestrator:
-    """Default orchestrator with PubTator3, Entrez, Europe PMC in that order."""
+@dataclass(slots=True)
+class _PmidSafeDefaultFetchOrchestrator(FetchOrchestrator):
+    """Keep PMID text on PubTator3 while retaining the generic PMCID fetch behavior."""
 
-    return FetchOrchestrator(
+    def fetch(
+        self,
+        request: FetchInput,
+        *,
+        prefer: str | Iterable[str] | None = None,
+        strict: bool = True,
+    ) -> list[Document]:
+        if request.kind in {"pmid", "pmid_list"}:
+            return PubtatorFirstOrchestrator(
+                pubtator=self.get("pubtator3"),
+                entrez=self.get("entrez"),
+            ).fetch(request, prefer=prefer)
+        return super().fetch(request, prefer=prefer, strict=strict)
+
+
+def default_fetch_orchestrator() -> FetchOrchestrator:
+    """Default fetcher: PubTator3-only PMID text, optional Entrez metadata."""
+
+    return _PmidSafeDefaultFetchOrchestrator(
         sources=[
             PubTator3Source(),
             EntrezSource(),
