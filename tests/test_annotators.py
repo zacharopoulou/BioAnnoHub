@@ -161,7 +161,12 @@ def test_flair_adapter_preserves_unsupported_span_labels() -> None:
 
 
 def test_flair_adapter_loads_configured_model() -> None:
-    document = sample_document()
+    document = Document(
+        document_id="PMID:12345678",
+        pmid="12345678",
+        title="PTEN regulates glioblastoma",
+        source="pubmed",
+    )
     loaded_models: list[str] = []
 
     class FakeTagger:
@@ -201,7 +206,12 @@ def test_flair_adapter_loads_configured_model() -> None:
 
 
 def test_flair_adapter_keeps_top_linker_label() -> None:
-    document = sample_document()
+    document = Document(
+        document_id="PMID:12345678",
+        pmid="12345678",
+        title="PTEN regulates glioblastoma",
+        source="pubmed",
+    )
     span = FakeSpan(
         text="PTEN",
         start_position=0,
