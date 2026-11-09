@@ -59,11 +59,13 @@ sources = ["elinks", "crossref"]
 
 Supported values are `elinks`, `crossref`, `europe_pmc`, `semantic_scholar`, `unpaywall`, and `biorxiv`. These add related PMID lists, DOI reference data, citation/reference records, open-access details, or preprint details depending on the selected service. Some services make several requests per PMID. Unpaywall also requires `NCBI_EMAIL` to be set. Use only the enrichments your workflow needs.
 
-Enrichments run one PMID at a time. To see which enrichment is running and how long it takes, enable INFO messages:
+Enrichments run one PMID at a time. INFO messages report progress every five PMIDs. Use DEBUG to see each enrichment provider start and finish:
 
 ```bash
-uv run bioannohub --log-level INFO run-config --config configs/examples/fetch-merge.toml
+uv run bioannohub --log-level INFO run-config --config path/to/your-config.toml
 ```
+
+Use `--log-level DEBUG` instead of `INFO` for per-provider details.
 
 ## Annotator Tables
 

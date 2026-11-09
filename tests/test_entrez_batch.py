@@ -82,7 +82,7 @@ def test_fetch_pubmed_records_logs_enrichment_progress(monkeypatch, caplog) -> N
         lambda _doi, *, timeout: {"crossref_references": []},
     )
 
-    with caplog.at_level(logging.INFO, logger="bio_annotation.io.readers"):
+    with caplog.at_level(logging.DEBUG, logger="bio_annotation.io.readers"):
         fetch_pubmed_records(["38123456", "38123457"], enrichments=["crossref"])
 
     messages = [record.getMessage() for record in caplog.records]
@@ -90,6 +90,8 @@ def test_fetch_pubmed_records_logs_enrichment_progress(monkeypatch, caplog) -> N
     assert any("PMID 38123456 (1/2): enrichment 1/1 crossref finished" in m for m in messages)
     assert any("PMID 38123457 (2/2): enrichment 1/1 crossref started" in m for m in messages)
     assert any("PMID 38123457 (2/2): enrichment 1/1 crossref finished" in m for m in messages)
+    assert any("Completed enrichments for 1/2 PMID(s)" in m for m in messages)
+    assert any("Completed enrichments for 2/2 PMID(s)" in m for m in messages)
 
 
 class _FakeBatchClient:

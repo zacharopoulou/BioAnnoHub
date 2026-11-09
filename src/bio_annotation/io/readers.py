@@ -132,6 +132,7 @@ def fetch_pubmed_records(
     records: list[dict[str, Any]] = []
     article_count = len(articles)
     for index, article in enumerate(articles, start=1):
+        record_started = time.monotonic()
         medline = article.find("MedlineCitation")
         if medline is None:
             raise ValueError("PubMed batch response contains an article without MedlineCitation.")
@@ -146,6 +147,14 @@ def fetch_pubmed_records(
             progress=(index, article_count),
         )
         records.append(parsed)
+        if enrichments and (index == 1 or index % 5 == 0 or index == article_count):
+            logger.info(
+                "Completed enrichments for %d/%d PMID(s); latest PMID %s took %.1fs",
+                index,
+                article_count,
+                pmid,
+                time.monotonic() - record_started,
+            )
 
     return records
 
@@ -514,7 +523,7 @@ def _build_enrichment_bundle(
         progress_label = f"PMID {pmid}"
         if progress is not None:
             progress_label += f" ({progress[0]}/{progress[1]})"
-        logger.info(
+        logger.debug(
             "%s: enrichment %s/%s %s started",
             progress_label,
             source_index,
@@ -528,7 +537,7 @@ def _build_enrichment_bundle(
             logger.warning("%s: enrichment %s failed: %s", progress_label, source_name, exc)
             continue
         _merge_dict(bundle, result)
-        logger.info(
+        logger.debug(
             "%s: enrichment %s/%s %s finished in %.1fs",
             progress_label,
             source_index,
