@@ -2,6 +2,8 @@
 
 This directory contains runnable pipeline configurations for BioAnnoHub.
 
+For a guided first run, start with the [README quickstart](../README.md).
+
 ## Files
 
 - `pipeline.toml`
