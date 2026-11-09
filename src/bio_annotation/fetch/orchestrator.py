@@ -21,6 +21,7 @@ from bio_annotation.fetch.input import (
     UnsupportedInputError,
 )
 from bio_annotation.fetch.pubtator3 import PubTator3Source
+from bio_annotation.pipeline.progress import ProgressEvent, ProgressReporter, log_progress
 from bio_annotation.schemas.document import Document
 
 logger = logging.getLogger(__name__)
@@ -188,6 +189,7 @@ class PubtatorFirstOrchestrator:
     pubtator: FetchSource
     entrez: FetchSource
     europe_pmc: FetchSource | None = None
+    progress: ProgressReporter | None = None
 
     def fetch(
         self,
@@ -204,6 +206,7 @@ class PubtatorFirstOrchestrator:
             )
         use_entrez = "entrez" in selected
         use_europe_pmc = "europe_pmc" in selected or use_entrez
+        reporter = self.progress or log_progress
 
         if request.kind in {"pmcid", "pmcid_list"}:
             if use_entrez or use_europe_pmc:
@@ -212,6 +215,16 @@ class PubtatorFirstOrchestrator:
 
         primary_request = _request_with_pubtator_text_fields(request)
         requested_pmids = list(dict.fromkeys(request.pmids))
+        fetch_started = time.perf_counter()
+        reporter(
+            ProgressEvent(
+                annotator="",
+                phase="fetch",
+                event="start",
+                source="PubTator3 text",
+                document_total=len(requested_pmids),
+            )
+        )
         returned = self._fetch_pubtator_with_fallback(primary_request, requested_pmids)
         requested_set = set(requested_pmids)
         by_pmid: dict[str, Document] = {}
@@ -221,6 +234,17 @@ class PubtatorFirstOrchestrator:
                 by_pmid.setdefault(pmid, document)
 
         available_pmids = [pmid for pmid in requested_pmids if pmid in by_pmid]
+        reporter(
+            ProgressEvent(
+                annotator="",
+                phase="fetch",
+                event="done",
+                source="PubTator3 text",
+                document_count=len(available_pmids),
+                document_total=len(requested_pmids),
+                elapsed_seconds=time.perf_counter() - fetch_started,
+            )
+        )
         missing_pmids = [pmid for pmid in requested_pmids if pmid not in by_pmid]
         if missing_pmids:
             logger.warning(
@@ -245,18 +269,45 @@ class PubtatorFirstOrchestrator:
 
         for source_name, source in metadata_sources:
             if source is None:
-                logger.warning("%s metadata source is not configured", source_name)
+                reporter(
+                    ProgressEvent(
+                        annotator="",
+                        phase="fetch",
+                        event="error",
+                        source=f"{source_name} metadata",
+                        reason="source is not configured",
+                    )
+                )
                 continue
             source_request = metadata_request
             if source_name == "europe_pmc":
                 source_request = _request_for_europe_pmc_metadata(metadata_request)
+            fetch_started = time.perf_counter()
+            reporter(
+                ProgressEvent(
+                    annotator="",
+                    phase="fetch",
+                    event="start",
+                    source=f"{source_name} metadata",
+                    document_total=len(available_pmids),
+                )
+            )
             try:
                 metadata_documents = source.fetch(source_request)
             except Exception as exc:
-                logger.warning(
-                    "%s metadata fetch failed; keeping PubTator3 text and other metadata: %s",
-                    source_name,
-                    exc,
+                reporter(
+                    ProgressEvent(
+                        annotator="",
+                        phase="fetch",
+                        event="error",
+                        source=f"{source_name} metadata",
+                        document_total=len(available_pmids),
+                        elapsed_seconds=time.perf_counter() - fetch_started,
+                        reason=(
+                            "failed; keeping PubTator3 text and other metadata: "
+                            f"{exc}"
+                        ),
+                    )
                 )
                 continue
 
@@ -265,6 +316,17 @@ class PubtatorFirstOrchestrator:
                 for document in metadata_documents
                 if (pmid := _document_pmid(document)) in available_pmid_set
             }
+            reporter(
+                ProgressEvent(
+                    annotator="",
+                    phase="fetch",
+                    event="done",
+                    source=f"{source_name} metadata",
+                    document_count=len(metadata_by_pmid),
+                    document_total=len(available_pmids),
+                    elapsed_seconds=time.perf_counter() - fetch_started,
+                )
+            )
             missing_metadata = [pmid for pmid in available_pmids if pmid not in metadata_by_pmid]
             if missing_metadata:
                 logger.warning(

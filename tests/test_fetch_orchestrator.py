@@ -255,6 +255,35 @@ def test_entrez_metadata_request_also_merges_europe_pmc_metadata() -> None:
     assert out[0].metadata["origin_sources"] == ["pubtator3", "entrez", "europe_pmc"]
 
 
+def test_pubtator_first_orchestrator_reports_fetch_progress() -> None:
+    events = []
+    pubtator = _StubSource(
+        "pubtator3",
+        documents=[_doc("1", title="Title", abstract="Abstract", source="pubtator3")],
+    )
+    entrez = _StubSource("entrez", documents=[_doc("1", source="entrez")])
+    europe_pmc = _StubSource("europe_pmc", documents=[_doc("1", source="europe_pmc")])
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=pubtator,
+        entrez=entrez,
+        europe_pmc=europe_pmc,
+        progress=events.append,
+    )
+
+    orchestrator.fetch(FetchInput.from_pmid_list(["1"]), prefer=["pubtator3", "entrez"])
+
+    assert [(event.source, event.event) for event in events] == [
+        ("PubTator3 text", "start"),
+        ("PubTator3 text", "done"),
+        ("entrez metadata", "start"),
+        ("entrez metadata", "done"),
+        ("europe_pmc metadata", "start"),
+        ("europe_pmc metadata", "done"),
+    ]
+    assert events[0].document_total == 1
+    assert events[1].document_count == 1
+
+
 def test_configured_enrichment_survives_entrez_field_filter() -> None:
     @dataclass(slots=True)
     class _EnrichedEntrezSource(_StubSource):

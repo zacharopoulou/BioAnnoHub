@@ -26,8 +26,10 @@ ANNOTATOR_ASSET_HINTS: dict[str, str] = {
 @dataclass(frozen=True)
 class ProgressEvent:
     annotator: str
-    phase: str  # "preflight" (model assets) or "annotate" (per document)
+    phase: str  # "fetch", "preflight" or "annotate"
     event: str  # "start", "done" or "error"
+    source: str | None = None
+    document_count: int | None = None
     annotator_index: int | None = None
     annotator_total: int | None = None
     document_id: str | None = None
@@ -54,6 +56,8 @@ ProgressReporter = Callable[[ProgressEvent], None]
 def describe(event: ProgressEvent) -> str:
     """Human-readable one-line message for an event."""
 
+    if event.phase == "fetch":
+        return _describe_fetch(event)
     if event.phase == "preflight":
         return _describe_preflight(event)
     return _describe_annotate(event)
@@ -65,19 +69,42 @@ def log_progress(event: ProgressEvent) -> None:
         logger.warning("%s", describe(event))
         return
 
-    if event.phase == "annotate":
-        if event.event == "start" and event.document_index not in (None, 1):
-            return
-        if event.event == "done" and event.document_index is not None:
-            is_milestone = event.document_index % 25 == 0
-            is_final = (
-                event.document_total is not None
-                and event.document_index == event.document_total
-            )
-            if not (is_milestone or is_final):
-                return
+    if not should_report_progress(event):
+        return
 
     logger.info("%s", describe(event))
+
+
+def should_report_progress(event: ProgressEvent) -> bool:
+    """Keep batch logs concise while retaining starts, milestones and outcomes."""
+
+    if event.phase != "annotate" or event.document_index is None:
+        return True
+    if event.event == "start":
+        return event.document_index == 1 or event.document_index % 25 == 0
+    if event.event == "done":
+        return (
+            event.document_index % 25 == 0
+            or event.document_total is not None
+            and event.document_index == event.document_total
+        )
+    return True
+
+
+def _describe_fetch(event: ProgressEvent) -> str:
+    source = event.source or "document source"
+    total = event.document_total
+    count = event.document_count
+    if event.event == "start":
+        target = f" for {total} PMID(s)" if total is not None else ""
+        return f"Fetching {source}{target}"
+    if event.event == "done":
+        if count is not None and total is not None:
+            message = f"Fetched {count}/{total} document(s) from {source}"
+        else:
+            message = f"Finished fetching from {source}"
+        return f"{message}{_elapsed(event)}"
+    return f"{source} fetch failed{_elapsed(event)}: {event.reason}"
 
 def _describe_preflight(event: ProgressEvent) -> str:
     if event.event == "start":

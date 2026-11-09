@@ -44,7 +44,12 @@ from bio_annotation.pipeline_runner import (
     create_run_dir,
     run_pipeline_from_config,
 )
-from bio_annotation.pipeline.progress import ProgressEvent, ProgressReporter, describe
+from bio_annotation.pipeline.progress import (
+    ProgressEvent,
+    ProgressReporter,
+    describe,
+    should_report_progress,
+)
 from bio_annotation.terminal_text_input import (
     is_text_table_file,
     prompt_existing_file,
@@ -118,7 +123,7 @@ class TerminalUIAnswers:
 
 def _text_progress_reporter(output_fn: OutputFn) -> ProgressReporter:
     def report(event: ProgressEvent) -> None:
-        if event.event != "start":
+        if event.event != "start" and should_report_progress(event):
             output_fn(describe(event))
 
     return report

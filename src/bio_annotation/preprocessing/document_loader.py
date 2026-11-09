@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
+from bio_annotation.pipeline.progress import ProgressReporter
 from bio_annotation.pipeline_config import PipelineConfig, effective_pmid_fetch_sources
 from bio_annotation.schemas.document import Document
 
@@ -193,6 +194,7 @@ def load_documents_from_config(
     config: PipelineConfig,
     *,
     orchestrator_factory: OrchestratorFactory | None = None,
+    progress: ProgressReporter | None = None,
 ) -> list[Document]:
     """Load documents per input mode. PMID and PMID-file modes route through the fetch orchestrator."""
 
@@ -201,6 +203,7 @@ def load_documents_from_config(
         return _load_documents_via_orchestrator(
             config,
             orchestrator_factory=orchestrator_factory,
+            progress=progress,
         )
     if mode == "text_table":
         if config.text_file is None:
@@ -223,6 +226,7 @@ def _load_documents_via_orchestrator(
     config: PipelineConfig,
     *,
     orchestrator_factory: OrchestratorFactory | None,
+    progress: ProgressReporter | None = None,
 ) -> list[Document]:
     pmids = _resolve_pmids_from_config(config)
     if not pmids:
@@ -232,6 +236,7 @@ def _load_documents_via_orchestrator(
         orchestrator_factory,
         pubtator3_full_text=config.pubtator3_full_text,
         entrez_enrichments=config.enrichment_sources,
+        progress=progress,
     )
     fetch_sources = effective_pmid_fetch_sources(
         config.fetch_sources,
@@ -291,6 +296,7 @@ def _build_orchestrator(
     *,
     pubtator3_full_text: bool,
     entrez_enrichments: list[str] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Any:
     if factory is not None:
         return factory()
@@ -305,6 +311,7 @@ def _build_orchestrator(
         pubtator=PubTator3Source(full_text=pubtator3_full_text),
         entrez=EntrezSource(enrichments=tuple(entrez_enrichments or ())),
         europe_pmc=EuropePmcSource(),
+        progress=progress,
     )
 
 

@@ -18,7 +18,12 @@ from rich.table import Table
 from rich.theme import Theme
 from rich.text import Text
 
-from bio_annotation.pipeline.progress import ProgressEvent, ProgressReporter, describe
+from bio_annotation.pipeline.progress import (
+    ProgressEvent,
+    ProgressReporter,
+    describe,
+    should_report_progress,
+)
 
 
 THEME_WIDTH = 100
@@ -49,6 +54,8 @@ def annotator_spinner() -> Iterator[ProgressReporter]:
         with _native_output_above(console):
 
             def report(event: ProgressEvent) -> None:
+                if not should_report_progress(event):
+                    return
                 if event.event == "start":
                     status.update(Text(describe(event), style="muted"))
                 else:
