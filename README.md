@@ -84,6 +84,7 @@ uv run bioannohub evaluate-ncbi-review
 
 ## Documentation
 
+- [MedCAT setup and HunFlair diagnostics](docs/annotator-troubleshooting.md): service startup, failed requests, abbreviation warnings, and offset validation.
 - [PubMed PMID search guide](src/bio_annotation/io/README.md): query syntax, filters, date bounds, and progress output.
 
 - [Configuration guide](configs/README.md): config structure and runnable examples.

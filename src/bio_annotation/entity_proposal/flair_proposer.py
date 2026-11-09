@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+import logging
 from typing import Any, Callable, Iterable
 
 from bio_annotation.entity_proposal._shared import make_annotation
@@ -14,6 +15,29 @@ FLAIR_INSTALL_HINT = (
 
 SpanKey = tuple[int | None, int | None, str]
 LinkInfo = tuple[str | None, str | None, Any]
+logger = logging.getLogger(__name__)
+
+
+def _original_span(document: Document, span: Any, text: str) -> tuple[str, int, int]:
+    """Validate Flair coordinates and retain the exact original whitespace."""
+    original = document.text
+    start = getattr(span, "start_position", None)
+    end = getattr(span, "end_position", None)
+    if start is None or end is None:
+        start = original.find(text)
+        if start < 0 or original.find(text, start + 1) >= 0:
+            raise ValueError(f"Flair span has missing/ambiguous offsets in {document.document_id}.")
+        end = start + len(text)
+    if not isinstance(start, int) or not isinstance(end, int) or not 0 <= start < end <= len(original):
+        raise ValueError(f"Flair span has invalid offsets in {document.document_id}: {start}:{end}.")
+    source_text = original[start:end]
+    # Flair reconstructs whitespace from tokens; tabs/newlines may become spaces.
+    # Reject changes in non-whitespace characters instead of guessing an occurrence.
+    if "".join(source_text.split()) != "".join(str(text).split()):
+        raise ValueError(f"Flair span does not match original text in {document.document_id} at {start}:{end}.")
+    if source_text != source_text.strip():
+        raise ValueError(f"Flair span includes boundary whitespace in {document.document_id} at {start}:{end}.")
+    return source_text, start, end
 
 
 def _extract_flair_label(span: Any) -> tuple[Any, Any]:
@@ -103,6 +127,7 @@ def parse_flair_spans(
             text = span.to_original_text()
         if not text:
             continue
+        text, start, end = _original_span(document, span, text)
         canonical_id, canonical_name, link_score = links_by_span.get(
             _span_key(span),
             (None, None, None),
@@ -114,8 +139,8 @@ def parse_flair_spans(
                 source="flair",
                 span_text=text,
                 entity_type=label,
-                start=getattr(span, "start_position", None),
-                end=getattr(span, "end_position", None),
+                start=start,
+                end=end,
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
                 confidence=score,
@@ -148,6 +173,7 @@ def parse_flair_labels(
         text = getattr(span, "text", None)
         if not text:
             continue
+        text, start, end = _original_span(document, span, text)
         canonical_id, canonical_name, link_score = links_by_span.get(
             _span_key(span),
             (None, None, None),
@@ -159,8 +185,8 @@ def parse_flair_labels(
                 source="flair",
                 span_text=text,
                 entity_type=getattr(label, "value", None),
-                start=getattr(span, "start_position", None),
-                end=getattr(span, "end_position", None),
+                start=start,
+                end=end,
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
                 confidence=getattr(label, "score", None),
@@ -199,7 +225,15 @@ def annotate_with_flair(
             sentence = sentence_factory(document.text)
 
         tagger.predict(sentence)
-        for linker in linkers or []:
+        active_linkers = list(linkers or [])
+        if any(hasattr(getattr(linker, "preprocessor", None), "ab3p") for linker in active_linkers):
+            logger.info(
+                "HunFlair linking for %s uses Ab3P. Its native 'Failed to find sentence' "
+                "messages concern abbreviation resolution during linking; linked IDs may be "
+                "affected. BioAnnoHub validates returned entity offsets against the original text. "
+                "See docs/annotator-troubleshooting.md.", document.document_id,
+            )
+        for linker in active_linkers:
             linker.predict(sentence)
         if hasattr(sentence, "get_labels"):
             return parse_flair_labels(

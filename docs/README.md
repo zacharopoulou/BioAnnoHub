@@ -6,6 +6,7 @@ Its purpose is to explain the codebase and pipeline decisions in a way that is e
 
 ## Current Notes
 
+- [Annotator troubleshooting](annotator-troubleshooting.md): MedCATservice setup and availability, HunFlair/Ab3P warnings, and offset validation.
 - `workflow-spec.md`
   Near-term workflow for corpus creation, annotator execution, and harmonized outputs.
 

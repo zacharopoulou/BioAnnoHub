@@ -704,9 +704,8 @@ def _no_annotations_reason(annotator: str) -> str:
         )
     if annotator == "medcat":
         return (
-            "No annotations returned. Verify the MedCAT service is reachable "
-            "(set annotators.medcat.endpoint or MEDCAT_API_URL) and returned "
-            "entities for this document."
+            "MedCAT completed successfully; no entities remained for this document "
+            "after applying the confidence threshold."
         )
     if annotator in SCISPACY_ANNOTATOR_SET:
         return (

@@ -19,20 +19,28 @@ logger = logging.getLogger(__name__)
 DEFAULT_MEDCAT_API_URL = "http://localhost:5555"
 
 
+class MedCATServiceError(RuntimeError):
+    """A failed MedCAT request, distinct from a successful empty prediction."""
+
+
 def _normalize_medcat_process_url(url: str) -> str:
     """CogStack MedCATservice expects POST ``/api/process``. Users often set only host:port."""
 
     raw = (url or "").strip()
-    if not raw:
-        return raw
-    if raw.rstrip("/").lower().endswith("/api/process"):
-        return raw.rstrip("/")
     parsed = parse.urlparse(raw)
-    if not parsed.scheme or not parsed.netloc:
-        return raw
-    if parsed.path.rstrip("/").endswith("/api/process"):
-        return raw.rstrip("/")
-    return parse.urljoin(raw.rstrip("/") + "/", "api/process")
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise MedCATServiceError("MedCAT endpoint must be an absolute http(s) URL.")
+    try:
+        parsed.port
+    except ValueError as exc:
+        raise MedCATServiceError("MedCAT endpoint has an invalid port.") from exc
+    path = parsed.path.rstrip("/")
+    if not path:
+        path = "/api/process"
+    elif path == "/api":
+        path += "/process"
+    # Preserve explicit paths: do not silently turn a typo into /typo/api/process.
+    return parse.urlunparse(parsed._replace(path=path, fragment=""))
 
 
 def _medcat_min_acc_threshold(explicit: float | None) -> float | None:
@@ -240,8 +248,6 @@ def _failure_log_level(target: str) -> int:
 
 def call_medcat(document: Document, endpoint: str | None = None, timeout: int = 45) -> Any:
     target = _normalize_medcat_process_url(endpoint or os.getenv("MEDCAT_API_URL") or DEFAULT_MEDCAT_API_URL)
-    if not target:
-        return None
     text = document.get_text()
     # CogStack MedCATservice POST /api/process uses {"content": {"text": ...}}; we also send top-level "text".
     body: dict[str, Any] = {
@@ -257,24 +263,52 @@ def call_medcat(document: Document, endpoint: str | None = None, timeout: int = 
     )
     try:
         with request.urlopen(http_request, timeout=timeout) as response:
-            return json.loads(response.read().decode("utf-8"))
+            result = json.loads(response.read().decode("utf-8"))
+            _validate_medcat_response(result)
+            return result
     except error.HTTPError as exc:
         try:
             detail = _summarize_response_body(exc.read(4096).decode("utf-8", errors="replace"))
         except Exception:  # noqa: BLE001
             detail = ""
-        logger.log(
-            _failure_log_level(target),
-            "MedCAT HTTP error for %s: %s %s%s",
-            target,
-            exc.code,
-            exc.reason,
-            f" - {detail}" if detail else "",
+        hint = (
+            "Check the process endpoint path."
+            if exc.code in {404, 405}
+            else "Check MedCATservice logs and that its model has loaded."
         )
-        return None
-    except (error.URLError, json.JSONDecodeError, TimeoutError, OSError) as exc:
-        logger.log(_failure_log_level(target), "MedCAT request to %s failed: %s", target, exc)
-        return None
+        message = f"MedCAT HTTP {exc.code} {exc.reason} at {target}. {hint}"
+        if detail:
+            message += f" Response: {detail}"
+        logger.log(_failure_log_level(target), "%s", message)
+        raise MedCATServiceError(message) from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise MedCATServiceError(
+            f"MedCAT returned invalid JSON at {target}; check the endpoint path."
+        ) from exc
+    except (error.URLError, TimeoutError, OSError) as exc:
+        message = (
+            f"MedCAT connection failed at {target}: {exc}. Start MedCATservice and check "
+            "annotators.medcat.endpoint or MEDCAT_API_URL (host/port and container networking)."
+        )
+        logger.log(_failure_log_level(target), "%s", message)
+        raise MedCATServiceError(message) from exc
+
+
+def _validate_medcat_response(payload: Any) -> None:
+    """Reject error/unknown responses without rejecting supported empty containers."""
+    if isinstance(payload, list) and all(isinstance(item, dict) for item in payload):
+        return
+    if isinstance(payload, dict):
+        result = payload.get("result", payload)
+        if payload.get("success") is False or (isinstance(result, dict) and result.get("success") is False):
+            raise MedCATServiceError("MedCAT reported success=false; check MedCATservice logs.")
+        if isinstance(result, dict):
+            for key in ("annotations", "entities", "results", "denotations"):
+                if isinstance(result.get(key), (dict, list)):
+                    return
+            if _looks_like_entity_record(result):
+                return
+    raise MedCATServiceError("MedCAT returned an unrecognized response; check the process endpoint and service logs.")
 
 
 def annotate_with_medcat(
@@ -288,8 +322,9 @@ def annotate_with_medcat(
     payload = response
     if payload is None and request_fn is not None:
         payload = request_fn(document)
-    if payload is None:
+    if payload is None and request_fn is None:
         payload = call_medcat(document, endpoint=endpoint)
+    _validate_medcat_response(payload)
     return parse_medcat_response(document, payload, min_acc=min_acc)
 
 

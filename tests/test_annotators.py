@@ -146,8 +146,8 @@ def test_flair_adapter_preserves_unsupported_span_labels() -> None:
     spans = [
         FakeSpan(
             text="miR-21",
-            start_position=37,
-            end_position=43,
+            start_position=document.text.index("miR-21"),
+            end_position=document.text.index("miR-21") + len("miR-21"),
             labels=[FakeLabel(value="micro_rna", score=0.87)],
         )
     ]
@@ -1315,8 +1315,8 @@ def test_run_all_annotators_returns_consistent_result_map() -> None:
         flair_spans=[
             FakeSpan(
                 text="miR-21",
-                start_position=37,
-                end_position=43,
+                start_position=document.text.index("miR-21"),
+                end_position=document.text.index("miR-21") + len("miR-21"),
                 labels=[FakeLabel(value="micro_rna", score=0.87)],
             )
         ],

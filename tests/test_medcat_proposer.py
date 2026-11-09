@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import pytest
 from urllib import error
 
 from bio_annotation.entity_proposal import medcat_proposer
@@ -122,9 +123,12 @@ def test_call_medcat_warns_once_per_endpoint_until_reset(monkeypatch, caplog) ->
     reset_reported_endpoints()
 
     with caplog.at_level(logging.DEBUG, logger=medcat_proposer.logger.name):
-        call_medcat(document, endpoint="http://127.0.0.1:5555")
-        call_medcat(document, endpoint="http://127.0.0.1:5555")
+        with pytest.raises(medcat_proposer.MedCATServiceError, match="connection failed"):
+            call_medcat(document, endpoint="http://127.0.0.1:5555")
+        with pytest.raises(medcat_proposer.MedCATServiceError, match="connection failed"):
+            call_medcat(document, endpoint="http://127.0.0.1:5555")
         reset_reported_endpoints()
-        call_medcat(document, endpoint="http://127.0.0.1:5555")
+        with pytest.raises(medcat_proposer.MedCATServiceError, match="connection failed"):
+            call_medcat(document, endpoint="http://127.0.0.1:5555")
 
     assert [record.levelno for record in caplog.records] == [logging.WARNING, logging.DEBUG, logging.WARNING]
