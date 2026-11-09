@@ -677,10 +677,25 @@ def _fetch_semantic_scholar(pmid: Any, *, timeout: int) -> dict[str, Any]:
     except Exception:
         return {}
 
+    reference_items = references.get("data")
+    citation_items = citations.get("data")
+    if not isinstance(reference_items, list):
+        reference_items = []
+    if not isinstance(citation_items, list):
+        citation_items = []
+
     return {
         "s2_paper": paper,
-        "s2_references": [item.get("citedPaper", {}) for item in references.get("data", [])],
-        "s2_citations": [item.get("citingPaper", {}) for item in citations.get("data", [])],
+        "s2_references": [
+            item.get("citedPaper", {})
+            for item in reference_items
+            if isinstance(item, dict)
+        ],
+        "s2_citations": [
+            item.get("citingPaper", {})
+            for item in citation_items
+            if isinstance(item, dict)
+        ],
     }
 
 
