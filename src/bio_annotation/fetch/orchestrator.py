@@ -483,8 +483,6 @@ def _request_for_europe_pmc_metadata(request: FetchInput) -> FetchInput:
     elif request.fields is not None:
         metadata_fields = EUROPE_PMC_FIELDS - {"pmid", "title", "abstract", "full_text"}
         fields = request.fields & metadata_fields
-        if not fields:
-            fields = None
     else:
         fields = None
 
