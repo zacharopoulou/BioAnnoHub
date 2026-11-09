@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BioAnnoHub results</title>
+<style>
+:root {
+  --bg: #f6f4f9;
+  --bg-card: #ffffff;
+  --text: #1f1d2b;
+  --text-muted: #6b6878;
+  --text-soft: #8c8aa1;
+  --border: #e3dfee;
+  --border-soft: #efeaf6;
+  --accent: #4a3c8f;
+  --accent-soft: #6c5fb5;
+  --accent-bg: #ece7f7;
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  font-family: var(--sans);
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 1.5em 4em;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.55;
+}
+h1, h2, h3, h4 {
+  font-family: var(--serif);
+  color: var(--text);
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+h1 { font-size: 2em; margin: 0; }
+h2 { font-size: 1.55em; margin: 0.4em 0 0.2em; }
+h3 { font-size: 1.05em; margin: 2em 0 0.5em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); font-weight: 700; font-family: var(--sans); }
+h4 { font-size: 0.78em; margin: 0 0 0.8em; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent); font-weight: 700; font-family: var(--sans); }
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms; }
+a:hover { border-bottom-color: var(--accent); }
+
+.site-header {
+  padding: 2em 0 1em;
+  margin-bottom: 1.5em;
+  border-bottom: 1px solid var(--border);
+}
+.site-header h1 { font-family: var(--serif); color: var(--accent); }
+.site-header p { margin: 0.4em 0 0; color: var(--text-muted); font-size: 0.95em; font-style: italic; }
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1em;
+  align-items: center;
+  margin-bottom: 2em;
+  padding: 1.6em 1.8em;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
+}
+.summary-headline .lede { font-size: 1.1em; margin: 0 0 0.3em; color: var(--text-muted); }
+.summary-headline .meta { margin: 0; color: var(--text-soft); font-size: 0.92em; }
+.big-number { font-family: var(--serif); color: var(--accent); font-size: 1.6em; font-weight: 700; padding: 0 0.05em; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  margin-bottom: 2em;
+  font-size: 0.82em;
+  color: var(--text-muted);
+}
+.legend-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: var(--serif);
+  cursor: default;
+  user-select: none;
+}
+
+.hint {
+  font-size: 0.9em;
+  color: var(--text-muted);
+  margin: 0 0 0.8em;
+}
+
+.document {
+  margin-bottom: 1.2em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+.document > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: baseline;
+  gap: 0.7em;
+  padding: 1em 1.3em;
+}
+.document > summary::-webkit-details-marker { display: none; }
+.document > summary::before {
+  content: "▸";
+  color: var(--text-soft);
+  display: inline-block;
+  transition: transform 120ms;
+}
+.document[open] > summary::before { transform: rotate(90deg); }
+.document > summary:hover { background: var(--border-soft); }
+.doc-summary-title { font-family: var(--serif); font-weight: 700; font-size: 1.08em; flex: 1; color: var(--text); }
+.doc-summary-count { color: var(--text-muted); font-size: 0.85em; white-space: nowrap; }
+.doc-body { padding: 0 1.3em 1.4em; }
+.document .meta { font-size: 0.88em; color: var(--text-muted); margin-top: 0.1em; }
+
+.doc-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);  /* the document's Bioconcepts panel goes below the abstract */
+  gap: 2em;
+  margin-top: 1em;
+  align-items: start;
+}
+.doc-main > h3:first-child { margin-top: 0; }
+.doc-main { min-width: 0; }
+
+.annotated-text {
+  background: var(--bg-card);
+  padding: 1.6em 1.8em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  line-height: 1.85;
+  font-size: 1em;
+  font-family: var(--serif);
+  color: var(--text);
+}
+
+mark.entity {
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: var(--serif);
+  cursor: pointer;
+  border-bottom: 1px dotted transparent;
+  transition: border-bottom-color 120ms;
+}
+mark.entity:hover { border-bottom-color: rgba(31, 29, 43, 0.4); }
+mark.entity           { background: transparent; }
+mark.entity-unmatched { background: #fbeb8a; color: #5c4910; border-bottom: 1px dashed #b8941c; }
+/* One colour family per group of entity types (see entity_family in html_report.py). */
+.fam-gene, mark.entity[data-family="gene"] { --fbg: #cfe8c9; --ffg: #235c27; --fbar: #a6d49b; --fseg: #5fa052; --flab: #5f8a52; }
+.fam-drug, mark.entity[data-family="drug"] { --fbg: #ffd3ad; --ffg: #8a3a00; --fbar: #f6a35e; --fseg: #e07a22; --flab: #b4580f; }
+.fam-disease, mark.entity[data-family="disease"] { --fbg: #f6cccb; --ffg: #7a2a2a; --fbar: #eaa9a8; --fseg: #c96b6b; --flab: #b35a5a; }
+.fam-species, mark.entity[data-family="species"] { --fbg: #c6d9f6; --ffg: #1f4a82; --fbar: #9fbeea; --fseg: #5a86c4; --flab: #4f7aac; }
+.fam-variant, mark.entity[data-family="variant"] { --fbg: #ecc8ec; --ffg: #6a2f7a; --fbar: #d9a7d9; --fseg: #b25fb2; --flab: #9c5172; }
+.fam-cell, mark.entity[data-family="cell"] { --fbg: #d3c4f0; --ffg: #45308f; --fbar: #b7a3e5; --fseg: #7d5fc4; --flab: #6a5aa0; }
+.fam-anatomy, mark.entity[data-family="anatomy"] { --fbg: #b6e6da; --ffg: #0f5d51; --fbar: #8ad6c4; --fseg: #2fa899; --flab: #2f8f80; }
+.fam-procedure, mark.entity[data-family="procedure"] { --fbg: #f7f29c; --ffg: #5c5700; --fbar: #e3da52; --fseg: #bdb22a; --flab: #857d0e; }
+.fam-clinical, mark.entity[data-family="clinical"] { --fbg: #dde4ec; --ffg: #34465c; --fbar: #b6c3d3; --fseg: #7b8ca1; --flab: #56687e; }
+.fam-other, mark.entity[data-family="other"] { --fbg: #ececec; --ffg: #474747; --fbar: #cfcfcf; --fseg: #999999; --flab: #666666; }
+mark.entity[data-family] { background: var(--fbg); color: var(--ffg); border: 1px solid var(--ffg); }
+/* a highlight that wraps onto the next line keeps its border on both parts */
+mark.entity { -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+mark.entity.is-selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.type-chip[class*="fam-"] { background: var(--fbg); color: var(--ffg); border: 1px solid var(--fbar); }
+.legend-chip[class*="fam-"] { background: var(--fbg); color: var(--ffg); cursor: help; }
+/* the type name looks like its highlights: pale fill, dark border and text */
+.stats-group[class*="fam-"] .stats-type { color: var(--ffg); background: var(--fbg); border: 1px solid var(--ffg); }
+.stats-group[class*="fam-"] .stats-bar-fill { background: var(--fbar); }
+.stats-group[class*="fam-"] .stats-keyword { background: var(--fbg); color: var(--ffg); }
+.hist-row[class*="fam-"] .hist-label { color: var(--flab); }
+.hist-row[class*="fam-"] .hist-fill { background: var(--fbar); }
+/* same colours as the highlights: pale fill, dark border */
+.doc-seg[class*="fam-"] { background: var(--fbar); }
+.doc-seg + .doc-seg { box-shadow: inset 1px 0 0 #fff; }  /* thin white gap between segments */
+
+/* The entity type, as a small label inside each highlight ("Show type labels"). */
+body.show-type-labels mark.entity[data-label]::after {
+  content: attr(data-label);
+  font-family: var(--sans);
+  font-size: 0.6em;
+  font-weight: 700;
+  margin-left: 0.35em;
+  padding: 0 0.3em;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ffg);
+  vertical-align: 0.15em;
+  display: inline-block;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em 1.6em;
+  margin: -1em 0 2em;
+  padding: 0.8em 1.2em;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+.filter-group { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; }
+.filter-title { font-size: 0.85em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-right: 0.3em; }
+.filter-chip { display: inline-flex; align-items: center; gap: 0.3em; padding: 2px 8px; border-radius: 3px; background: var(--accent-bg); color: var(--text); cursor: pointer; user-select: none; }
+.filter-chip[class*="fam-"] { background: var(--fbg); color: var(--ffg); }
+.filter-chip input { margin: 0; cursor: pointer; }
+mark.entity:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.stats-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.3em 1.4em;
+  align-self: start;
+  box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
+}
+.stats-panel h4 { margin-bottom: 1em; }
+/* Many entity types (clinical annotators) would make the panel very tall: scroll instead. */
+.stats-panel { max-height: 460px; overflow-y: auto; }
+.stats-run, .stats-doc {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 0.3em 1.5em;
+  max-height: 280px;
+  padding: 1em;
+}
+.stats-run > h4, .stats-run > .hint, .stats-doc > h4, .stats-doc > .hint { grid-column: 1 / -1; }
+.stats-run > .stats-group, .stats-doc > .stats-group { align-self: start; min-width: 0; }
+.summary { align-items: start; }
+.stats-group { margin-bottom: 0.3em; }
+.stats-group:last-of-type { margin-bottom: 0; }
+.stats-group summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.5em 0;
+  border-bottom: 1px solid var(--border-soft);
+  cursor: pointer;
+  list-style: none;
+  outline: none;
+}
+.stats-group summary::-webkit-details-marker { display: none; }
+.stats-group summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.4em;
+  color: var(--text-soft);
+  font-size: 0.7em;
+  transform: translateY(-1px);
+  transition: transform 120ms;
+}
+.stats-group[open] summary::before { transform: rotate(90deg) translateX(-1px); }
+.stats-group summary:hover { background: var(--border-soft); }
+.stats-type {
+  font-size: 0.85em;
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 3px;
+}
+.stats-type-total {
+  margin-left: auto;
+  padding-left: 0.6em;
+  font-size: 0.78em;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+}
+.stats-list {
+  list-style: none;
+  padding: 0.5em 0 0.2em 1.2em;
+  margin: 0;
+  font-size: 0.92em;
+}
+.stats-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px max-content;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.22em 0;
+}
+.stats-keyword {
+  justify-self: start;
+  max-width: 100%;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.05em 0.4em;
+  border-radius: 3px;
+}
+.stats-bar-track {
+  height: 5px;
+  background: var(--border-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  width: 100%;
+}
+.stats-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent-soft);
+  border-radius: 3px;
+  transition: width 200ms;
+}
+.stats-count {
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  text-align: right;
+  min-width: 1.5em;
+}
+.stats-more { color: var(--text-soft); font-style: italic; font-size: 0.85em; padding-top: 0.4em; }
+
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.3em 1.6em 1.5em;
+  margin-bottom: 1.5em;
+  box-shadow: 0 1px 3px rgba(31, 29, 43, 0.04);
+}
+.chart-card h4 { margin: 0 0 1em 0; }
+
+.type-histogram { list-style: none; margin: 0; padding: 0; }
+.hist-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr) 50px;
+  align-items: center;
+  gap: 0.9em;
+  padding: 0.35em 0;
+}
+.hist-label {
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+.hist-track {
+  height: 10px;
+  background: var(--border-soft);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.hist-fill {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent-soft);
+  transition: width 250ms ease-out;
+}
+.hist-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+  font-weight: 600;
+}
+
+.doc-overview { list-style: none; margin: 0; padding: 0; }
+.doc-row {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr) minmax(160px, 30%) 50px;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.45em 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-link {
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.doc-title {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+.doc-track {
+  height: 12px;
+  background: var(--border-soft);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.doc-bar {
+  display: flex;
+  height: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.doc-seg { display: block; height: 100%; }
+.doc-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  font-weight: 600;
+  text-align: right;
+}
+
+.comparison-section { margin-top: 1.5em; }
+.comparison-section summary {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+  cursor: pointer;
+  list-style: none;
+  outline: none;
+  padding: 0.4em 0;
+}
+.comparison-section summary::-webkit-details-marker { display: none; }
+.comparison-section summary h3 { margin: 0; }
+.comparison-section summary::after {
+  content: "▸";
+  color: var(--text-soft);
+  margin-left: auto;
+  font-size: 0.85em;
+  transition: transform 120ms;
+}
+.comparison-section[open] summary::after { transform: rotate(90deg); }
+.comparison-section[open] summary .hint { color: var(--text-muted); }
+.comparison-section .hint { margin: 0; }
+.comparison-scroll {
+  max-height: 60vh;
+  overflow: auto;  /* one column per annotator: scroll sideways when there are many */
+  margin-top: 0.8em;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+.comparison-scroll .comparison { border: none; border-radius: 0; }
+.comparison-scroll thead { position: sticky; top: 0; z-index: 1; }
+
+.comparison {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  font-size: 0.92em;
+}
+.comparison th, .comparison td {
+  text-align: left;
+  min-width: 9em;
+  padding: 0.7em 1em;
+  border-bottom: 1px solid var(--border-soft);
+  vertical-align: top;
+}
+.comparison tr:last-child td { border-bottom: none; }
+.comparison th {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 0.78em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.comparison code {
+  background: var(--accent-bg);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+}
+.comparison .entity-type {
+  font-weight: 600;
+  font-size: 0.92em;
+}
+.comparison .absent { color: var(--text-soft); }
+.comparison small { color: var(--text-muted); font-size: 0.85em; }
+
+/* Entity details: a side bar on the right, so the text stays visible next to it. */
+.entity-popup-overlay {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100vw);
+  z-index: 1000;
+}
+.entity-popup-overlay.hidden { display: none; }
+.entity-popup-card {
+  background: var(--bg-card);
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 30px rgba(31, 29, 43, 0.15);
+  height: 100%;
+  overflow-y: auto;
+  padding: 1.4em 1.6em 1.6em;
+}
+/* make room for the side bar so it does not cover the text */
+body.entity-panel-open { margin-right: 430px; }
+@media (max-width: 900px) {
+  .entity-popup-overlay { top: auto; width: 100vw; height: 55vh; }
+  .entity-popup-card { border-left: 0; border-top: 1px solid var(--border); box-shadow: 0 -10px 30px rgba(31, 29, 43, 0.15); }
+  body.entity-panel-open { margin-right: auto; padding-bottom: 56vh; }
+}
+
+/* Annotator table in the summary */
+.annotator-table-scroll { overflow-x: auto; margin-top: 1em; }
+.annotator-table { border-collapse: collapse; width: 100%; font-size: 0.88em; }
+.annotator-table th { text-align: left; font-size: 0.78em; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); padding: 0.4em 0.6em; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.annotator-table td { padding: 0.45em 0.6em; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+.annotator-table td:first-child { font-weight: 600; white-space: nowrap; }
+.annotator-table .nowrap { white-space: nowrap; }
+.annotator-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.type-chips { display: flex; flex-wrap: wrap; gap: 3px; }
+.type-chip { font-size: 0.85em; padding: 0 6px; border-radius: 3px; white-space: nowrap; }
+
+/* Entity type distribution: a button in the summary opens it as a pop-up */
+.dist-button { font: inherit; font-size: 0.85em; margin-top: 0.6em; padding: 0.35em 0.9em; border: 1px solid var(--accent-soft); border-radius: 4px; background: var(--accent-bg); color: var(--accent); cursor: pointer; }
+.dist-button:hover { background: var(--accent); color: #fff; }
+/* padding sits on the inner body, so a click on the dialog itself means the backdrop */
+.dist-dialog-body { padding: 1.4em 1.6em 1.6em; }
+.dist-dialog { border: 0; border-radius: 8px; padding: 0; width: min(760px, 94vw); max-height: 85vh; box-shadow: 0 20px 50px rgba(31, 29, 43, 0.3); }
+.dist-dialog::backdrop { background: rgba(31, 29, 43, 0.55); }
+.dist-dialog-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-soft); padding-bottom: 0.6em; margin-bottom: 0.8em; }
+.dist-dialog-header h3 { margin: 0; }
+.dist-dialog .chart-card { border: 0; padding: 0; margin: 0; box-shadow: none; background: none; }
+.entity-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  border-bottom: 1px solid var(--border-soft);
+  padding-bottom: 0.8em;
+  margin-bottom: 1em;
+}
+.entity-popup-header h3 { margin: 0; text-transform: none; letter-spacing: 0; font-family: var(--serif); font-size: 1.3em; color: var(--text); }
+.entity-popup-close {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  font-size: 1.5em;
+  line-height: 1;
+  padding: 0 0.2em;
+  cursor: pointer;
+  font-family: var(--sans);
+}
+.entity-popup-close:hover { color: var(--accent); }
+.entity-popup-info {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.4em 1.2em;
+  margin: 0 0 1.2em 0;
+  font-size: 0.95em;
+}
+.entity-popup-info dt { color: var(--text-muted); font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 0.1em; }
+.entity-popup-info dd { margin: 0; word-break: break-word; }
+.entity-popup-sources {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4em 1.5em;
+  font-size: 0.92em;
+  align-items: start;
+}
+.entity-popup-col-title {
+  font-size: 0.78em;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border-soft);
+}
+.entity-popup-source { margin-bottom: 0.6em; }
+.entity-popup-source:last-child { margin-bottom: 0; }
+.entity-popup-source-name { font-weight: 600; color: var(--accent); }
+.entity-popup-source-id { margin: 0.1em 0 0 0.2em; }
+.entity-popup-source-none { color: var(--text-muted); }
+.entity-popup-source-detail { color: var(--text-muted); font-size: 0.9em; }
+.entity-popup-empty { grid-column: 1 / -1; color: var(--text-muted); font-style: italic; }
+
+@media (max-width: 900px) {
+  .summary { grid-template-columns: 1fr; }
+  .doc-grid { grid-template-columns: 1fr; }
+  .stats-panel { order: 2; }
+}
+
+/* Entity graph */
+.graph-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1.2em 1.5em 1.5em; margin-top: 2em; }
+.graph-section h3 { margin-top: 0; }
+.graph-controls { display: flex; flex-wrap: wrap; gap: 0.6em 1.6em; align-items: center; font-size: 0.9em; margin: 0.8em 0; color: var(--text-muted); }
+.graph-controls select, .graph-controls input { font: inherit; vertical-align: middle; }
+.graph-controls select { max-width: 22em; }
+.graph-layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1em; }
+.graph-canvas { border: 1px solid var(--border); border-radius: 4px; background: #fbfaff; position: relative; min-width: 0; }
+.graph-canvas svg { width: 100%; height: 560px; display: block; touch-action: none; }
+.graph-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; }
+.graph-empty[hidden] { display: none; }
+.graph-link { stroke: #b9b3cc; stroke-opacity: 0.75; cursor: pointer; }
+.graph-link:hover, .graph-link.active { stroke: var(--accent-soft); stroke-opacity: 1; }
+.graph-node { cursor: grab; outline: none; }
+/* same colours as the highlights in the text: pale fill, dark border */
+.graph-node circle { fill: var(--fbg); stroke: var(--ffg); stroke-width: 1.5; }
+.graph-node text { font-size: 11px; fill: var(--text); pointer-events: none; paint-order: stroke; stroke: #fbfaff; stroke-width: 3px; display: none; }
+.graph-node.labelled text, .graph-node.near text, .graph-node:hover text, .graph-node:focus text { display: block; }
+.graph-node.selected circle, .graph-node:focus circle { stroke: var(--accent); stroke-width: 3; }
+.graph-node.dimmed, .graph-link.dimmed { opacity: 0.12; }
+.graph-panel { border: 1px solid var(--border); border-radius: 4px; padding: 0.9em 1em; max-height: 560px; overflow-y: auto; font-size: 0.9em; min-width: 0; }
+.graph-panel h4 { text-transform: none; letter-spacing: 0; font-size: 1.1em; font-family: var(--serif); color: var(--text); margin-bottom: 0.4em; }
+.graph-panel h5 { margin: 1em 0 0.4em; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.graph-meta { margin: 0.3em 0; color: var(--text-muted); }
+.graph-neighbours { display: flex; flex-wrap: wrap; gap: 4px; }
+.graph-neighbour { font: inherit; font-size: 0.9em; border: 0; border-radius: 3px; padding: 2px 7px; margin: 0 4px 4px 0; cursor: pointer; background: var(--fbg); color: var(--ffg); }
+.graph-sentence { margin: 0 0 0.7em; padding-left: 0.7em; border-left: 3px solid var(--border); line-height: 1.5; }
+.graph-term { background: var(--fbg); color: var(--ffg); padding: 0 2px; border-radius: 2px; }
+.graph-doc { font-size: 0.85em; white-space: nowrap; }
+@media (max-width: 860px) {
+  .graph-layout { grid-template-columns: 1fr; }
+  .graph-canvas svg { height: 420px; }
+}
+
+/* ---- v2 ---- */
+/* the filter bar now sits above the documents, not under the summary */
+.filter-bar { margin: 0 0 1.5em; }
+
+/* Tabs in the "Entity types" pop-up */
+.tabs { display: flex; gap: 0.3em; border-bottom: 1px solid var(--border); margin-bottom: 1em; }
+.tab { font: inherit; font-size: 0.9em; padding: 0.4em 1em; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-muted); cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.tab-panel[hidden] { display: none; }
+
+/* Bioconcepts inside a pop-up: no card, no height limit (the pop-up scrolls) */
+.dist-dialog { overflow-y: auto; }
+.dist-dialog .stats-panel { max-height: none; overflow: visible; border: 0; box-shadow: none; padding: 0; }
+.dist-dialog .stats-panel > h4 { display: none; }
+.dist-dialog .stats-run, .dist-dialog .stats-doc { max-height: none; padding: 0; }
+/* a keyword opens it in the entity explorer */
+.stats-keyword { cursor: pointer; }
+.stats-keyword:hover { text-decoration: underline; }
+
+/* "Show in entity explorer" in the side bar */
+.explore-button { font: inherit; font-size: 0.85em; margin: 0 0 1em; padding: 0.35em 0.9em; border: 1px solid var(--accent-soft); border-radius: 4px; background: var(--accent-bg); color: var(--accent); cursor: pointer; }
+.explore-button:hover { background: var(--accent); color: #fff; }
+.explore-button[hidden] { display: none; }
+
+/* Entity explorer */
+.explorer-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 1.2em 1.5em 1.5em; margin-bottom: 2em; }
+.explorer-section h3 { margin-top: 0; }
+.explorer-controls { display: flex; flex-wrap: wrap; gap: 0.6em 1.4em; align-items: center; font-size: 0.9em; margin: 0.8em 0; color: var(--text-muted); }
+.explorer-controls select, .explorer-controls input { font: inherit; vertical-align: middle; }
+.explorer-controls select { max-width: 18em; }
+.explorer-search { position: relative; flex: 1 1 260px; max-width: 420px; }
+.explorer-search input { width: 100%; padding: 0.4em 0.7em; border: 1px solid var(--accent-soft); border-radius: 4px; }
+.explorer-suggestions { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin: 2px 0 0; padding: 0.3em 0; list-style: none; background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 8px 24px rgba(31, 29, 43, 0.15); max-height: 360px; overflow-y: auto; }
+.explorer-suggestions[hidden] { display: none; }
+.explorer-suggestion { display: flex; justify-content: space-between; align-items: center; gap: 1em; padding: 0.3em 0.7em; cursor: pointer; }
+.explorer-suggestion:hover, .explorer-suggestion.active { background: var(--accent-bg); }
+.explorer-suggestion-none { padding: 0.3em 0.7em; color: var(--text-muted); font-style: italic; }
+.explorer-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em 0.8em; margin: 0 0 0.8em; font-size: 0.9em; }
+.explorer-nav[hidden] { display: none; }
+.explorer-nav-button { font: inherit; padding: 0.25em 0.8em; border: 1px solid var(--accent-soft); border-radius: 4px; background: var(--accent-bg); color: var(--accent); cursor: pointer; }
+.explorer-nav-button:hover { background: var(--accent); color: #fff; }
+.explorer-trail { color: var(--text-muted); }
+.explorer-trail-current { color: var(--text); font-weight: 600; }
+.explorer-list h4 { margin: 0.4em 0 0.6em; }
+/* each entity: its name, with the counts under it */
+.explorer-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 0.2em 1.2em; }
+.explorer-row { font: inherit; display: flex; flex-direction: column; align-items: flex-start; gap: 0.2em; min-width: 0; text-align: left; padding: 0.45em 0.5em; border: 0; border-bottom: 1px solid var(--border-soft); background: none; color: var(--text); cursor: pointer; }
+.explorer-row:hover { background: var(--border-soft); }
+.explorer-row-name { max-width: 100%; overflow-wrap: anywhere; font-size: 0.9em; font-weight: 600; padding: 0 6px; border-radius: 3px; background: var(--fbg); color: var(--ffg); border: 1px solid var(--ffg); }
+.explorer-suggestion .explorer-row-name { flex: 0 1 auto; }
+.explorer-row-meta { font-size: 0.8em; color: var(--text-soft); white-space: nowrap; }
+.explorer-row-meta strong { color: var(--text); font-weight: 600; }
+/* "All types": one collapsible group per type */
+.explorer-group { border-bottom: 1px solid var(--border-soft); }
+.explorer-group > summary { display: flex; align-items: center; gap: 0.8em; padding: 0.5em 0.2em; cursor: pointer; list-style: none; }
+.explorer-group > summary::-webkit-details-marker { display: none; }
+.explorer-group > summary::before { content: "▸"; color: var(--text-soft); font-size: 0.8em; transition: transform 120ms; }
+.explorer-group[open] > summary::before { transform: rotate(90deg); }
+.explorer-group > summary:hover { background: var(--border-soft); }
+.explorer-group > .explorer-rows { padding: 0 0 0.8em 1.2em; }
+.explorer-view[hidden], .explorer-list[hidden] { display: none; }
+.explorer-section .graph-node { cursor: pointer; }
+.graph-node text.graph-centre-label { font-size: 13px; font-weight: 700; }
+</style>
+</head>
+<body class="show-type-labels">
+<header class="site-header">
+  <h1>BioAnnoHub</h1>
+  <p>Static annotation report. Re-open this file any time to revisit the run.</p>
+</header>
+
+<!--CONTENT-->
+
+<div class="entity-popup-overlay hidden" id="entity-popup" aria-hidden="true" role="complementary" aria-label="Entity details">
+  <div class="entity-popup-card">
+    <div class="entity-popup-header">
+      <h3 id="entity-popup-title">Entity</h3>
+      <button class="entity-popup-close" type="button" aria-label="Close">&times;</button>
+    </div>
+    <button type="button" class="explore-button" hidden>Show in entity explorer</button>
+    <dl class="entity-popup-info"></dl>
+    <h4>Found by</h4>
+    <div class="entity-popup-sources"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const popup = document.getElementById("entity-popup");
+  if (!popup) return;
+  const titleEl = popup.querySelector("#entity-popup-title");
+  const infoEl = popup.querySelector(".entity-popup-info");
+  const sourcesEl = popup.querySelector(".entity-popup-sources");
+  const closeBtn = popup.querySelector(".entity-popup-close");
+  const exploreBtn = popup.querySelector(".explore-button");
+
+  // Labels and annotator order written by html_report.py for this run.
+  let CONFIG = {};
+  try { CONFIG = JSON.parse((document.getElementById("report-config") || {}).textContent || "{}"); }
+  catch (err) { console.error("Failed to parse report config", err); }
+  const ENTITY_TYPE_LABELS = Object.assign({ unknown: "Entity" }, CONFIG.type_labels || {});
+  const ANNOTATOR_LABELS = Object.assign({}, CONFIG.annotator_labels || {});
+  const ANNOTATOR_ORDER = CONFIG.annotator_order || [];
+  const rank = (name) => {
+    const i = ANNOTATOR_ORDER.indexOf(name);
+    return i === -1 ? ANNOTATOR_ORDER.length : i;
+  };
+
+  // Display IDs with a consistent prefix casing regardless of which annotator
+  // emitted them (e.g. mesh: and MESH: both render as MESH:).
+  const ID_PREFIX_CANONICAL = {
+    mesh: "MESH",
+    ncbigene: "NCBIGene", ncbi_gene: "NCBIGene", "ncbi-gene": "NCBIGene",
+    ncbitaxon: "NCBITaxon", ncbitaxonomy: "NCBITaxon", ncbi_taxonomy: "NCBITaxon",
+    taxonomy: "NCBITaxon", taxon: "NCBITaxon",
+    dbsnp: "dbSNP", chebi: "CHEBI", drugbank: "DrugBank",
+    cellosaurus: "CVCL", cvcl: "CVCL", omim: "OMIM", mim: "OMIM",
+    cl: "CL", go: "GO", doid: "DOID", uberon: "UBERON", bto: "BTO", fma: "FMA", pato: "PATO",
+  };
+  function formatId(canonicalId, entityType) {
+    if (!canonicalId) return canonicalId;
+    const s = String(canonicalId).trim();
+    const idx = s.indexOf(":");
+    if (idx === -1) {
+      // Bare numeric id: add the prefix the prefixed annotators use, so e.g.
+      // PubTator3 "9606" matches BERN2 "NCBITaxon:9606".
+      if (/^\d+$/.test(s)) {
+        if (entityType === "gene") return "NCBIGene:" + s;
+        if (entityType === "species") return "NCBITaxon:" + s;
+      }
+      return s;
+    }
+    const canon = ID_PREFIX_CANONICAL[s.slice(0, idx).toLowerCase()];
+    return canon ? canon + ":" + s.slice(idx + 1) : s;
+  }
+  // An annotator did NEN for this entity only if it returned a usable id.
+  const NULL_IDS = new Set(["", "-", "cui-less", "none", "null"]);
+  function isRealId(id) {
+    return id != null && !NULL_IDS.has(String(id).trim().toLowerCase());
+  }
+
+  function databaseLink(canonicalId, entityType) {
+    if (!canonicalId) return null;
+    const id = String(canonicalId).trim();
+    const mesh = id.match(/^mesh:(.+)$/i);
+    if (mesh) return { url: `https://meshb.nlm.nih.gov/record/ui?ui=${encodeURIComponent(mesh[1])}` };
+    const gene = id.match(/^ncbi[_-]?gene:(.+)$/i);
+    if (gene) return { url: `https://www.ncbi.nlm.nih.gov/gene/${encodeURIComponent(gene[1])}` };
+    const tax = id.match(/^(?:ncbi[_-]?taxonomy|ncbitaxon|taxonomy|taxon):(.+)$/i);
+    if (tax) return { url: `https://www.ncbi.nlm.nih.gov/taxonomy/${encodeURIComponent(tax[1])}` };
+    const snp = id.match(/^(?:dbsnp|rs):(.+)$/i);
+    if (snp) return { url: `https://www.ncbi.nlm.nih.gov/snp/${encodeURIComponent(snp[1])}` };
+    const chebi = id.match(/^chebi:(.+)$/i);
+    if (chebi) return { url: `https://www.ebi.ac.uk/chebi/searchId.do?chebiId=CHEBI:${encodeURIComponent(chebi[1])}` };
+    const drugbank = id.match(/^drugbank:(.+)$/i);
+    if (drugbank) return { url: `https://go.drugbank.com/drugs/${encodeURIComponent(drugbank[1])}` };
+    const cvcl = id.match(/^(?:cellosaurus|cvcl):(.+)$/i);
+    if (cvcl) {
+      const ref = cvcl[1].startsWith("CVCL_") ? cvcl[1] : `CVCL_${cvcl[1]}`;
+      return { url: `https://www.cellosaurus.org/${encodeURIComponent(ref)}` };
+    }
+    const omim = id.match(/^(?:omim|mim):(.+)$/i);
+    if (omim) return { url: `https://www.omim.org/entry/${encodeURIComponent(omim[1])}` };
+    if (entityType === "gene" && /^\d+$/.test(id)) {
+      return { url: `https://www.ncbi.nlm.nih.gov/gene/${encodeURIComponent(id)}` };
+    }
+    if (entityType === "species" && /^\d+$/.test(id)) {
+      return { url: `https://www.ncbi.nlm.nih.gov/taxonomy/${encodeURIComponent(id)}` };
+    }
+    const obo = id.match(/^(cl|go|doid|uberon|bto|fma|pato):(.+)$/i);
+    if (obo) return { url: `https://purl.obolibrary.org/obo/${obo[1].toUpperCase()}_${encodeURIComponent(obo[2])}` };
+    return null;
+  }
+
+  function appendInfo(label, value, link) {
+    if (value === null || value === undefined || value === "") return;
+    const dt = document.createElement("dt");
+    dt.textContent = label;
+    const dd = document.createElement("dd");
+    if (link) {
+      const anchor = document.createElement("a");
+      anchor.href = link; anchor.target = "_blank"; anchor.rel = "noopener";
+      anchor.textContent = value;
+      dd.appendChild(anchor);
+    } else {
+      dd.textContent = value;
+    }
+    infoEl.appendChild(dt);
+    infoEl.appendChild(dd);
+  }
+
+  function appendDetail(parent, hit) {
+    const detail = [];
+    if (typeof hit.confidence === "number") detail.push("conf " + hit.confidence.toFixed(3));
+    if (typeof hit.normalization_score === "number") detail.push("norm score " + hit.normalization_score.toFixed(3));
+    const mentions = typeof hit.mentions === "number" ? hit.mentions : 1;
+    if (mentions > 1) detail.push(mentions + " mentions");
+    if (detail.length === 0) return;
+    const small = document.createElement("span");
+    small.className = "entity-popup-source-detail";
+    small.textContent = " (" + detail.join(", ") + ")";
+    parent.appendChild(small);
+  }
+
+  // An annotator counts as NEN for this entity if any of its hits has a real id.
+  function annotatorIsNen(hits) {
+    return hits.some((h) => isRealId(h.canonical_id));
+  }
+
+  // Left ("NEN") column: annotator name plus each normalized id/name.
+  function renderNenEntry(name, hits, entityType) {
+    const div = document.createElement("div");
+    div.className = "entity-popup-source";
+    const nm = document.createElement("div");
+    nm.className = "entity-popup-source-name";
+    nm.textContent = ANNOTATOR_LABELS[name] || name;
+    div.appendChild(nm);
+    for (const hit of hits) {
+      if (!isRealId(hit.canonical_id)) continue;
+      const line = document.createElement("div");
+      line.className = "entity-popup-source-id";
+      const link = databaseLink(hit.canonical_id, entityType);
+      if (link) {
+        const a = document.createElement("a");
+        a.href = link.url; a.target = "_blank"; a.rel = "noopener";
+        a.textContent = formatId(hit.canonical_id, entityType);
+        line.appendChild(a);
+      } else {
+        line.appendChild(document.createTextNode(formatId(hit.canonical_id, entityType)));
+      }
+      if (hit.canonical_name && hit.canonical_name !== hit.canonical_id) {
+        line.appendChild(document.createTextNode(" · " + hit.canonical_name));
+      }
+      appendDetail(line, hit);
+      div.appendChild(line);
+    }
+    return div;
+  }
+
+  // Right ("NER only") column: annotator name and detail, no id.
+  function renderNerEntry(name, hits) {
+    const div = document.createElement("div");
+    div.className = "entity-popup-source";
+    const nm = document.createElement("span");
+    nm.className = "entity-popup-source-name";
+    nm.textContent = ANNOTATOR_LABELS[name] || name;
+    div.appendChild(nm);
+    if (hits.length > 0) appendDetail(div, hits[0]);
+    return div;
+  }
+
+  function renderColumn(title, names, renderEntry) {
+    const col = document.createElement("div");
+    col.className = "entity-popup-col";
+    const heading = document.createElement("div");
+    heading.className = "entity-popup-col-title";
+    heading.textContent = title;
+    col.appendChild(heading);
+    if (names.length === 0) {
+      const none = document.createElement("div");
+      none.className = "entity-popup-source-none";
+      none.textContent = "-";
+      col.appendChild(none);
+    } else {
+      for (const n of names) col.appendChild(renderEntry(n));
+    }
+    return col;
+  }
+
+  function openPopup(mark) {
+    let data;
+    try { data = JSON.parse(mark.dataset.entity || "{}"); }
+    catch (err) { console.error("Failed to parse entity data", err); return; }
+    titleEl.textContent = ENTITY_TYPE_LABELS[data.entity_type] || data.entity_type || "Entity";
+    infoEl.innerHTML = "";
+    sourcesEl.innerHTML = "";
+    appendInfo("Keyword", data.keyword);
+    exploreBtn.dataset.keyword = data.keyword || "";
+    exploreBtn.hidden = !document.getElementById("entity-explorer");
+    appendInfo("Canonical name", data.canonical_name);
+    const idLink = databaseLink(data.canonical_id, data.entity_type);
+    appendInfo("Canonical id", formatId(data.canonical_id, data.entity_type), idLink ? idLink.url : null);
+
+    const sources = data.by_source || {};
+    // Annotators in the run's order (PubTator3, BERN2, Flair first, then the rest).
+    const names = Object.keys(sources).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    if (names.length === 0) {
+      const note = document.createElement("p");
+      note.className = "entity-popup-empty";
+      note.textContent = "No annotator details available.";
+      sourcesEl.appendChild(note);
+    } else {
+      // Split by whether each annotator normalized THIS entity (NEN) or only
+      // tagged it (NER only). The same annotator (e.g. BERN2) can fall in either
+      // column depending on the entity.
+      const nenNames = names.filter((n) => annotatorIsNen(sources[n]));
+      const nerNames = names.filter((n) => !annotatorIsNen(sources[n]));
+      sourcesEl.appendChild(renderColumn("NEN", nenNames, (n) => renderNenEntry(n, sources[n], data.entity_type)));
+      sourcesEl.appendChild(renderColumn("NER only", nerNames, (n) => renderNerEntry(n, sources[n])));
+    }
+    document.querySelectorAll("mark.entity.is-selected").forEach((m) => m.classList.remove("is-selected"));
+    mark.classList.add("is-selected");
+    popup.classList.remove("hidden");
+    popup.setAttribute("aria-hidden", "false");
+    document.body.classList.add("entity-panel-open");
+    popup.querySelector(".entity-popup-card").scrollTop = 0;
+  }
+  function closePopup() {
+    popup.classList.add("hidden");
+    popup.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("entity-panel-open");
+    document.querySelectorAll("mark.entity.is-selected").forEach((m) => m.classList.remove("is-selected"));
+  }
+
+  // Entity type distribution pop-up (a <dialog>: Esc closes it natively).
+  document.addEventListener("click", (event) => {
+    const opener = event.target.closest("[data-open-dialog]");
+    if (opener) {
+      const dialog = document.getElementById(opener.dataset.openDialog);
+      if (dialog && dialog.showModal) dialog.showModal();
+      return;
+    }
+    const dialog = event.target.closest("dialog");
+    if (dialog && (event.target === dialog || event.target.closest("[data-close-dialog]"))) dialog.close();
+  });
+
+  document.addEventListener("click", (event) => {
+    const mark = event.target.closest("mark.entity");
+    if (mark && mark.dataset.entity) { event.preventDefault(); openPopup(mark); return; }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      const mark = event.target.closest && event.target.closest("mark.entity");
+      if (mark && mark.dataset.entity) { event.preventDefault(); openPopup(mark); }
+    }
+    if (event.key === "Escape" && !popup.classList.contains("hidden") && !document.querySelector("dialog[open]")) closePopup();
+  });
+  closeBtn.addEventListener("click", closePopup);
+
+  // v2: open an entity in the entity explorer (its script listens for "explore-entity").
+  function explore(keyword) {
+    const detail = { keyword, found: false };
+    document.dispatchEvent(new CustomEvent("explore-entity", { detail }));
+    return detail.found;
+  }
+  exploreBtn.addEventListener("click", () => {
+    closePopup();
+    explore(exploreBtn.dataset.keyword || "");
+  });
+  document.addEventListener("click", (event) => {
+    // a keyword in a Bioconcepts pop-up: close the pop-up and explore the keyword
+    const keyword = event.target.closest(".stats-keyword");
+    if (keyword) {
+      const dialog = keyword.closest("dialog");
+      if (dialog) dialog.close();
+      explore(keyword.textContent);
+      return;
+    }
+    // tabs in a pop-up: show the panel of the clicked tab
+    const tab = event.target.closest("[data-tab]");
+    if (tab) {
+      const box = tab.closest("[data-tabs]");
+      box.querySelectorAll("[data-tab]").forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
+      box.querySelectorAll("[data-tab-panel]").forEach((panel) => { panel.hidden = panel.dataset.tabPanel !== tab.dataset.tab; });
+    }
+  });
+
+  // ---- Filters: redraw the highlights for the annotators and families switched on ----
+  const shownSources = new Set();
+  const shownFamilies = new Set();
+  document.querySelectorAll('input[data-filter="source"]').forEach((box) => { if (box.checked) shownSources.add(box.value); });
+  document.querySelectorAll('input[data-filter="family"]').forEach((box) => { if (box.checked) shownFamilies.add(box.value); });
+
+  function appendPlain(parent, text) {
+    const lines = text.split("\n");
+    lines.forEach((line, i) => {
+      if (i > 0) parent.appendChild(document.createElement("br"));
+      if (line) parent.appendChild(document.createTextNode(line));
+    });
+  }
+
+  // Same rule as render_highlighted_text in html_report.py: where highlights
+  // overlap, the earlier start wins, then the higher-priority annotator, then
+  // the longer span. Hidden annotators and families take no part.
+  function redraw(container) {
+    let items;
+    try { items = JSON.parse(container.dataset.annotations || "[]"); }
+    catch (err) { console.error("Failed to parse annotations", err); return; }
+    const text = container.dataset.text || "";
+    const visible = items
+      .filter((it) => shownSources.has(it.src) && shownFamilies.has(it.fam))
+      .sort((a, b) => a.s - b.s || rank(a.src) - rank(b.src) || a.src.localeCompare(b.src) || (b.e - b.s) - (a.e - a.s));
+    const chosen = [];
+    let lastEnd = -1;
+    for (const it of visible) {
+      if (it.s >= lastEnd) { chosen.push(it); lastEnd = it.e; }
+    }
+    const frag = document.createDocumentFragment();
+    let position = 0;
+    for (const it of chosen) {
+      if (it.s > position) appendPlain(frag, text.slice(position, it.s));
+      const mark = document.createElement("mark");
+      mark.className = "entity entity-" + it.type;
+      mark.dataset.family = it.fam;
+      mark.dataset.label = it.lab;
+      mark.dataset.entity = JSON.stringify(it.p);
+      mark.tabIndex = 0;
+      mark.setAttribute("role", "button");
+      mark.textContent = text.slice(it.s, it.e);
+      frag.appendChild(mark);
+      position = it.e;
+    }
+    if (position < text.length) appendPlain(frag, text.slice(position));
+    container.replaceChildren(frag);
+  }
+  function redrawAll() {
+    document.querySelectorAll("[data-annotations]").forEach(redraw);
+  }
+
+  document.addEventListener("change", (event) => {
+    const box = event.target;
+    if (!box.matches || !box.matches("input[data-filter]")) return;
+    const kind = box.dataset.filter;
+    if (kind === "labels") { document.body.classList.toggle("show-type-labels", box.checked); return; }
+    const set = kind === "source" ? shownSources : shownFamilies;
+    if (box.checked) set.add(box.value); else set.delete(box.value);
+    redrawAll();
+  });
+})();
+</script>
+<script>
+// Entity explorer: one entity at a time, with the entities it is mentioned with.
+// Data comes from build_entity_data in html_report_v2.py: entities (grouped by ID
+// and text), documents with their sentences, and one row per mention.
+(() => {
+  const section = document.getElementById("entity-explorer");
+  if (!section) return;
+  let DATA;
+  try { DATA = JSON.parse(document.getElementById("explorer-data").textContent); }
+  catch (err) { console.error("Failed to parse explorer data", err); return; }
+  let CONFIG = {};
+  try { CONFIG = JSON.parse((document.getElementById("report-config") || {}).textContent || "{}"); }
+  catch (err) { /* labels fall back to raw names */ }
+  const ANNOTATOR_LABELS = CONFIG.annotator_labels || {};
+  const FAMILY_LABELS = CONFIG.family_labels || {};
+
+  const NS = "http://www.w3.org/2000/svg";
+  const control = (name) => section.querySelector('[data-explorer="' + name + '"]');
+  const searchEl = control("search"), familyEl = control("family"), sourceEl = control("source");
+  const docEl = control("doc"), modeEl = control("mode");
+  const suggestionsEl = section.querySelector(".explorer-suggestions");
+  const listEl = section.querySelector(".explorer-list");
+  const viewEl = section.querySelector(".explorer-view");
+  const navEl = section.querySelector(".explorer-nav");
+  const trailEl = section.querySelector(".explorer-trail");
+  const svg = viewEl.querySelector("svg");
+  const panel = viewEl.querySelector(".graph-panel");
+  const emptyEl = viewEl.querySelector(".graph-empty");
+  const GRAPH_LIMIT = 30, SUGGESTION_LIMIT = 12;
+
+  let current = null;   // the entity being explored, or null for the list of entities
+  let history = [];     // entities explored before it, for Back
+  let counts = null;    // mentions and contexts for the current filters, see compute()
+
+  function el(tag, attrs, text) {
+    const node = document.createElementNS(NS, tag);
+    for (const key in attrs || {}) node.setAttribute(key, attrs[key]);
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function html(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function plural(n, word) { return n + " " + word + (n === 1 ? "" : "s"); }
+  function entities(n) { return n + " entit" + (n === 1 ? "y" : "ies"); }
+  function chip(fam) { return html("span", "legend-chip fam-" + fam, FAMILY_LABELS[fam] || fam); }
+  function textKey(text) { return text.split(/\s+/).filter(Boolean).join(" ").toLowerCase(); }
+
+  // Mentions, annotators, documents and contexts (sentences or documents) of every
+  // entity, for the annotator and document chosen above.
+  function compute() {
+    const source = sourceEl.value, doc = docEl ? docEl.value : "all", mode = modeEl.value;
+    const places = new Map(), sources = new Map(), docs = new Map(), mentions = new Map();
+    const contexts = new Map();
+    for (const m of DATA.mentions) {
+      const [e, d, s, src, , a] = m;
+      if (source !== "all" && src !== source) continue;
+      if (doc !== "all" && d !== +doc) continue;
+      if (!places.has(e)) { places.set(e, new Set()); sources.set(e, new Set()); docs.set(e, new Set()); mentions.set(e, []); }
+      places.get(e).add(d + ":" + s + ":" + a);  // several annotators on the same words: one mention
+      sources.get(e).add(src);
+      docs.get(e).add(d);
+      mentions.get(e).push(m);
+      const ctx = mode === "sentence" ? d + ":" + s : String(d);
+      if (!contexts.has(ctx)) contexts.set(ctx, new Set());
+      contexts.get(ctx).add(e);
+    }
+    counts = { places, sources, docs, mentions, contexts, mode };
+  }
+  function mentionCount(e) { const p = counts.places.get(e); return p ? p.size : 0; }
+  // The Type filter applies to the entities listed and to the connections, never to the explored entity.
+  function passesType(e) { return familyEl.value === "all" || DATA.entities[e].fam === familyEl.value; }
+
+  // Entities mentioned in the same sentence (or document) as e, most often together first.
+  function connectionsOf(e) {
+    const together = new Map();
+    for (const [ctx, members] of counts.contexts) {
+      if (!members.has(e)) continue;
+      for (const other of members) {
+        if (other === e || !passesType(other)) continue;
+        if (!together.has(other)) together.set(other, []);
+        together.get(other).push(ctx);
+      }
+    }
+    return [...together.entries()]
+      .map(([other, contexts]) => ({ other, contexts }))
+      .sort((x, y) => y.contexts.length - x.contexts.length || mentionCount(y.other) - mentionCount(x.other));
+  }
+
+  // ---- what is shown: the list of entities, or one entity with its graph ----
+  function show() {
+    const exploring = current !== null;
+    listEl.hidden = exploring;
+    viewEl.hidden = !exploring;
+    navEl.hidden = !exploring;
+    if (exploring) { renderTrail(); renderGraph(); showEntity(); }
+    else renderList();
+  }
+  function select(e) {
+    if (current !== null && current !== e) history.push(current);
+    current = e;
+    hideSuggestions();
+    searchEl.value = "";
+    show();
+  }
+  control("back").addEventListener("click", () => { current = history.length ? history.pop() : null; show(); });
+  control("list").addEventListener("click", () => { history = []; current = null; show(); });
+
+  function renderTrail() {
+    trailEl.replaceChildren();
+    const steps = [...history.slice(-4), current];
+    steps.forEach((e, i) => {
+      if (i) trailEl.appendChild(document.createTextNode(" › "));
+      trailEl.appendChild(html("span", i === steps.length - 1 ? "explorer-trail-current" : "", DATA.entities[e].label));
+    });
+  }
+
+  // Before an entity is chosen: every entity, with how many times it is mentioned.
+  // With a Type chosen, all entities of that type; with "All types", one group per type.
+  function renderList() {
+    listEl.replaceChildren();
+    const ranked = [...counts.places.keys()].filter(passesType)
+      .sort((a, b) => mentionCount(b) - mentionCount(a) || DATA.entities[a].label.localeCompare(DATA.entities[b].label));
+    if (!ranked.length) { listEl.appendChild(html("p", "hint", "No entities with the current filters.")); return; }
+    const connected = connectionCounts();
+    const fam = familyEl.value;
+    if (fam !== "all") {
+      listEl.appendChild(html("h4", "", (FAMILY_LABELS[fam] || fam) + ": " + entities(ranked.length)));
+      listEl.appendChild(rows(ranked, connected));
+      return;
+    }
+    listEl.appendChild(html("h4", "", "All entities, by type"));
+    listEl.appendChild(html("p", "hint", "Open a type to see its entities, or choose a Type above."));
+    for (const family of Object.keys(FAMILY_LABELS)) {
+      const members = ranked.filter((e) => DATA.entities[e].fam === family);
+      if (!members.length) continue;
+      const group = html("details", "explorer-group");
+      const summary = html("summary");
+      summary.appendChild(html("span", "explorer-row-name fam-" + family, FAMILY_LABELS[family]));
+      const total = members.reduce((sum, e) => sum + mentionCount(e), 0);
+      summary.appendChild(html("span", "explorer-row-meta", entities(members.length) + " · " + plural(total, "mention")));
+      group.appendChild(summary);
+      group.appendChild(rows(members, connected));
+      listEl.appendChild(group);
+    }
+  }
+  // One button per entity: its name, then how many times it is mentioned (in bold), documents and connections.
+  function rows(list, connected) {
+    const box = html("div", "explorer-rows");
+    for (const e of list) {
+      const ent = DATA.entities[e];
+      const row = html("button", "explorer-row");
+      row.type = "button";
+      row.appendChild(html("span", "explorer-row-name fam-" + ent.fam, ent.label));
+      const meta = html("span", "explorer-row-meta");
+      meta.appendChild(html("strong", "", plural(mentionCount(e), "mention")));
+      meta.appendChild(document.createTextNode(" · " + plural(counts.docs.get(e).size, "document")
+        + " · " + plural((connected.get(e) || new Set()).size, "connection")));
+      row.appendChild(meta);
+      row.addEventListener("click", () => select(e));
+      box.appendChild(row);
+    }
+    return box;
+  }
+  // How many entities each entity is mentioned with (all types), in one pass over the contexts.
+  function connectionCounts() {
+    const sets = new Map();
+    for (const members of counts.contexts.values()) {
+      for (const e of members) {
+        if (!sets.has(e)) sets.set(e, new Set());
+        for (const other of members) if (other !== e) sets.get(e).add(other);
+      }
+    }
+    return sets;
+  }
+
+  // The explored entity in the middle, its connections in a circle around it.
+  function renderGraph() {
+    svg.replaceChildren();
+    const all = connectionsOf(current);
+    const shown = all.slice(0, GRAPH_LIMIT);
+    emptyEl.hidden = shown.length > 0;
+    const n = shown.length;
+    const ring = n > 16 ? 210 : 170;
+    const outer = n > 16 ? ring * 1.35 : ring;
+    const radius = (e) => Math.min(26, 6 + 3 * Math.sqrt(mentionCount(e)));
+    const width = (times) => 1 + Math.min(6, Math.log2(times) * 1.6);
+    const linkLayer = el("g", { class: "graph-links" });
+    const nodeLayer = el("g", { class: "graph-nodes" });
+
+    shown.forEach((conn, i) => {
+      const angle = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+      const r = n > 16 && i % 2 ? outer : ring;  // with many connections every other one goes further out, so labels fit
+      conn.x = Math.cos(angle) * r; conn.y = Math.sin(angle) * r; conn.cos = Math.cos(angle);
+      const times = conn.contexts.length;
+      const line = el("line", { class: "graph-link", x1: 0, y1: 0, x2: conn.x.toFixed(1), y2: conn.y.toFixed(1), "stroke-width": width(times) });
+      line.appendChild(el("title", {}, DATA.entities[current].label + " and " + DATA.entities[conn.other].label
+        + ": together in " + plural(times, counts.mode)));
+      line.addEventListener("click", () => showLink(conn));
+      conn.line = line;
+      linkLayer.appendChild(line);
+    });
+    shown.forEach((conn) => {
+      const ent = DATA.entities[conn.other];
+      const g = node(conn.other, radius(conn.other), conn.cos);
+      g.setAttribute("transform", "translate(" + conn.x.toFixed(1) + "," + conn.y.toFixed(1) + ")");
+      g.appendChild(el("title", {}, ent.label + " (" + plural(mentionCount(conn.other), "mention")
+        + ", together " + plural(conn.contexts.length, "time") + "). Click to explore it."));
+      g.addEventListener("click", () => select(conn.other));
+      g.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(conn.other); } });
+      nodeLayer.appendChild(g);
+    });
+    const centre = node(current, radius(current) + 6, null);
+    centre.classList.add("selected");
+    centre.addEventListener("click", showEntity);
+    nodeLayer.appendChild(centre);
+
+    svg.appendChild(linkLayer);
+    svg.appendChild(nodeLayer);
+    const halfWidth = outer + 200, halfHeight = outer + 40;
+    svg.setAttribute("viewBox", [-halfWidth, -halfHeight, 2 * halfWidth, 2 * halfHeight].join(" "));
+  }
+  // A circle with its name next to it, on the outer side (cos null: the centre, name below it).
+  function node(e, r, cos) {
+    const ent = DATA.entities[e];
+    const g = el("g", { class: "graph-node labelled fam-" + ent.fam, tabindex: "0", role: "button" });
+    g.appendChild(el("circle", { r: r.toFixed(1) }));
+    if (cos === null) {
+      g.appendChild(el("text", { x: "0", y: (r + 15).toFixed(1), "text-anchor": "middle", class: "graph-centre-label" }, ent.label));
+    } else {
+      const right = cos >= -0.01;
+      const name = ent.label.length > 30 ? ent.label.slice(0, 28) + "…" : ent.label;  // full name on hover
+      g.appendChild(el("text", { x: ((right ? 1 : -1) * (r + 4)).toFixed(1), y: "4", "text-anchor": right ? "start" : "end" }, name));
+    }
+    return g;
+  }
+  function markLink(conn) {
+    svg.querySelectorAll(".graph-link").forEach((line) => {
+      line.classList.toggle("active", !!conn && line === conn.line);
+      line.classList.toggle("dimmed", !!conn && line !== conn.line);
+    });
+  }
+
+  // ---- the panel on the right ----
+  function showEntity() {
+    markLink(null);
+    const ent = DATA.entities[current];
+    panel.replaceChildren();
+    panel.appendChild(html("h4", "", ent.label));
+    const meta = html("p", "graph-meta");
+    meta.appendChild(chip(ent.fam));
+    const types = ent.types.filter((type) => type !== FAMILY_LABELS[ent.fam]);
+    if (types.length) meta.appendChild(document.createTextNode(" " + types.join(", ")));
+    panel.appendChild(meta);
+    if (ent.ids.length) {
+      const ids = html("p", "graph-meta", ent.ids.length === 1 ? "ID: " : "IDs: ");
+      ent.ids.forEach((item, i) => {
+        if (i) ids.appendChild(document.createTextNode(", "));
+        if (item.url) {
+          const a = html("a", "", item.id);
+          a.href = item.url; a.target = "_blank"; a.rel = "noopener";
+          ids.appendChild(a);
+        } else ids.appendChild(document.createTextNode(item.id));
+      });
+      panel.appendChild(ids);
+    }
+    const names = ent.names.filter((name) => textKey(name) !== textKey(ent.label));
+    if (names.length) panel.appendChild(html("p", "graph-meta", "Name: " + names.slice(0, 3).join(", ")));
+    if (ent.forms.length) panel.appendChild(html("p", "graph-meta", "Also written as: " + ent.forms.slice(0, 8).join(", ")));
+    const found = [...(counts.sources.get(current) || [])].map((src) => ANNOTATOR_LABELS[src] || src).join(", ");
+    panel.appendChild(html("p", "graph-meta",
+      plural(mentionCount(current), "mention") + " in " + plural((counts.docs.get(current) || new Set()).size, "document")
+      + (found ? ", found by " + found : "")));
+
+    const all = connectionsOf(current);
+    panel.appendChild(html("h5", "", "Connected to " + all.length + " entit" + (all.length === 1 ? "y" : "ies")));
+    if (all.length > GRAPH_LIMIT) panel.appendChild(html("p", "hint", "The graph shows the " + GRAPH_LIMIT + " most frequent."));
+    if (all.length) {
+      const list = html("div", "graph-neighbours");
+      for (const conn of all.slice(0, 60)) {
+        const button = html("button", "graph-neighbour fam-" + DATA.entities[conn.other].fam,
+          DATA.entities[conn.other].label + " · " + conn.contexts.length);
+        button.type = "button";
+        button.title = "Show the " + counts.mode + "s where both are mentioned";
+        button.addEventListener("click", () => showLink(conn));
+        list.appendChild(button);
+      }
+      panel.appendChild(list);
+    }
+  }
+
+  // Two connected entities: the sentences (or documents) where both are mentioned.
+  function showLink(conn) {
+    markLink(conn.line ? conn : null);
+    const a = DATA.entities[current], b = DATA.entities[conn.other];
+    panel.replaceChildren();
+    const title = html("h4", "");
+    title.appendChild(html("span", "", a.label));
+    title.appendChild(document.createTextNode(" and "));
+    title.appendChild(html("span", "", b.label));
+    panel.appendChild(title);
+    panel.appendChild(html("p", "graph-meta", "Together in " + plural(conn.contexts.length, counts.mode)));
+    const backButton = html("button", "graph-neighbour fam-" + a.fam, "← " + a.label);
+    backButton.type = "button";
+    backButton.addEventListener("click", showEntity);
+    const exploreButton = html("button", "graph-neighbour fam-" + b.fam, "Explore " + b.label + " →");
+    exploreButton.type = "button";
+    exploreButton.addEventListener("click", () => select(conn.other));
+    panel.appendChild(backButton);
+    panel.appendChild(exploreButton);
+    appendSentences(sentencesOf([current, conn.other], new Set(conn.contexts)));
+  }
+
+  // Sentences where these entities are mentioned, limited to the given contexts if any.
+  function sentencesOf(entities, contexts) {
+    const bySentence = new Map();
+    for (const e of entities) {
+      for (const m of counts.mentions.get(e) || []) {
+        const [, d, s, , fam, a, b] = m;
+        if (contexts && !contexts.has(counts.mode === "sentence" ? d + ":" + s : String(d))) continue;
+        const key = d + ":" + s;
+        if (!bySentence.has(key)) bySentence.set(key, { d, s, spans: [] });
+        const spans = bySentence.get(key).spans;
+        if (!spans.some((x) => x[0] === a && x[1] === b)) spans.push([a, b, fam]);
+      }
+    }
+    return [...bySentence.values()].sort((x, y) => x.d - y.d || x.s - y.s);
+  }
+  function appendSentences(list) {
+    const LIMIT = 30;
+    panel.appendChild(html("h5", "", plural(list.length, "sentence")));
+    for (const item of list.slice(0, LIMIT)) panel.appendChild(sentenceBlock(item.d, item.s, item.spans));
+    if (list.length > LIMIT) panel.appendChild(html("p", "hint", "and " + (list.length - LIMIT) + " more"));
+  }
+  // One sentence with the entities marked, plus a link that opens its document.
+  function sentenceBlock(d, s, spans) {
+    const doc = DATA.docs[d];
+    const text = doc.sentences[s] || "";
+    const p = html("p", "graph-sentence");
+    let position = 0;
+    spans.sort((x, y) => x[0] - y[0] || y[1] - x[1]);
+    for (const [a, b, fam] of spans) {
+      if (a < position) continue;
+      if (a > position) p.appendChild(document.createTextNode(text.slice(position, a)));
+      p.appendChild(html("mark", "graph-term fam-" + fam, text.slice(a, b)));
+      position = b;
+    }
+    if (position < text.length) p.appendChild(document.createTextNode(text.slice(position)));
+    if (DATA.docs.length > 1 || doc.pmid) {
+      const link = html("a", "graph-doc", doc.pmid ? "PMID " + doc.pmid : doc.title);
+      link.href = "#" + doc.anchor;
+      link.addEventListener("click", () => { const target = document.getElementById(doc.anchor); if (target) target.open = true; });
+      p.appendChild(document.createTextNode(" "));
+      p.appendChild(link);
+    }
+    return p;
+  }
+
+  // ---- search box with suggestions ----
+  let suggestions = [], active = -1;
+  function search(query) {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const found = [];
+    DATA.entities.forEach((ent, e) => {
+      if (!mentionCount(e)) return;
+      const label = ent.label.toLowerCase();
+      let score = -1;
+      if (label === q) score = 0;
+      else if (label.startsWith(q)) score = 1;
+      else if (ent.forms.some((f) => f.toLowerCase().startsWith(q))) score = 2;
+      else if (label.includes(q) || ent.forms.some((f) => f.toLowerCase().includes(q))) score = 3;
+      else if (ent.ids.some((x) => x.id.toLowerCase().includes(q)) || ent.names.some((x) => x.toLowerCase().includes(q))) score = 4;
+      if (score >= 0) found.push([score, e]);
+    });
+    found.sort((x, y) => x[0] - y[0] || mentionCount(y[1]) - mentionCount(x[1]));
+    return found.slice(0, SUGGESTION_LIMIT).map(([, e]) => e);
+  }
+  function renderSuggestions() {
+    suggestionsEl.replaceChildren();
+    if (!searchEl.value.trim()) { hideSuggestions(); return; }
+    if (!suggestions.length) {
+      suggestionsEl.appendChild(html("li", "explorer-suggestion-none", "No entity found"));
+    }
+    suggestions.forEach((e, i) => {
+      const ent = DATA.entities[e];
+      const li = html("li", "explorer-suggestion" + (i === active ? " active" : ""));
+      li.setAttribute("role", "option");
+      li.appendChild(html("span", "explorer-row-name fam-" + ent.fam, ent.label));
+      const extra = ent.ids.length ? ent.ids[0].id + " · " : "";
+      li.appendChild(html("span", "explorer-row-meta", extra + plural(mentionCount(e), "mention")));
+      li.addEventListener("mousedown", (event) => { event.preventDefault(); select(e); });
+      suggestionsEl.appendChild(li);
+    });
+    suggestionsEl.hidden = false;
+  }
+  function hideSuggestions() { suggestionsEl.hidden = true; active = -1; }
+  searchEl.addEventListener("input", () => { suggestions = search(searchEl.value); active = -1; renderSuggestions(); });
+  searchEl.addEventListener("keydown", (event) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (!suggestions.length) return;
+      event.preventDefault();
+      active = (active + (event.key === "ArrowDown" ? 1 : suggestions.length - 1)) % suggestions.length;
+      renderSuggestions();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      if (suggestions.length) select(suggestions[Math.max(active, 0)]);
+    } else if (event.key === "Escape") hideSuggestions();
+  });
+  searchEl.addEventListener("blur", hideSuggestions);
+
+  // ---- filters ----
+  section.addEventListener("change", (event) => {
+    if (!event.target.dataset || !event.target.dataset.explorer || event.target === searchEl) return;
+    compute();
+    show();
+  });
+
+  // ---- from the rest of the page: "Show in entity explorer" and Bioconcepts keywords ----
+  // They send an "explore-entity" event with the keyword; detail.found tells them it was found.
+  document.addEventListener("explore-entity", (event) => {
+    const e = DATA.lookup[textKey(event.detail.keyword || "")];
+    if (e === undefined) return;
+    event.detail.found = true;
+    select(e);
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  compute();
+  show();
+})();
+</script>
+</body>
+</html>

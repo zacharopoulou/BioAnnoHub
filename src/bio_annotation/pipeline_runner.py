@@ -53,7 +53,7 @@ from bio_annotation.entity_proposal.stanza_proposer import (
 )
 from bio_annotation.entity_types import normalize_entity_type
 from bio_annotation.pipeline_config import PipelineConfig, load_pipeline_config
-from bio_annotation.report import write_html_report
+from bio_annotation.report import html_report_v2_path, write_html_report, write_html_report_v2
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
     load_documents_from_pmid_file,
@@ -389,6 +389,7 @@ def write_pipeline_output(payload: dict[str, Any], output_path: Path) -> None:
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     write_pipeline_tsv_outputs(payload, output_path)
     write_html_report(payload, output_path.with_suffix(".html"))
+    write_html_report_v2(payload, html_report_v2_path(output_path))
 
 
 def create_run_dir(base_dir: Path, *, now: datetime | None = None) -> Path:
@@ -468,6 +469,7 @@ def build_run_manifest(
                 for name, path in pipeline_tsv_output_paths(output_path).items()
             },
             "html_report": output_path.with_suffix(".html").as_posix(),
+            "html_report_v2": html_report_v2_path(output_path).as_posix(),
         },
     }
 
