@@ -21,9 +21,9 @@ Each pipeline config is organized around:
 
 ## Fetch Defaults
 
-PMID-based annotation always uses PubTator3 for title, abstract, and optional full text. If `[input].source` is omitted, BioAnnoHub fetches text from PubTator3 only. Entrez is requested only when you select it as a source, select Entrez-only fields, or request enrichment sources.
+PMID-based annotation always uses PubTator3 for title, abstract, and optional full text. If `[input].source` is omitted, BioAnnoHub fetches text from PubTator3 only. When metadata is requested, Entrez is called when its source or fields are selected, and Europe PMC is called alongside it (or by itself when Europe PMC fields are selected). Europe PMC does not provide annotation text.
 
-Entrez metadata is attached only to PMIDs returned by PubTator3. It never fills or replaces the annotation text. PMIDs PubTator3 does not return with usable text are skipped and reported in a warning. Use `input.fields_per_source` to select the Entrez metadata fields:
+Entrez and Europe PMC metadata are attached only to PMIDs returned by PubTator3. Neither source fills or replaces the annotation text. PMIDs PubTator3 does not return with usable text are skipped and reported in a warning. Use `input.fields_per_source` to select metadata fields:
 
 ```toml
 [input]
@@ -33,9 +33,21 @@ source = ["pubtator3", "entrez"]
 
 [input.fields_per_source]
 entrez = ["mesh_terms", "authors", "journal", "year"]
+europe_pmc = ["citation_count", "is_open_access", "license"]
 ```
 
 Add `"full_text"` to `input.fields` and enable `[input.pubtator3].full_text = true` to request PubTator3 full text where available.
+
+## Optional Enrichments
+
+Additional cross-references can be enabled under `[enrichment].sources`. They are off by default. Results are retained inside `metadata.pubmed_record.elinks` in JSON and in the `entrez_elinks` column of `results.documents.tsv`.
+
+```toml
+[enrichment]
+sources = ["elinks", "crossref"]
+```
+
+Supported values are `elinks`, `crossref`, `europe_pmc`, `semantic_scholar`, `unpaywall`, and `biorxiv`. These add related PMID lists, DOI reference data, citation/reference records, open-access details, or preprint details depending on the selected service. Some services make several requests per PMID. Unpaywall also requires `NCBI_EMAIL` to be set. Use only the enrichments your workflow needs.
 
 ## Annotator Tables
 
@@ -65,4 +77,4 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 - `examples/corpus-file.toml`
   Local text-table input annotated with Flair (PubTator3 only annotates PubMed/PMC publications).
 - `examples/fetch-merge.toml`
-  PMID batch example where PubTator3 supplies all text and Entrez adds selected metadata only.
+  PMID batch example where PubTator3 supplies all text and Entrez plus Europe PMC add selected metadata only.

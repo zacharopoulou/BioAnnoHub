@@ -1,5 +1,5 @@
-# PubTator3 supplies all annotation text. Entrez contributes the selected
-# metadata fields below and cannot fill or replace title, abstract, or full text.
+# PubTator3 supplies all annotation text. Entrez and Europe PMC contribute the
+# selected metadata fields below and cannot fill or replace title, abstract, or full text.
 # PMIDs that PubTator3 does not return with usable text are skipped and reported.
 
 [input]
@@ -9,6 +9,10 @@ source = ["pubtator3", "entrez"]
 
 [input.fields_per_source]
 entrez = ["mesh_terms", "authors", "journal", "year"]
+europe_pmc = ["citation_count", "is_open_access", "license"]
+
+[enrichment]
+sources = []
 
 [annotators]
 enabled = []

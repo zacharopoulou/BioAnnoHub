@@ -89,6 +89,7 @@ def test_default_orchestrator_keeps_entrez_metadata_out_of_text(monkeypatch) -> 
             )
         ],
     )
+    monkeypatch.setattr("bio_annotation.fetch.europe_pmc.EuropePmcSource.fetch", lambda _self, _request: [])
     orch = default_fetch_orchestrator()
 
     out = orch.fetch(
@@ -197,6 +198,105 @@ def test_pubtator_first_uses_pubtator_text_and_only_entrez_metadata() -> None:
     assert "title" in pubtator.requests[0].fields_for("pubtator3")
     assert "abstract" in pubtator.requests[0].fields_for("pubtator3")
     assert entrez.requests[0].pmids == ("1", "2")
+
+
+def test_entrez_metadata_request_also_merges_europe_pmc_metadata() -> None:
+    @dataclass(slots=True)
+    class _RecordingSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            return _StubSource.fetch(self, request)
+
+    pubtator = _RecordingSource(
+        "pubtator3",
+        documents=[_doc("1", title="PubTator title", abstract="PubTator abstract", source="pubtator3")],
+    )
+    entrez = _RecordingSource(
+        "entrez",
+        documents=[
+            _doc("1", title="Entrez title", abstract="Entrez abstract", source="entrez",
+                 metadata={"pubmed_record": {"pmid": "1", "authors": ["A. Author"]}})
+        ],
+    )
+    europe_pmc = _RecordingSource(
+        "europe_pmc",
+        documents=[
+            _doc(
+                "1",
+                title="Europe PMC title",
+                abstract="Europe PMC abstract",
+                source="europe_pmc",
+                metadata={
+                    "citation_count": 27,
+                    "is_open_access": True,
+                    "epmc_meta": {"citedByCount": 27, "title": "Europe PMC title"},
+                },
+            )
+        ],
+    )
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=pubtator,
+        entrez=entrez,
+        europe_pmc=europe_pmc,
+    )
+
+    out = orchestrator.fetch(
+        FetchInput.from_pmid_list(["1"], fields_per_source={"entrez": frozenset({"authors"})}),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert out[0].title == "PubTator title"
+    assert out[0].abstract == "PubTator abstract"
+    assert out[0].metadata["pubmed_record"]["authors"] == ["A. Author"]
+    assert out[0].metadata["citation_count"] == 27
+    assert out[0].metadata["epmc_meta"] == {"citedByCount": 27}
+    assert out[0].metadata["origin_sources"] == ["pubtator3", "entrez", "europe_pmc"]
+
+
+def test_configured_enrichment_survives_entrez_field_filter() -> None:
+    @dataclass(slots=True)
+    class _EnrichedEntrezSource(_StubSource):
+        enrichments: tuple[str, ...] = ("crossref",)
+
+    pubtator = _StubSource(
+        "pubtator3",
+        documents=[_doc("1", title="PubTator title", source="pubtator3")],
+    )
+    entrez = _EnrichedEntrezSource(
+        "entrez",
+        documents=[
+            _doc(
+                "1",
+                source="entrez",
+                metadata={
+                    "pubmed_record": {
+                        "pmid": "1",
+                        "authors": ["Ada Author"],
+                        "elinks": {"crossref_references": [{"DOI": "10.1000/example"}]},
+                    }
+                },
+            )
+        ],
+    )
+    europe_pmc = _StubSource("europe_pmc")
+    orchestrator = PubtatorFirstOrchestrator(pubtator, entrez, europe_pmc)
+
+    (document,) = orchestrator.fetch(
+        FetchInput.from_pmid_list(
+            ["1"],
+            fields_per_source={"entrez": frozenset({"authors"})},
+        ),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert document.title == "PubTator title"
+    assert document.metadata["pubmed_record"] == {
+        "pmid": "1",
+        "authors": ["Ada Author"],
+        "elinks": {"crossref_references": [{"DOI": "10.1000/example"}]},
+    }
 
 
 def test_pubtator_first_skips_requested_pmids_without_text(caplog: pytest.LogCaptureFixture) -> None:

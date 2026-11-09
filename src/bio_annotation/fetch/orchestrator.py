@@ -15,6 +15,7 @@ from urllib.error import HTTPError, URLError
 from bio_annotation.fetch.entrez import EntrezSource
 from bio_annotation.fetch.europe_pmc import EuropePmcSource
 from bio_annotation.fetch.input import (
+    EUROPE_PMC_FIELDS,
     FetchInput,
     FetchSource,
     UnsupportedInputError,
@@ -182,10 +183,11 @@ def _blank_body(document: Document) -> bool:
 
 @dataclass(slots=True)
 class PubtatorFirstOrchestrator:
-    """Use PubTator3 as the sole PMID text source, with optional Entrez metadata."""
+    """Use PubTator3 as the sole PMID text source, with optional metadata sources."""
 
     pubtator: FetchSource
     entrez: FetchSource
+    europe_pmc: FetchSource | None = None
 
     def fetch(
         self,
@@ -194,17 +196,18 @@ class PubtatorFirstOrchestrator:
         prefer: str | Iterable[str] | None = None,
     ) -> list[Document]:
         selected = [prefer] if isinstance(prefer, str) else list(prefer or ["pubtator3"])
-        unknown = sorted(set(selected) - {"pubtator3", "entrez"})
+        unknown = sorted(set(selected) - {"pubtator3", "entrez", "europe_pmc"})
         if unknown:
             raise ValueError(
-                "PMID annotation runs support PubTator3 text and optional Entrez metadata; "
+                "PMID annotation runs use PubTator3 for text and optional Entrez/Europe PMC metadata; "
                 f"unsupported sources: {', '.join(unknown)}."
             )
         use_entrez = "entrez" in selected
+        use_europe_pmc = "europe_pmc" in selected or use_entrez
 
         if request.kind in {"pmcid", "pmcid_list"}:
-            if use_entrez:
-                raise UnsupportedInputError("Entrez metadata is available only for PMID inputs.")
+            if use_entrez or use_europe_pmc:
+                raise UnsupportedInputError("Entrez and Europe PMC metadata are available only for PMID inputs.")
             return self.pubtator.fetch(request)
 
         primary_request = _request_with_pubtator_text_fields(request)
@@ -229,35 +232,64 @@ class PubtatorFirstOrchestrator:
             )
 
         documents = [by_pmid[pmid] for pmid in available_pmids]
-        if not use_entrez or not available_pmids:
+        if not (use_entrez or use_europe_pmc) or not available_pmids:
             return documents
 
         metadata_request = _request_for_pmids(request, available_pmids)
-        try:
-            metadata_documents = self.entrez.fetch(metadata_request)
-        except Exception as exc:
-            logger.warning("Entrez metadata fetch failed; keeping PubTator3 text only: %s", exc)
-            return documents
-
         available_pmid_set = set(available_pmids)
-        metadata_by_pmid = {
-            pmid: document
-            for document in metadata_documents
-            if (pmid := _document_pmid(document)) in available_pmid_set
-        }
-        missing_metadata = [pmid for pmid in available_pmids if pmid not in metadata_by_pmid]
-        if missing_metadata:
-            logger.warning(
-                "Entrez returned no metadata for %d PubTator3 article(s): %s",
-                len(missing_metadata),
-                ", ".join(missing_metadata),
-            )
+        metadata_sources: list[tuple[str, FetchSource | None]] = []
+        if use_entrez:
+            metadata_sources.append(("entrez", self.entrez))
+        if use_europe_pmc:
+            metadata_sources.append(("europe_pmc", self.europe_pmc))
 
-        requested_metadata_fields = metadata_request.fields_for("entrez")
-        for pmid in available_pmids:
-            extra = metadata_by_pmid.get(pmid)
-            if extra is not None:
-                _merge_metadata_only(by_pmid[pmid], extra, requested_metadata_fields)
+        for source_name, source in metadata_sources:
+            if source is None:
+                logger.warning("%s metadata source is not configured", source_name)
+                continue
+            source_request = metadata_request
+            if source_name == "europe_pmc":
+                source_request = _request_for_europe_pmc_metadata(metadata_request)
+            try:
+                metadata_documents = source.fetch(source_request)
+            except Exception as exc:
+                logger.warning(
+                    "%s metadata fetch failed; keeping PubTator3 text and other metadata: %s",
+                    source_name,
+                    exc,
+                )
+                continue
+
+            metadata_by_pmid = {
+                pmid: document
+                for document in metadata_documents
+                if (pmid := _document_pmid(document)) in available_pmid_set
+            }
+            missing_metadata = [pmid for pmid in available_pmids if pmid not in metadata_by_pmid]
+            if missing_metadata:
+                logger.warning(
+                    "%s returned no metadata for %d PubTator3 article(s): %s",
+                    source_name,
+                    len(missing_metadata),
+                    ", ".join(missing_metadata),
+                )
+
+            requested_metadata_fields = source_request.fields_for(source_name)
+            if (
+                source_name == "entrez"
+                and getattr(source, "enrichments", ())
+                and requested_metadata_fields is not None
+            ):
+                requested_metadata_fields = requested_metadata_fields | {"elinks"}
+            for pmid in available_pmids:
+                extra = metadata_by_pmid.get(pmid)
+                if extra is not None:
+                    _merge_metadata_only(
+                        by_pmid[pmid],
+                        extra,
+                        requested_metadata_fields,
+                        source_name=source_name,
+                    )
         return documents
 
     def _fetch_pubtator_with_fallback(
@@ -382,27 +414,74 @@ def _request_for_pmids(request: FetchInput, pmids: list[str]) -> FetchInput:
     )
 
 
-def _merge_metadata_only(base: Document, extra: Document, fields: frozenset[str] | None) -> None:
-    metadata = extra.metadata if isinstance(extra.metadata, dict) else {}
-    record = metadata.get("pubmed_record")
-    if isinstance(record, dict):
-        selected_record = (
-            record
-            if fields is None
-            else {key: value for key, value in record.items() if key in fields or key == "pmid"}
-        )
-        if selected_record:
-            existing = base.metadata.get("pubmed_record")
-            if isinstance(existing, dict):
-                for key, value in selected_record.items():
-                    existing.setdefault(key, value)
-            else:
-                base.metadata["pubmed_record"] = selected_record
+def _request_for_europe_pmc_metadata(request: FetchInput) -> FetchInput:
+    explicit_fields = request.fields_per_source and "europe_pmc" in request.fields_per_source
+    if explicit_fields:
+        fields = request.fields_for("europe_pmc") or frozenset()
+    elif request.fields is not None:
+        metadata_fields = EUROPE_PMC_FIELDS - {"pmid", "title", "abstract", "full_text"}
+        fields = request.fields & metadata_fields
+        if not fields:
+            fields = None
+    else:
+        fields = None
 
-    if "pmcid" in metadata and (fields is None or "pmcid" in fields):
-        base.metadata.setdefault("pmcid", metadata["pmcid"])
-    if extra.year and (fields is None or "year" in fields) and not base.year:
-        base.year = extra.year
+    if fields is None:
+        return request
+
+    fields_per_source = dict(request.fields_per_source or {})
+    fields_per_source["europe_pmc"] = fields - {"title", "abstract", "full_text"}
+    return replace(request, fields_per_source=fields_per_source)
+
+
+def _merge_metadata_only(
+    base: Document,
+    extra: Document,
+    fields: frozenset[str] | None,
+    *,
+    source_name: str,
+) -> None:
+    metadata = extra.metadata if isinstance(extra.metadata, dict) else {}
+    if source_name == "entrez":
+        record = metadata.get("pubmed_record")
+        if isinstance(record, dict):
+            selected_record = (
+                record
+                if fields is None
+                else {key: value for key, value in record.items() if key in fields or key == "pmid"}
+            )
+            if selected_record:
+                existing = base.metadata.get("pubmed_record")
+                if isinstance(existing, dict):
+                    for key, value in selected_record.items():
+                        existing.setdefault(key, value)
+                else:
+                    base.metadata["pubmed_record"] = selected_record
+
+        if "pmcid" in metadata and (fields is None or "pmcid" in fields):
+            base.metadata.setdefault("pmcid", metadata["pmcid"])
+        if extra.year and (fields is None or "year" in fields) and not base.year:
+            base.year = extra.year
+    elif source_name == "europe_pmc":
+        for key, value in metadata.items():
+            if key in {"title", "abstract", "full_text", "full_text_xml"}:
+                continue
+            if key == "epmc_meta" and isinstance(value, dict):
+                # Preserve Europe PMC's additional fields without copying its text.
+                value = {
+                    meta_key: meta_value
+                    for meta_key, meta_value in value.items()
+                    if meta_key not in {"title", "abstractText", "fullTextXML", "fullText"}
+                }
+            if isinstance(value, dict) and isinstance(base.metadata.get(key), dict):
+                merged_value = dict(base.metadata[key])
+                for meta_key, meta_value in value.items():
+                    merged_value.setdefault(meta_key, meta_value)
+                base.metadata[key] = merged_value
+            else:
+                base.metadata.setdefault(key, value)
+        if extra.year and (fields is None or "year" in fields):
+            base.metadata.setdefault("europe_pmc_year", extra.year)
 
     origins = base.metadata.get("origin_sources")
     if not isinstance(origins, list):
@@ -429,12 +508,13 @@ class _PmidSafeDefaultFetchOrchestrator(FetchOrchestrator):
             return PubtatorFirstOrchestrator(
                 pubtator=self.get("pubtator3"),
                 entrez=self.get("entrez"),
+                europe_pmc=self.get("europe_pmc"),
             ).fetch(request, prefer=prefer)
         return super().fetch(request, prefer=prefer, strict=strict)
 
 
 def default_fetch_orchestrator() -> FetchOrchestrator:
-    """Default fetcher: PubTator3-only PMID text, optional Entrez metadata."""
+    """Default fetcher: PubTator3-only PMID text, optional Entrez/Europe PMC metadata."""
 
     return _PmidSafeDefaultFetchOrchestrator(
         sources=[

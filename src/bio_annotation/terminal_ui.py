@@ -586,6 +586,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
 
 def terminal_ui_tsv_paths(paths: RunPaths) -> dict[str, Path]:
     return {
+        "Documents TSV": paths.results_path.with_name(f"{paths.results_path.stem}.documents.tsv"),
         "Keywords TSV": paths.results_path.with_name(f"{paths.results_path.stem}.keywords.tsv"),
         "Annotations TSV": paths.results_path.with_name(f"{paths.results_path.stem}.annotations.tsv"),
     }

@@ -118,6 +118,7 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
     assert payload["output"]["path"] == (run_dir / "results" / "pipeline.json").as_posix()
     for name in (
         "results/pipeline.json",
+        "results/pipeline.documents.tsv",
         "results/pipeline.keywords.tsv",
         "results/pipeline.annotations.tsv",
         "results/pipeline.html",
@@ -136,3 +137,6 @@ def test_run_pipeline_from_config_writes_output_file(tmp_path) -> None:
     assert run_config.corpus_path == (run_dir / "inputs" / "documents.json").resolve()
     assert manifest["document_count"] == 1
     assert manifest["files"]["html_report"] == (run_dir / "results" / "pipeline.html").as_posix()
+    assert manifest["files"]["documents_tsv"] == (
+        run_dir / "results" / "pipeline.documents.tsv"
+    ).as_posix()

@@ -4,7 +4,7 @@ BioAnnoHub builds biomedical literature corpora, runs selected named entity anno
 
 Use it from the terminal for an interactive run, or use a TOML config for a repeatable workflow. Inputs include PubMed IDs, PMID files, and local text tables. Runs save their configuration, annotations, and summary files together.
 
-For PMID runs, PubTator3 is the only source of annotation text. Entrez is called only when metadata is requested, and its results never fill missing title, abstract, or full text. PMIDs PubTator3 cannot supply with usable text are skipped and reported.
+For PMID runs, PubTator3 is the only source of annotation text. When metadata is requested, BioAnnoHub can also fetch Entrez and Europe PMC metadata; neither source fills or replaces the annotation text. PMIDs PubTator3 cannot supply with usable text are skipped and reported.
 
 ## Annotators and supported entity types
 
@@ -98,7 +98,7 @@ uv run bioannohub evaluate-ncbi-review
 
 ## Output
 
-Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
+Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, document, keyword, and annotation TSVs, plus an HTML report. The document TSV includes selected Entrez and Europe PMC metadata and any requested enrichments. Config-based runs use the parent directory of the configured output path as the runs directory.
 
 ## Development
 

@@ -85,6 +85,9 @@ class EntrezSource:
         check_supports(self, request)
 
         effective_fields = request.fields_for(self.name)
+        if self.enrichments and effective_fields is not None:
+            # A configured enrichment is an explicit request to retain its result.
+            effective_fields = effective_fields | {"elinks"}
         documents: list[Document] = []
         if self.fetch_record is not None:
             # Preserve the per-record injection point used by callers and tests,

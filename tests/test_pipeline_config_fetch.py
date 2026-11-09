@@ -6,6 +6,7 @@ import pytest
 
 from bio_annotation.pipeline_config import (
     SUPPORTED_FETCH_SOURCES,
+    effective_pmid_fetch_sources,
     load_pipeline_config,
 )
 
@@ -42,10 +43,10 @@ def test_source_as_list_is_preserved(tmp_path: Path) -> None:
     assert config.fetch_sources == ["pubtator3", "entrez"]
 
 
-def test_europe_pmc_is_rejected_for_pmid_annotation(tmp_path: Path) -> None:
+def test_europe_pmc_is_allowed_for_pmid_metadata(tmp_path: Path) -> None:
     body = _BASE + 'source = "europe_pmc"\n'
-    with pytest.raises(ValueError, match="PubTator3 for text and optional Entrez"):
-        load_pipeline_config(_write_toml(tmp_path, body))
+    config = load_pipeline_config(_write_toml(tmp_path, body))
+    assert config.fetch_sources == ["europe_pmc"]
 
 
 def test_source_raw_text_is_rejected(tmp_path: Path) -> None:
@@ -62,6 +63,21 @@ def test_source_unknown_value_is_rejected(tmp_path: Path) -> None:
 
 def test_supported_fetch_sources_constant_excludes_raw_text() -> None:
     assert SUPPORTED_FETCH_SOURCES == ["pubtator3", "entrez", "europe_pmc"]
+
+
+def test_effective_sources_add_both_metadata_sources_for_entrez_request() -> None:
+    assert effective_pmid_fetch_sources(["entrez"], None, None) == [
+        "pubtator3",
+        "entrez",
+        "europe_pmc",
+    ]
+
+
+def test_effective_sources_add_europe_pmc_for_citation_count_only() -> None:
+    assert effective_pmid_fetch_sources([], ["citation_count"], None) == [
+        "pubtator3",
+        "europe_pmc",
+    ]
 
 
 # B. input.fields and input.fields_per_source
@@ -88,13 +104,13 @@ def test_fields_per_source_parsed(tmp_path: Path) -> None:
     }
 
 
-def test_europe_pmc_fields_are_rejected_for_pmid_annotation(tmp_path: Path) -> None:
+def test_europe_pmc_fields_are_allowed_for_pmid_metadata(tmp_path: Path) -> None:
     body = _BASE + (
         "[input.fields_per_source]\n"
         'europe_pmc = ["citation_count"]\n'
     )
-    with pytest.raises(ValueError, match="PubTator3 for text and optional Entrez"):
-        load_pipeline_config(_write_toml(tmp_path, body))
+    config = load_pipeline_config(_write_toml(tmp_path, body))
+    assert config.fetch_fields_per_source == {"europe_pmc": ["citation_count"]}
 
 
 def test_fields_per_source_unknown_source_is_rejected(tmp_path: Path) -> None:

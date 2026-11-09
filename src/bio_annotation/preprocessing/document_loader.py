@@ -112,6 +112,7 @@ def _fetch_pmids_from_pubtator3(
         return []
     from bio_annotation.fetch import (
         EntrezSource,
+        EuropePmcSource,
         FetchInput,
         PubTator3Source,
         PubtatorFirstOrchestrator,
@@ -120,9 +121,10 @@ def _fetch_pmids_from_pubtator3(
     orchestrator = PubtatorFirstOrchestrator(
         pubtator=PubTator3Source(),
         entrez=EntrezSource(enrichments=tuple(enrichment_sources or ())),
+        europe_pmc=EuropePmcSource(),
     )
     request = FetchInput.from_pmid_list(pmids)
-    sources = ["pubtator3", "entrez"] if enrichment_sources else ["pubtator3"]
+    sources = ["pubtator3", "entrez", "europe_pmc"] if enrichment_sources else ["pubtator3"]
     return orchestrator.fetch(request, prefer=sources)
 
 
@@ -294,6 +296,7 @@ def _build_orchestrator(
         return factory()
     from bio_annotation.fetch import (
         EntrezSource,
+        EuropePmcSource,
         PubTator3Source,
         PubtatorFirstOrchestrator,
     )
@@ -301,6 +304,7 @@ def _build_orchestrator(
     return PubtatorFirstOrchestrator(
         pubtator=PubTator3Source(full_text=pubtator3_full_text),
         entrez=EntrezSource(enrichments=tuple(entrez_enrichments or ())),
+        europe_pmc=EuropePmcSource(),
     )
 
 

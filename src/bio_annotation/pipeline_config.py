@@ -84,7 +84,7 @@ SUPPORTED_FETCH_FIELDS_BY_SOURCE = {
     ),
 }
 
-PMID_ANNOTATION_SOURCES = frozenset({"pubtator3", "entrez"})
+PMID_ANNOTATION_SOURCES = frozenset({"pubtator3", "entrez", "europe_pmc"})
 
 
 def effective_pmid_fetch_sources(
@@ -93,19 +93,37 @@ def effective_pmid_fetch_sources(
     fetch_fields_per_source: dict[str, list[str]] | None,
     enrichment_sources: list[str] | None = None,
 ) -> list[str]:
-    """Return the fixed PubTator3 text source and optional Entrez metadata source."""
+    """Return PubTator3 for text and both metadata sources when metadata is requested."""
 
-    entrez_only_fields = (
-        SUPPORTED_FETCH_FIELDS_BY_SOURCE["entrez"]
-        - SUPPORTED_FETCH_FIELDS_BY_SOURCE["pubtator3"]
-    )
-    requests_entrez_metadata = (
+    entrez_metadata_fields = SUPPORTED_FETCH_FIELDS_BY_SOURCE["entrez"] - {
+        "pmid",
+        "title",
+        "abstract",
+    }
+    europe_pmc_metadata_fields = SUPPORTED_FETCH_FIELDS_BY_SOURCE["europe_pmc"] - {
+        "pmid",
+        "title",
+        "abstract",
+        "full_text",
+    }
+    requests_entrez = (
         "entrez" in fetch_sources
         or bool(fetch_fields_per_source and fetch_fields_per_source.get("entrez"))
-        or bool(fetch_fields and entrez_only_fields.intersection(fetch_fields))
+        or bool(fetch_fields and entrez_metadata_fields.intersection(fetch_fields))
         or bool(enrichment_sources)
     )
-    return ["pubtator3", "entrez"] if requests_entrez_metadata else ["pubtator3"]
+    requests_europe_pmc = (
+        requests_entrez
+        or "europe_pmc" in fetch_sources
+        or bool(fetch_fields_per_source and fetch_fields_per_source.get("europe_pmc"))
+        or bool(fetch_fields and europe_pmc_metadata_fields.intersection(fetch_fields))
+    )
+    sources = ["pubtator3"]
+    if requests_entrez:
+        sources.append("entrez")
+    if requests_europe_pmc:
+        sources.append("europe_pmc")
+    return sources
 
 
 @dataclass(frozen=True)
@@ -342,9 +360,20 @@ def _validate_fetch_fields(
         unsupported = list(dict.fromkeys(invalid_sources + invalid_field_sources))
         if unsupported:
             raise ValueError(
-                "PMID annotation inputs use PubTator3 for text and optional Entrez for metadata; "
+                "PMID annotation inputs use PubTator3 for text and Entrez/Europe PMC for metadata; "
                 "unsupported fetch source(s): "
                 + ", ".join(unsupported)
+                + "."
+            )
+        europe_pmc_text_fields = {
+            field
+            for field in (fetch_fields_per_source or {}).get("europe_pmc", [])
+            if field in {"title", "abstract", "full_text"}
+        }
+        if europe_pmc_text_fields:
+            raise ValueError(
+                "Europe PMC is metadata-only for PMID annotation inputs; remove text field(s): "
+                + ", ".join(sorted(europe_pmc_text_fields))
                 + "."
             )
 

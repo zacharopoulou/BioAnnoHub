@@ -133,3 +133,30 @@ def test_entrez_source_keeps_prior_batch_when_later_batch_is_rate_limited(monkey
     assert len(documents) == 100
     assert [document.pmid for document in documents] == pmids[:100]
     assert [len(batch) for batch in client.calls] == [100, 1, 1, 1, 1]
+
+
+def test_entrez_source_keeps_configured_enrichment_when_fields_are_filtered() -> None:
+    class _EnrichmentClient:
+        def fetch_pubmed_many(self, pmids, *, enrichments=None):
+            assert enrichments == ["crossref"]
+            return [
+                {
+                    "pmid": pmid,
+                    "authors": [{"name": "Ada Author"}],
+                    "elinks": {"crossref_references": [{"DOI": "10.1000/example"}]},
+                }
+                for pmid in pmids
+            ]
+
+    source = EntrezSource(client=_EnrichmentClient(), enrichments=("crossref",))
+    request = FetchInput.from_pmid(
+        "1",
+        fields_per_source={"entrez": frozenset({"authors"})},
+    )
+
+    (document,) = source.fetch(request)
+
+    assert document.metadata["pubmed_record"]["authors"] == [{"name": "Ada Author"}]
+    assert document.metadata["pubmed_record"]["elinks"] == {
+        "crossref_references": [{"DOI": "10.1000/example"}]
+    }
