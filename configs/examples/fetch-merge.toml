@@ -14,7 +14,7 @@
 
 [input]
 mode = "pmid_file"
-pmid_file = "data/inputs/example_pmids.txt"
+pmid_file = "configs/examples/data/example_pmids.txt"
 source = ["pubtator3", "entrez", "europe_pmc"]
 
 [input.fields_per_source]

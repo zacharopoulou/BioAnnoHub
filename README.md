@@ -50,7 +50,6 @@ uv run bioannohub load-documents --config configs/examples/pmid-single.toml
 - [Configuration guide](configs/README.md): config structure and runnable examples.
 - [PubMed PMID search guide](src/bio_annotation/io/README.md): query syntax, filters, date bounds, and progress output.
 - [Documentation index](docs/README.md): links to the other project guides.
-- [Data guide](data/README.md): inputs, corpora, and generated data.
 - [Tests guide](tests/README.md): test coverage and development checks.
 
 ## Output
