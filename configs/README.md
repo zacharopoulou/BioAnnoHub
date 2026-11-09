@@ -29,7 +29,7 @@ The metadata sources are requested as follows:
 - Selecting Entrez metadata requests both Entrez and Europe PMC metadata.
 - Selecting only Europe PMC metadata requests Europe PMC without Entrez.
 
-Metadata is attached only to PMIDs for which PubTator3 returned usable text. If PubTator3 does not return usable text, BioAnnoHub skips that PMID and reports it. If an optional metadata service fails, the run keeps the PubTator3 document and any metadata returned by the other service. Use `input.fields_per_source` to select metadata fields:
+Metadata is attached only to PMIDs for which PubTator3 returned usable text. If PubTator3 does not return usable text, BioAnnoHub skips that PMID and reports it. If an optional metadata service fails, the run keeps the PubTator3 document and any metadata returned by the other services. By default, BioAnnoHub retains the fields returned by each selected source. Use `input.fields_per_source` to request a smaller set of metadata fields; these filters also limit what is retained in the JSON:
 
 ```toml
 [input]
@@ -46,11 +46,13 @@ Add `"full_text"` to `input.fields` and enable `[input.pubtator3].full_text = tr
 
 ## Results and Metadata Export
 
-Each run writes a JSON file, a document TSV, keyword and annotation TSVs, and an HTML report. The document TSV uses the JSON output's base name (for example, `results.documents.tsv`) and has one row per loaded document. It includes the PubTator3 title and text source, plus selected metadata in columns prefixed with `entrez_` or `europe_pmc_`. Lists and structured values are JSON-encoded within their TSV cells. Entrez `title` and `abstract` are not exported as metadata columns because PubTator3 supplies the annotation text.
+Each run writes a JSON file, a document TSV, keyword and annotation TSVs, and an HTML report. The document TSV uses the JSON output's base name (for example, `results.documents.tsv`) and has one row per loaded document. It has a fixed set of compact columns: document identifiers, title, year, source, DOI, core journal and publication details, keywords, MeSH terms, and selected Europe PMC summary fields. Lists such as ISSNs and terms are joined with `|`.
+
+The TSV is intended for filtering and spreadsheet review; it does not contain every provider field. Full returned records and nested enrichment results are retained in the JSON under each document's `metadata` (for example, `pubmed_record` and `epmc_meta`). The JSON contains only the fields requested from selected sources, and only data those services returned. Entrez `title` and `abstract` are not exported as metadata columns because PubTator3 supplies the annotation text.
 
 ## Optional Enrichments
 
-Related records and citation data can be enabled under `[enrichment].sources`. Enrichments are off by default. Results are retained in `metadata.pubmed_record.elinks` in JSON and in the `entrez_elinks` column of `results.documents.tsv` (the TSV cell contains JSON).
+Related records and citation data can be enabled under `[enrichment].sources`. Enrichments are off by default. Returned enrichment data is retained in `metadata.pubmed_record.elinks` in JSON. It is intentionally omitted from the compact document TSV because these nested citation and reference records can make the table very wide.
 
 ```toml
 [enrichment]
