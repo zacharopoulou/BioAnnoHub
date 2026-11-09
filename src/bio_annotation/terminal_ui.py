@@ -6,7 +6,7 @@ import os
 import re
 import sys
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -36,7 +36,7 @@ from bio_annotation.entity_types import (
     annotator_input_modes,
     annotator_tasks_for_selection,
 )
-from bio_annotation.pipeline_config import load_pipeline_config
+from bio_annotation.pipeline_config import SUPPORTED_ENRICHMENT_SOURCES, load_pipeline_config
 from bio_annotation.pipeline_runner import (
     RUN_INPUTS_DIR,
     RUN_RESULTS_DIR,
@@ -119,6 +119,7 @@ class TerminalUIAnswers:
     plain_text_abstract: str | None = None
     domain: str = "biomedical"
     task: str = "NER"
+    enrichment_sources: list[str] = field(default_factory=list)
 
 
 def _text_progress_reporter(output_fn: OutputFn) -> ProgressReporter:
@@ -342,6 +343,11 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
                 raise ValueError("Plain text table files must use .csv or .tsv extension.")
         else:
             text_content = prompt_multiline_text(input_fn=input_fn, output_fn=output_fn)
+    enrichment_sources = (
+        _prompt_metadata_enrichment(input_fn=input_fn, output_fn=output_fn)
+        if mode in {"pmids", "pmid_file"}
+        else []
+    )
     domain, task, annotator_choices = _prompt_domain_and_task(
         input_fn=input_fn,
         output_fn=output_fn,
@@ -381,7 +387,22 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         plain_text_content=text_content,
         domain=domain,
         task=task,
+        enrichment_sources=enrichment_sources,
     )
+
+
+def _prompt_metadata_enrichment(*, input_fn: InputFn, output_fn: OutputFn) -> list[str]:
+    include_metadata = _prompt_choice(
+        input_fn=input_fn,
+        output_fn=output_fn,
+        title="Fetch additional article metadata?",
+        choices=(
+            ("yes", "Yes — citations, links, and identifiers from external sources"),
+            ("no", "No — fetch article text only"),
+        ),
+        default_value="no",
+    )
+    return list(SUPPORTED_ENRICHMENT_SOURCES) if include_metadata == "yes" else []
 
 
 def _prompt_domain_and_task(
@@ -557,7 +578,14 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         ]
     else:
         raise ValueError(f"Unsupported terminal UI input mode: {answers.input_mode}")
-    lines += ["", "[enrichment]", "sources = []", "", "[annotators]", f"enabled = {_toml_string_list(answers.annotators)}"]
+    lines += [
+        "",
+        "[enrichment]",
+        f"sources = {_toml_string_list(answers.enrichment_sources)}",
+        "",
+        "[annotators]",
+        f"enabled = {_toml_string_list(answers.annotators)}",
+    ]
     if "bern2" in answers.annotators:
         lines += [
             "",

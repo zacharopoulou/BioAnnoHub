@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from bio_annotation.pipeline_config import load_pipeline_config
+from bio_annotation.pipeline_config import SUPPORTED_ENRICHMENT_SOURCES, load_pipeline_config
 from bio_annotation.pipeline.progress import ProgressReporter
 from bio_annotation.terminal_ui import (
     TerminalUIAnswers,
@@ -108,6 +108,7 @@ def test_build_terminal_ui_config_for_pmid_file(tmp_path) -> None:
         pmid_file=pmid_file,
         annotators=["pubtator3"],
         entity_types=[],
+        enrichment_sources=["elinks", "crossref"],
     )
 
     config_path = paths.run_dir / "config.toml"
@@ -118,6 +119,7 @@ def test_build_terminal_ui_config_for_pmid_file(tmp_path) -> None:
     assert config.input_mode == "pmid_file"
     assert config.pmid_file == pmid_file
     assert config.annotators == ["pubtator3"]
+    assert config.enrichment_sources == ["elinks", "crossref"]
     assert config.annotator_settings["pubtator3"]["format"] == "biocjson"
 
 
@@ -298,6 +300,7 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
         [
             "2",  # PMID file
             str(pmid_file),
+            "2",  # no additional metadata
             "1",  # biomedical domain
             "1",  # NER task
             "1",  # pubtator3
@@ -319,6 +322,7 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
         assert config.input_mode == "pmid_file"
         assert config.pmid_file == pmid_file.resolve()
         assert config.pmid_file.read_text(encoding="utf-8") == "123\n456\n"
+        assert config.enrichment_sources == []
         return {
             "document_count": 2,
             "annotation_summary": {"annotation_count": 0},
@@ -344,6 +348,7 @@ def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) 
         [
             "1",  # PMIDs
             "123",
+            "1",  # fetch additional metadata
             "1",  # biomedical domain
             "1",  # NER task
             "all",  # all compatible annotators
@@ -365,6 +370,7 @@ def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) 
     ) -> dict[str, object]:
         config = load_pipeline_config(config_path)
         assert config.input_mode == "pmids"
+        assert config.enrichment_sources == SUPPORTED_ENRICHMENT_SOURCES
         expected = [
             annotator
             for annotator, _ in annotator_choices_for(
@@ -502,8 +508,8 @@ def test_config_saves_selection_as_comments_and_flair_linking_as_a_setting(tmp_p
 
 @pytest.mark.parametrize("answers", [
     ["exit"],
-    ["1", "123", "1", "1", "2", "all", "exit"],
-    ["1", "123", "1", "1", "2", "all", "restart", "exit"],
+    ["1", "123", "2", "1", "1", "2", "all", "exit"],
+    ["1", "123", "2", "1", "1", "2", "all", "restart", "exit"],
 ])
 def test_cancelled_setup_never_creates_a_run_or_calls_the_pipeline(tmp_path, answers) -> None:
     prompts = iter(answers)
@@ -522,8 +528,8 @@ def test_cancelled_setup_never_creates_a_run_or_calls_the_pipeline(tmp_path, ans
 
 def test_restart_discards_previous_answers_before_creating_one_run(tmp_path) -> None:
     prompts = iter([
-        "1", "123", "1", "1", "2", "all", "restart",
-        "1", "456", "1", "2", "2", "all", "",
+        "1", "123", "2", "1", "1", "2", "all", "restart",
+        "1", "456", "2", "1", "2", "2", "all", "",
     ])
     runs = tmp_path / "runs"
     calls = []
@@ -550,7 +556,7 @@ def test_restart_discards_previous_answers_before_creating_one_run(tmp_path) -> 
 
 @pytest.mark.parametrize("task_choice, expects_linker_notice", [("1", False), ("2", True), ("3", True)])
 def test_flair_linker_notice_matches_the_selected_task(tmp_path, task_choice, expects_linker_notice) -> None:
-    prompts = iter(["1", "123", "1", task_choice, "3", "all", "exit"])
+    prompts = iter(["1", "123", "2", "1", task_choice, "3", "all", "exit"])
     messages = []
     run_terminal_annotation_ui(
         runs_dir=tmp_path / "runs", input_fn=lambda _: next(prompts), output_fn=messages.append,
