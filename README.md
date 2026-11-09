@@ -98,7 +98,7 @@ uv run bioannohub evaluate-ncbi-review
 
 ## Output
 
-Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, a JSON results file, a document TSV, keyword and annotation TSVs, and an HTML report. The TSV files use the JSON output's base name; for example, `results.json` is accompanied by `results.documents.tsv`. The document TSV has one row per loaded document, with any selected Entrez and Europe PMC metadata and optional enrichment results. Config-based runs are saved under the parent directory of the configured output path.
+Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, a JSON results file, a document TSV, keyword and annotation TSVs, and an HTML report. The TSV files use the JSON output's base name; for example, `results.json` is accompanied by `results.documents.tsv`. The document TSV has one row per loaded document and a fixed set of compact metadata columns for filtering and spreadsheets. Full provider records and nested enrichment data remain in the JSON results. Config-based runs are saved under the parent directory of the configured output path.
 
 ## Development
 

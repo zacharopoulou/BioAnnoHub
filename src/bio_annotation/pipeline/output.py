@@ -8,29 +8,25 @@ from typing import Any
 
 from bio_annotation.report import write_html_report
 
-_EPMC_RAW_FIELD_NAMES = {
-    "authorString": "authors",
-    "journalTitle": "journal",
-    "meshHeadingList": "mesh_terms",
-    "keywordList": "keywords",
-    "citedByCount": "citation_count",
-    "isOpenAccess": "is_open_access",
-    "inEPMC": "in_epmc",
-    "fullTextUrlList": "full_text_urls",
-    "pubYear": "year",
-}
-_EPMC_METADATA_KEYS = {
-    "doi": "doi",
-    "citation_count": "citation_count",
-    "is_open_access": "is_open_access",
-    "in_epmc": "in_epmc",
-    "license": "license",
-    "full_text_urls": "full_text_urls",
-    "epmc_id": "id",
-    "epmc_source": "source",
-    "europe_pmc_year": "year",
-}
-_EPMC_TEXT_FIELDS = {"title", "abstractText", "fullTextXML", "fullText", "pmid"}
+_ENTREZ_TSV_FIELDS = (
+    "country",
+    "journal",
+    "journal_abbrev",
+    "issn",
+    "volume",
+    "issue",
+    "pages",
+    "pub_date",
+    "publication_type",
+    "keywords",
+    "mesh_terms",
+)
+_EPMC_TSV_FIELDS = (
+    "citation_count",
+    "is_open_access",
+    "license",
+    "first_publication_date",
+)
 
 
 def write_pipeline_output(payload: dict[str, Any], output_path: Path) -> None:
@@ -62,35 +58,6 @@ def write_documents_tsv(payload: dict[str, Any], output_path: Path) -> None:
         for document in payload.get("documents", [])
         if isinstance(document, dict)
     ]
-    entrez_fields = sorted(
-        {
-            str(field)
-            for document in documents
-            if isinstance(document.get("metadata"), dict)
-            and isinstance(document["metadata"].get("pubmed_record"), dict)
-            for field in document["metadata"]["pubmed_record"]
-            if field not in {"pmid", "title", "abstract"}
-        }
-    )
-    europe_pmc_fields: set[str] = set()
-    for document in documents:
-        metadata = document.get("metadata")
-        if not isinstance(metadata, dict):
-            continue
-        record = metadata.get("epmc_meta")
-        if isinstance(record, dict):
-            europe_pmc_fields.update(
-                _EPMC_RAW_FIELD_NAMES.get(field, field)
-                for field in record
-                if field not in _EPMC_TEXT_FIELDS
-            )
-        europe_pmc_fields.update(
-            column
-            for key, column in _EPMC_METADATA_KEYS.items()
-            if key in metadata
-        )
-    europe_pmc_fields.discard("pmcid")
-    europe_pmc_fields.discard("pmid")
     fieldnames = [
         "document_id",
         "pmid",
@@ -99,8 +66,9 @@ def write_documents_tsv(payload: dict[str, Any], output_path: Path) -> None:
         "year",
         "source",
         "origin_sources",
-        *(f"entrez_{field}" for field in entrez_fields),
-        *(f"europe_pmc_{field}" for field in sorted(europe_pmc_fields)),
+        "doi",
+        *(f"entrez_{field}" for field in _ENTREZ_TSV_FIELDS),
+        *(f"europe_pmc_{field}" for field in _EPMC_TSV_FIELDS),
     ]
     rows: list[dict[str, Any]] = []
     for document in documents:
@@ -116,38 +84,58 @@ def write_documents_tsv(payload: dict[str, Any], output_path: Path) -> None:
             "year": document.get("year"),
             "source": document.get("source"),
             "origin_sources": _join_values(metadata.get("origin_sources")),
+            "doi": metadata.get("doi") or record.get("doi") or _epmc_value(metadata, "doi"),
         }
-        row.update(
-            {
-                f"entrez_{field}": _tsv_cell(record.get(field))
-                for field in entrez_fields
-            }
-        )
-        epmc_record = metadata.get("epmc_meta")
-        epmc_record = epmc_record if isinstance(epmc_record, dict) else {}
-        for field in europe_pmc_fields:
-            value = None
-            for metadata_key, column in _EPMC_METADATA_KEYS.items():
-                if column == field and metadata_key in metadata:
-                    value = metadata[metadata_key]
-                    break
+        for field in _ENTREZ_TSV_FIELDS:
+            value = record.get(field)
+            if field in {"issn", "keywords", "mesh_terms", "publication_type"}:
+                row[f"entrez_{field}"] = _join_metadata_terms(value)
+            else:
+                row[f"entrez_{field}"] = _tsv_cell(value)
+        for field in _EPMC_TSV_FIELDS:
+            value = metadata.get(field)
             if value is None:
-                for raw_field, column in _EPMC_RAW_FIELD_NAMES.items():
-                    if column == field and raw_field in epmc_record:
-                        value = epmc_record[raw_field]
-                        break
-            if value is None:
-                for raw_field, raw_value in epmc_record.items():
-                    if (
-                        raw_field not in _EPMC_TEXT_FIELDS
-                        and _EPMC_RAW_FIELD_NAMES.get(raw_field, raw_field) == field
-                    ):
-                        value = raw_value
-                        break
+                value = _epmc_value(metadata, field)
             row[f"europe_pmc_{field}"] = _tsv_cell(value)
         rows.append(row)
 
     _write_tsv(output_path, fieldnames, rows)
+
+
+def _epmc_value(metadata: dict[str, Any], key: str) -> Any:
+    record = metadata.get("epmc_meta")
+    if not isinstance(record, dict):
+        return None
+    raw_keys = {
+        "doi": "doi",
+        "citation_count": "citedByCount",
+        "is_open_access": "isOpenAccess",
+        "license": "license",
+        "first_publication_date": "firstPublicationDate",
+    }
+    return record.get(raw_keys.get(key, key))
+
+
+def _join_metadata_terms(value: Any) -> str:
+    if isinstance(value, dict):
+        value = value.get("keyword", value.get("meshHeading", value))
+    if isinstance(value, list | tuple | set):
+        terms = []
+        for item in value:
+            if isinstance(item, dict):
+                term = (
+                    item.get("descriptorName")
+                    or item.get("descriptor")
+                    or item.get("name")
+                    or item.get("keyword")
+                )
+                if term is None:
+                    continue
+                terms.append(str(term))
+            else:
+                terms.append(str(item))
+        return "|".join(terms)
+    return _join_values(value)
 
 
 def write_keywords_tsv(payload: dict[str, Any], output_path: Path) -> None:
