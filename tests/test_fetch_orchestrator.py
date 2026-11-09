@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from typing import Iterable
+from urllib.error import URLError
 
 import pytest
 
@@ -179,6 +180,81 @@ def test_pubtator_first_skips_requested_pmids_without_text(caplog: pytest.LogCap
 
     assert out == []
     assert "1, 2" in caplog.text
+
+
+def test_pubtator_first_splits_failed_batch_and_skips_only_unavailable_pmid(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    @dataclass(slots=True)
+    class _FailOneBatchSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            if "bad" in request.pmids:
+                raise ValueError("PubTator3 rejected PMID")
+            return [
+                _doc(pmid, title=f"PubTator title {pmid}", source="pubtator3")
+                for pmid in request.pmids
+            ]
+
+    pubtator = _FailOneBatchSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=pubtator,
+        entrez=_StubSource("entrez"),
+    )
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "bad", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert [request.pmids for request in pubtator.requests] == [
+        ("1", "bad", "2"),
+        ("1",),
+        ("bad", "2"),
+        ("bad",),
+        ("2",),
+    ]
+    assert "Skipping PMID bad" in caplog.text
+
+
+def test_pubtator_first_retries_transient_batch_error_without_splitting(monkeypatch) -> None:
+    @dataclass(slots=True)
+    class _TransientSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            if self.attempts < 3:
+                raise ValueError("PubTator3 request failed") from URLError("temporary outage")
+            return [_doc(pmid, title="PubTator title", source="pubtator3") for pmid in request.pmids]
+
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", lambda _delay: None)
+    pubtator = _TransientSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert pubtator.attempts == 3
+
+
+def test_pubtator_first_skips_batch_after_persistent_transient_error(monkeypatch) -> None:
+    @dataclass(slots=True)
+    class _UnavailableSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            raise ValueError("PubTator3 request failed") from URLError("service unavailable")
+
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", lambda _delay: None)
+    pubtator = _UnavailableSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert out == []
+    assert pubtator.attempts == 3
 
 
 # E. Errors

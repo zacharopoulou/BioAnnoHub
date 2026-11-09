@@ -15,6 +15,7 @@ _EFETCH_URL = (
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
     "?db=pubmed&retmode=xml&id={pmid}"
 )
+_EFETCH_BATCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 _ELINK_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
 _CROSSREF_URL = "https://api.crossref.org/works/{doi}"
 _EUROPE_PMC_SEARCH_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
@@ -84,6 +85,62 @@ def fetch_pubmed_record(
     )
 
     return parsed
+
+
+def fetch_pubmed_records(
+    pmids: list[str],
+    *,
+    timeout: int = 15,
+    enrichments: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch multiple PubMed records in one EFetch request."""
+
+    normalized_pmids = list(dict.fromkeys(_normalize_pmid(pmid) for pmid in pmids))
+    if not normalized_pmids:
+        return []
+
+    body = urlencode(
+        {
+            "db": "pubmed",
+            "retmode": "xml",
+            "id": ",".join(normalized_pmids),
+        }
+    ).encode("ascii")
+    request = urllib.request.Request(
+        _EFETCH_BATCH_URL,
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        xml_text = response.read().decode("utf-8")
+
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        raise ValueError(f"Could not parse PubMed batch response: {exc}") from exc
+
+    articles = root.findall(".//PubmedArticle")
+    if not articles:
+        raise ValueError("PubMed returned no article records for the requested PMID batch.")
+
+    records: list[dict[str, Any]] = []
+    for article in articles:
+        medline = article.find("MedlineCitation")
+        if medline is None:
+            raise ValueError("PubMed batch response contains an article without MedlineCitation.")
+        pubmed_data = article.find("PubmedData")
+        pmid = _normalize_pmid(_node_text(medline.find("PMID")))
+        parsed = _parse_medline_article(medline, pubmed_data)
+        parsed["pmid"] = pmid
+        parsed["elinks"] = _build_enrichment_bundle(
+            parsed,
+            timeout=timeout,
+            enrichments=enrichments,
+        )
+        records.append(parsed)
+
+    return records
 
 
 def _parse_medline_article(medline: ET.Element, pubmed_data: ET.Element | None) -> dict[str, Any]:

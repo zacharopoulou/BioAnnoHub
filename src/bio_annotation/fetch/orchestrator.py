@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, replace
+import json
+import socket
+import time
 from typing import Iterable
+from urllib.error import HTTPError, URLError
 
 from bio_annotation.fetch.entrez import EntrezSource
 from bio_annotation.fetch.europe_pmc import EuropePmcSource
@@ -202,8 +206,8 @@ class PubtatorFirstOrchestrator:
             return self.pubtator.fetch(request)
 
         primary_request = _request_with_pubtator_text_fields(request)
-        returned = self.pubtator.fetch(primary_request)
         requested_pmids = list(dict.fromkeys(request.pmids))
+        returned = self._fetch_pubtator_with_fallback(primary_request, requested_pmids)
         requested_set = set(requested_pmids)
         by_pmid: dict[str, Document] = {}
         for document in returned:
@@ -254,12 +258,75 @@ class PubtatorFirstOrchestrator:
                 _merge_metadata_only(by_pmid[pmid], extra, requested_metadata_fields)
         return documents
 
+    def _fetch_pubtator_with_fallback(
+        self,
+        request: FetchInput,
+        pmids: list[str],
+    ) -> list[Document]:
+        if not pmids:
+            return []
+        try:
+            return self.pubtator.fetch(_request_for_pmids(request, pmids))
+        except Exception as exc:
+            if _is_transient_pubtator_failure(exc):
+                for attempt in range(2):
+                    delay = float(2**attempt)
+                    logger.warning(
+                        "Temporary PubTator3 error for a batch of %d PMID(s); "
+                        "retrying in %.1f seconds (%d/2): %s",
+                        len(pmids),
+                        delay,
+                        attempt + 1,
+                        exc,
+                    )
+                    time.sleep(delay)
+                    try:
+                        return self.pubtator.fetch(_request_for_pmids(request, pmids))
+                    except Exception as retry_exc:
+                        exc = retry_exc
+                        if not _is_transient_pubtator_failure(exc):
+                            break
+                if _is_transient_pubtator_failure(exc):
+                    logger.warning(
+                        "PubTator3 remained unavailable for a batch of %d PMID(s); "
+                        "skipping the batch: %s",
+                        len(pmids),
+                        exc,
+                    )
+                    return []
+
+            if len(pmids) == 1:
+                logger.warning("Skipping PMID %s after PubTator3 request failure: %s", pmids[0], exc)
+                return []
+
+            midpoint = len(pmids) // 2
+            logger.warning(
+                "PubTator3 request failed for %d PMIDs; splitting and retrying: %s",
+                len(pmids),
+                exc,
+            )
+            return self._fetch_pubtator_with_fallback(
+                request,
+                pmids[:midpoint],
+            ) + self._fetch_pubtator_with_fallback(request, pmids[midpoint:])
+
 
 def _document_pmid(document: Document) -> str:
     pmid = str(document.pmid or "").strip()
     if pmid.upper().startswith("PMID:"):
         pmid = pmid.split(":", 1)[1].strip()
     return pmid
+
+
+def _is_transient_pubtator_failure(error: Exception) -> bool:
+    current: BaseException | None = error
+    while current is not None:
+        if isinstance(current, HTTPError):
+            return current.code == 429 or current.code >= 500
+        if isinstance(current, (URLError, TimeoutError, socket.timeout, json.JSONDecodeError)):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def _request_with_pubtator_text_fields(request: FetchInput) -> FetchInput:
