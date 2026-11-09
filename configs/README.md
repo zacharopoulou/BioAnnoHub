@@ -1,100 +1,49 @@
-# Configuration Guide
+# Config Guide
 
-This directory contains runnable pipeline configurations for BioAnnoHub.
+A config makes a run repeatable. Copy an example from [`examples/`](examples/) and change its inputs and options.
 
-## Files
+## Run a config
 
-- `pipeline.toml`
-  Default config, set up for a first live PubTator3 PMID run.
-- `examples/`
-  Small runnable configs for common input modes, plus one advanced multi-source fetch example.
+```bash
+uv run bioannohub run-config --config configs/examples/pmid-single.toml
+```
 
-## Main Sections
+To find PMIDs first:
 
-Each pipeline config is organized around:
+```bash
+uv run bioannohub search-pmids \
+  --query 'glioblastoma AND microRNA' \
+  --output data/inputs/query_pmids.txt
+```
 
-- `[input]`
-- `[enrichment]`
-- `[annotators]`
-- `[filters]`
-- `[output]`
+Set `input.mode = "pmid_file"` and `input.pmid_file` to that file in your config. Run progress is shown by default; add `--log-level DEBUG` before `run-config` for detailed service logs.
 
-## PMID Text and Metadata
+## PMID text and metadata
 
-For PMID inputs, PubTator3 provides the title, abstract, and optional full text used for annotation. Entrez and Europe PMC provide metadata only; they do not supply or replace annotation text.
+PubTator3 provides the title and abstract for annotation. Entrez and Europe PMC add metadata; they do not replace the annotation text. Metadata is attached when PubTator3 returns usable text. If a source fails, the run keeps any results received from the other sources.
 
-The metadata sources are requested as follows:
-
-- With no metadata fields or enrichments selected, BioAnnoHub fetches from PubTator3 only.
-- Selecting Entrez metadata requests both Entrez and Europe PMC metadata.
-- Selecting only Europe PMC metadata requests Europe PMC without Entrez.
-
-Metadata is attached only to PMIDs for which PubTator3 returned usable text. If PubTator3 does not return usable text, BioAnnoHub skips that PMID and reports it. If an optional metadata service fails, the run keeps the PubTator3 document and any metadata returned by the other services. By default, BioAnnoHub retains the fields returned by each selected source. Use `input.fields_per_source` to request a smaller set of metadata fields; these filters also limit what is retained in the JSON:
+For example, request Entrez and Europe PMC metadata and a few enrichments:
 
 ```toml
 [input]
 mode = "pmid_file"
-pmid_file = "data/inputs/example_pmids.txt"
+pmid_file = "data/inputs/query_pmids.txt"
 source = ["pubtator3", "entrez"]
 
-[input.fields_per_source]
-entrez = ["mesh_terms", "authors", "journal", "year"]
-europe_pmc = ["citation_count", "is_open_access", "license"]
-```
-
-Add `"full_text"` to `input.fields` and enable `[input.pubtator3].full_text = true` to request PubTator3 full text where available.
-
-## Results and Metadata Export
-
-Each run writes a JSON file, a document TSV, keyword and annotation TSVs, and an HTML report. The document TSV uses the JSON output's base name (for example, `results.documents.tsv`) and has one row per loaded document. It has a fixed set of compact columns: document identifiers, title, year, source, DOI, core journal and publication details, keywords, MeSH terms, and selected Europe PMC summary fields. Lists such as ISSNs and terms are joined with `|`.
-
-The TSV is intended for filtering and spreadsheet review; it does not contain every provider field. Full returned records and nested enrichment results are retained in the JSON under each document's `metadata` (for example, `pubmed_record` and `epmc_meta`). The JSON contains only the fields requested from selected sources, and only data those services returned. Entrez `title` and `abstract` are not exported as metadata columns because PubTator3 supplies the annotation text.
-
-## Optional Enrichments
-
-Related records and citation data can be enabled under `[enrichment].sources`. Enrichments are off by default. Returned enrichment data is retained in `metadata.pubmed_record.elinks` in JSON. It is intentionally omitted from the compact document TSV because these nested citation and reference records can make the table very wide.
-
-```toml
 [enrichment]
 sources = ["elinks", "crossref"]
 ```
 
-Supported values are `elinks`, `crossref`, `europe_pmc`, `semantic_scholar`, `unpaywall`, and `biorxiv`. These add related PMID lists, DOI reference data, citation/reference records, open-access details, or preprint details depending on the selected service. Some services make several requests per PMID. Unpaywall also requires `NCBI_EMAIL` to be set. Use only the enrichments your workflow needs.
+Selecting `entrez` also requests Europe PMC metadata. Enrichments are optional; supported values are `elinks`, `crossref`, `europe_pmc`, `semantic_scholar`, `unpaywall`, and `biorxiv`. Unpaywall requires `NCBI_EMAIL`.
 
-Enrichments run one PMID at a time. INFO messages report progress every five PMIDs. Use DEBUG to see each enrichment provider start and finish:
-
-```bash
-uv run bioannohub --log-level INFO run-config --config path/to/your-config.toml
-```
-
-Use `--log-level DEBUG` instead of `INFO` for per-provider details.
-
-## Annotator Tables
-
-Annotator runtime metadata is defined under nested annotator tables.
-
-Example:
+Use `input.fields_per_source` to limit metadata saved in the JSON:
 
 ```toml
-[annotators]
-enabled = ["pubtator3"]
-
-[annotators.pubtator3]
-runtime = "remote_api"
-endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
-format = "biocjson"
-timeout = 60
+[input.fields_per_source]
+entrez = ["authors", "journal", "mesh_terms", "year"]
+europe_pmc = ["citation_count", "is_open_access", "license"]
 ```
 
-The pipeline reads these settings and uses them at runtime for the matching annotator.
+## Output files
 
-## Current Examples
-
-- `examples/pmid-single.toml`
-  Inline PMID input using PubTator3 text without an Entrez request.
-- `examples/pmid-file.toml`
-  PMID batch input using PubTator3 text without an Entrez request.
-- `examples/corpus-file.toml`
-  Local text-table input annotated with Flair (PubTator3 only annotates PubMed/PMC publications).
-- `examples/fetch-merge.toml`
-  PMID batch example where PubTator3 supplies all text and Entrez plus Europe PMC add selected metadata only.
+Each run writes JSON, document/keyword/annotation TSVs, and an HTML report to a timestamped folder next to the configured output path. The JSON retains returned metadata and nested enrichment results, subject to the requested fields and service availability. The document TSV has one row per paper and a fixed set of compact columns; large nested fields such as references remain in JSON.

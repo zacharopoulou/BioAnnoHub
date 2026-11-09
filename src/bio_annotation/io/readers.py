@@ -147,7 +147,7 @@ def fetch_pubmed_records(
             progress=(index, article_count),
         )
         records.append(parsed)
-        if enrichments and (index == 1 or index % 5 == 0 or index == article_count):
+        if enrichments and (index == 1 or index % 25 == 0 or index == article_count):
             logger.info(
                 "Completed enrichments for %d/%d PMID(s); latest PMID %s took %.1fs",
                 index,

@@ -1,68 +1,32 @@
 # BioAnnoHub
 
-BioAnnoHub builds biomedical literature corpora, runs selected named entity annotators, and saves results in a format that can be inspected and reused.
+BioAnnoHub collects biomedical papers, runs named entity recognition and normalization tools, and saves the results for review.
 
-Use it from the terminal for an interactive run, or use a TOML config for a repeatable workflow. Inputs include PubMed IDs, PMID files, and local text tables. Runs save their configuration, annotations, and summary files together.
+## Install
 
-For PMID runs, PubTator3 provides the title, abstract, and optional full text used for annotation. Entrez and Europe PMC add metadata only; they never replace that text. A PMID without usable PubTator3 text is skipped and reported.
-
-## Annotators and supported entity types
-
-The table lists the annotator integrations declared by BioAnnoHub and the entity types they return or map to. `NER` identifies mentions; `NEN` links mentions to concepts or identifiers. HunFlair requires its linkers for NEN. MedCAT's available labels depend on its loaded model pack. Optional models and services may need separate installation or configuration.
-
-| Annotator | Domain | NER | NEN | Entity types |
-|---|---|:---:|:---:|---|
-| PubTator3 | Biomedical | Yes | Yes | Gene / protein, disease, chemical / drug, species, variant / mutation, cell line |
-| BERN2 | Biomedical | Yes | Yes | Gene / protein, disease, chemical / drug, species, variant / mutation, cell line, cell type, DNA, RNA |
-| Flair / HunFlair | Biomedical | Yes | Yes¹ | Gene / protein, disease, chemical / drug, species, cell line |
-| MedCAT | Clinical | Yes | Yes | Labels and concepts defined by the loaded model pack |
-| scispaCy `en_core_sci_scibert` | Biomedical | Yes | Yes² | Generic biomedical mention (`ENTITY`) |
-| scispaCy `en_core_sci_md` | Biomedical | Yes | Yes² | Generic biomedical mention (`ENTITY`) |
-| scispaCy `en_ner_bc5cdr_md` | Biomedical | Yes | No | Disease, chemical / drug |
-| scispaCy `en_ner_jnlpba_md` | Biomedical | Yes | No | DNA, RNA, gene / protein, cell type, cell line |
-| scispaCy `en_ner_bionlp13cg_md` | Biomedical | Yes | No | Amino acid, anatomical system, cancer, cell, cellular component, developing anatomical structure, gene, immaterial anatomical entity, multi-tissue structure, organ, species, organism subdivision, organism substance, pathological formation, chemical / drug, tissue |
-| scispaCy `en_ner_craft_md` | Biomedical | Yes | No | Gene / protein, chemical, cell type, species, Gene Ontology, Sequence Ontology |
-| BENT | Biomedical | Yes | Yes | Disease, chemical / drug, gene / protein, species, biological process, anatomical entity, cellular component, cell type, cell line, variant / mutation |
-| ClinicalBERT | Clinical | Yes | No | Problem, test, treatment |
-| Clinical-AI-Apollo Medical-NER | Clinical | Yes | No | MACCROBAT label set³ |
-| d4data `biomedical-ner-all` | Clinical | Yes | No | MACCROBAT label set³ |
-| Stanza BC5CDR | Biomedical | Yes | No | Disease, chemical / drug |
-| Stanza BioNLP13CG | Biomedical | Yes | No | Amino acid, anatomical system, cancer, cell, cellular component, developing anatomical structure, gene, immaterial anatomical entity, multi-tissue structure, organ, species, organism subdivision, organism substance, pathological formation, chemical / drug, tissue |
-| Stanza JNLPBA | Biomedical | Yes | No | Gene / protein, DNA, RNA, cell line, cell type |
-| Stanza AnatEM | Biomedical | Yes | No | Anatomical entity |
-| Stanza BC4CHEMD | Biomedical | Yes | No | Chemical / drug |
-| Stanza Linnaeus | Biomedical | Yes | No | Species |
-| Stanza NCBI-Disease | Biomedical | Yes | No | Disease |
-| Stanza S800 | Biomedical | Yes | No | Species |
-| Stanza i2b2 | Clinical | Yes | No | Problem, test, treatment |
-| Stanza radiology | Clinical | Yes | No | Anatomy, anatomy modifier, observation, observation modifier, uncertainty |
-
-¹ HunFlair NEN is available when its entity linkers are enabled. ² These general scispaCy models link generic `ENTITY` mentions to UMLS; the linker does not assign biomedical entity categories such as disease or gene. ³ The MACCROBAT labels are disease/disorder, medication, activity, administration, age, area, biological attribute, biological structure, clinical event, color, coreference, date, detailed description, diagnostic procedure, distance, dosage, duration, family history, frequency, height, history, lab value, mass, nonbiological location, occupation, other entity, other event, outcome, personal background, qualitative concept, quantitative concept, severity, sex, shape, sign/symptom, subject, texture, therapeutic procedure, time, volume, and weight.
-
-## Get started
-
-Requirements: Python 3.12 or later and [uv](https://docs.astral.sh/uv/).
+Requirements: Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 git clone https://github.com/zacharopoulou/BioAnnoHub.git
 cd BioAnnoHub
 uv sync
+```
+
+## Run
+
+Start the interactive workflow and follow the prompts:
+
+```bash
 uv run bioannohub annotate
 ```
 
-The terminal workflow guides you through choosing documents, annotators, and entity types. Local annotators may need optional dependencies, model downloads, or a separate setup; the app will explain what is needed when you select one.
-
-Domain and supported-task choices filter the annotators offered in the terminal. `All domains` includes biomedical and clinical annotators; `All tasks (NER and/or NEN)` includes NER-only annotators as well as those supporting normalization. These choices do not restrict which annotations a selected tool returns. When Flair is selected, `NEN-capable` or `All tasks` enables its entity linkers. The saved config records the selection filters as informational comments and the actual annotator settings, including Flair linking, as runnable TOML settings.
-
-## Common commands
-
-Run a saved example config:
+Or run a saved config:
 
 ```bash
 uv run bioannohub run-config --config configs/examples/pmid-single.toml
 ```
 
-Search PubMed and save matching PMIDs:
+To search PubMed and save matching IDs:
 
 ```bash
 uv run bioannohub search-pmids \
@@ -70,42 +34,19 @@ uv run bioannohub search-pmids \
   --output data/inputs/query_pmids.txt
 ```
 
-Preview a config before running it:
+`run-config` shows concise progress by default. Add `--log-level DEBUG` before the command for detailed service logs.
 
-```bash
-uv run bioannohub inspect-config --config configs/examples/pmid-single.toml
-uv run bioannohub load-documents --config configs/examples/pmid-single.toml
-```
+## Results
 
-Run the standalone NCBI Disease benchmark review:
+Each run creates a timestamped folder with the config, input, JSON results, TSV tables, and HTML report. The JSON keeps returned metadata and nested enrichment data. The document TSV has compact columns for filtering; keyword and annotation TSVs contain the extracted results.
 
-```bash
-uv sync --extra benchmarks
-uv run bioannohub evaluate-ncbi-review
-```
+For PMID runs, PubTator3 supplies the title and abstract used for annotation. Entrez and Europe PMC add metadata. A PMID without usable PubTator3 text is skipped.
 
-## Documentation
+## Help
 
-- [PubMed PMID search guide](src/bio_annotation/io/README.md): query syntax, filters, date bounds, and progress output.
+- [Config guide](configs/README.md): prepare PMID inputs, metadata, and enrichments.
+- [Example configs](configs/examples/): ready-to-run workflows.
+- [PubMed search guide](src/bio_annotation/io/README.md): query syntax and filters.
+- [Workflow specification](docs/workflow-spec.md): detailed design and supported inputs.
 
-- [Configuration guide](configs/README.md): config structure and runnable examples.
-- [Project docs](docs/README.md): workflow overview and design notes.
-- [Benchmark review guide](src/bio_annotation/benchmarking/README.md): dataset, evaluation options, outputs, and limitations.
-- [Benchmark data notes](data/benchmarks/README.md): local benchmark data conventions.
-- [Data guide](data/README.md): inputs, corpora, and generated data.
-- [Tests guide](tests/README.md): test coverage and development checks.
-- [Workflow specification](docs/workflow-spec.md): the broader workflow model and supported input types.
-
-## Output
-
-Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, a JSON results file, a document TSV, keyword and annotation TSVs, and an HTML report. The TSV files use the JSON output's base name; for example, `results.json` is accompanied by `results.documents.tsv`. The document TSV has one row per loaded document and fixed, compact metadata columns for filtering and spreadsheets. Full returned provider records and nested enrichment data remain in the JSON results, subject to any `input.fields_per_source` filters and the data returned by those services. Config-based runs are saved in timestamped folders under the parent directory of the configured output path. See the [configuration guide](configs/README.md) for the metadata fields and enrichment behavior.
-
-## Development
-
-Run the local demo or the test suite with:
-
-```bash
-uv run bioannohub demo
-uv run pytest
-```
-
+Use `uv run bioannohub --help` to see all commands.

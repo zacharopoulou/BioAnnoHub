@@ -59,12 +59,25 @@ def describe(event: ProgressEvent) -> str:
     return _describe_annotate(event)
 
 def log_progress(event: ProgressEvent) -> None:
-    """Default reporter: log every event, warn on failures."""
+    """Log concise run progress, while always preserving failures."""
 
     if event.event == "error":
         logger.warning("%s", describe(event))
-    else:
-        logger.info("%s", describe(event))
+        return
+
+    if event.phase == "annotate":
+        if event.event == "start" and event.document_index not in (None, 1):
+            return
+        if event.event == "done" and event.document_index is not None:
+            is_milestone = event.document_index % 25 == 0
+            is_final = (
+                event.document_total is not None
+                and event.document_index == event.document_total
+            )
+            if not (is_milestone or is_final):
+                return
+
+    logger.info("%s", describe(event))
 
 def _describe_preflight(event: ProgressEvent) -> str:
     if event.event == "start":

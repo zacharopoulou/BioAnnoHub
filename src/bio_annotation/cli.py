@@ -82,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--log-level",
         default=DEFAULT_LOG_LEVEL,
         choices=("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"),
-        help="Diagnostic log level. Default: WARNING.",
+        help="Diagnostic log level. Default: INFO; DEBUG adds per-provider details.",
     )
     subparsers = parser.add_subparsers(dest="command")
 
