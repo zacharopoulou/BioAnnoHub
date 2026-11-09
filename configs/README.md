@@ -19,11 +19,17 @@ Each pipeline config is organized around:
 - `[filters]`
 - `[output]`
 
-## Fetch Defaults
+## PMID Text and Metadata
 
-PMID-based annotation always uses PubTator3 for title, abstract, and optional full text. If `[input].source` is omitted, BioAnnoHub fetches text from PubTator3 only. When metadata is requested, Entrez is called when its source or fields are selected, and Europe PMC is called alongside it (or by itself when Europe PMC fields are selected). Europe PMC does not provide annotation text.
+For PMID inputs, PubTator3 provides the title, abstract, and optional full text used for annotation. Entrez and Europe PMC provide metadata only; they do not supply or replace annotation text.
 
-Entrez and Europe PMC metadata are attached only to PMIDs returned by PubTator3. Neither source fills or replaces the annotation text. PMIDs PubTator3 does not return with usable text are skipped and reported in a warning. Use `input.fields_per_source` to select metadata fields:
+The metadata sources are requested as follows:
+
+- With no metadata fields or enrichments selected, BioAnnoHub fetches from PubTator3 only.
+- Selecting Entrez metadata requests both Entrez and Europe PMC metadata.
+- Selecting only Europe PMC metadata requests Europe PMC without Entrez.
+
+Metadata is attached only to PMIDs for which PubTator3 returned usable text. If PubTator3 does not return usable text, BioAnnoHub skips that PMID and reports it. If an optional metadata service fails, the run keeps the PubTator3 document and any metadata returned by the other service. Use `input.fields_per_source` to select metadata fields:
 
 ```toml
 [input]
@@ -38,9 +44,13 @@ europe_pmc = ["citation_count", "is_open_access", "license"]
 
 Add `"full_text"` to `input.fields` and enable `[input.pubtator3].full_text = true` to request PubTator3 full text where available.
 
+## Results and Metadata Export
+
+Each run writes a JSON file, a document TSV, keyword and annotation TSVs, and an HTML report. The document TSV uses the JSON output's base name (for example, `results.documents.tsv`) and has one row per loaded document. It includes the PubTator3 title and text source, plus selected metadata in columns prefixed with `entrez_` or `europe_pmc_`. Lists and structured values are JSON-encoded within their TSV cells. Entrez `title` and `abstract` are not exported as metadata columns because PubTator3 supplies the annotation text.
+
 ## Optional Enrichments
 
-Additional cross-references can be enabled under `[enrichment].sources`. They are off by default. Results are retained inside `metadata.pubmed_record.elinks` in JSON and in the `entrez_elinks` column of `results.documents.tsv`.
+Related records and citation data can be enabled under `[enrichment].sources`. Enrichments are off by default. Results are retained in `metadata.pubmed_record.elinks` in JSON and in the `entrez_elinks` column of `results.documents.tsv` (the TSV cell contains JSON).
 
 ```toml
 [enrichment]
