@@ -40,7 +40,8 @@ def test_direct_execution_records_annotator_failure(monkeypatch, caplog):
     assert results == {"bern2": []}
     assert statuses[0]["status"] == "failed"
     assert statuses[0]["reason"] == "annotator unavailable"
-    assert "bern2 unavailable: annotator unavailable" in caplog.text
+    assert "[1/1] BERN2 failed on doc1" in caplog.text
+    assert ": annotator unavailable" in caplog.text
 
 
 @pytest.mark.parametrize("raises", [False, True])
