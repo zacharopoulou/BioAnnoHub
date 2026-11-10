@@ -48,6 +48,20 @@ For PMID inputs, the terminal lets you choose additional metadata sources. Entre
 - [Config guide](configs/README.md): prepare PMID inputs, metadata, and enrichments.
 - [Example configs](configs/examples/): ready-to-run workflows.
 - [PubMed search guide](src/bio_annotation/io/README.md): query syntax and filters.
+- [Project docs](docs/README.md): workflow overview and design notes.
 - [Workflow specification](docs/workflow-spec.md): detailed design and supported inputs.
 
 Use `uv run bioannohub --help` to see all commands.
+
+## Output
+
+Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
+
+## Development
+
+Run the local demo or the test suite with:
+
+```bash
+uv run bioannohub demo
+uv run pytest
+```

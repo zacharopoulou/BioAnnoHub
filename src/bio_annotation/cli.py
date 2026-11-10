@@ -512,4 +512,3 @@ def _format_name_list(value: object) -> str:
     if isinstance(value, list) and value:
         return ", ".join(str(item) for item in value)
     return "none"
-

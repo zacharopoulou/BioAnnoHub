@@ -97,20 +97,22 @@ def tool_environment(monkeypatch) -> list[list[str]]:
 
 
 def test_ensure_tool_environments_runs_setup_script(tool_environment) -> None:
-    deps.ensure_tool_environments(
+    unavailable = deps.ensure_tool_environments(
         ["bent", "bern2"], {}, input_fn=lambda prompt: "", output_fn=lambda line: None
     )
 
+    assert unavailable == {}
     assert tool_environment == [["bash", str(deps.repo_root() / "tools/bent/setup.sh")]]
 
 
 def test_ensure_tool_environments_warns_and_continues_when_declined(tool_environment) -> None:
     messages: list[str] = []
 
-    deps.ensure_tool_environments(
+    unavailable = deps.ensure_tool_environments(
         ["bent"], {}, input_fn=lambda prompt: "n", output_fn=messages.append
     )
 
+    assert unavailable == {"bent": "bent setup was skipped."}
     assert tool_environment == []
     assert any("no annotations this run" in message for message in messages)
 
@@ -122,8 +124,10 @@ def test_ensure_tool_environments_warns_when_non_interactive(monkeypatch, tool_e
     def refuse(prompt: str) -> str:
         raise AssertionError("should not prompt")
 
-    deps.ensure_tool_environments(["bent"], {}, input_fn=refuse, output_fn=messages.append)
+    unavailable = deps.ensure_tool_environments(["bent"], {}, input_fn=refuse, output_fn=messages.append)
 
+    assert list(unavailable) == ["bent"]
+    assert "setup.sh" in unavailable["bent"]
     assert tool_environment == []
     assert any("setup.sh" in message for message in messages)
 

@@ -52,6 +52,7 @@ class ProgressEvent:
 
 
 ProgressReporter = Callable[[ProgressEvent], None]
+SHORT_REASON_LENGTH = 100
 
 def describe(event: ProgressEvent) -> str:
     """Human-readable one-line message for an event."""
@@ -63,10 +64,12 @@ def describe(event: ProgressEvent) -> str:
     return _describe_annotate(event)
 
 def log_progress(event: ProgressEvent) -> None:
-    """Log concise run progress, while always preserving failures."""
+    """Log concise progress and preserve full failure detail at debug level."""
 
     if event.event == "error":
         logger.warning("%s", describe(event))
+        if event.reason and short_reason(event.reason) != event.reason:
+            logger.debug("Full %s error: %s", event.label, event.reason)
         return
 
     if not should_report_progress(event):
@@ -104,7 +107,7 @@ def _describe_fetch(event: ProgressEvent) -> str:
         else:
             message = f"Finished fetching from {source}"
         return f"{message}{_elapsed(event)}"
-    return f"{source} fetch failed{_elapsed(event)}: {event.reason}"
+    return f"{source} fetch failed{_elapsed(event)}: {short_reason(event.reason or '')}"
 
 def _describe_preflight(event: ProgressEvent) -> str:
     if event.event == "start":
@@ -113,7 +116,7 @@ def _describe_preflight(event: ProgressEvent) -> str:
         return f"{message}; {hint}" if hint else message
     if event.event == "done":
         return f"Loaded {event.label} model assets{_elapsed(event)}"
-    return f"{event.label} model assets unavailable{_elapsed(event)}: {event.reason}"
+    return f"{event.label} model assets unavailable{_elapsed(event)}: {short_reason(event.reason or '')}"
 
 def _describe_annotate(event: ProgressEvent) -> str:
     prefix = ""
@@ -131,9 +134,21 @@ def _describe_annotate(event: ProgressEvent) -> str:
         plural = "" if count == 1 else "s"
         message = f"{prefix}{event.label}{target}: {count} annotation{plural}{_elapsed(event)}"
         if not count and event.reason:
-            message += f" - {event.reason}"
+            message += f" - {short_reason(event.reason)}"
         return message
-    return f"{prefix}{event.label} failed{target}{_elapsed(event)}: {event.reason}"
+    return f"{prefix}{event.label} failed{target}{_elapsed(event)}: {short_reason(event.reason or '')}"
+
+
+def short_reason(reason: str) -> str:
+    """Keep progress output to one line, using the final exception for tracebacks."""
+
+    lines = [line.strip() for line in reason.splitlines() if line.strip()]
+    if not lines:
+        return reason
+    summary = lines[-1] if "Traceback (most recent call last)" in reason else lines[0]
+    if len(summary) > SHORT_REASON_LENGTH:
+        summary = summary[: SHORT_REASON_LENGTH - 1].rstrip() + "…"
+    return summary
 
 def _elapsed(event: ProgressEvent) -> str:
     if event.elapsed_seconds is None:
