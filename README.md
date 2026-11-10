@@ -106,4 +106,3 @@ Run the local demo or the test suite with:
 uv run bioannohub demo
 uv run pytest
 ```
-

@@ -228,6 +228,7 @@ def build_pipeline_output(
             unavailable_annotators=unavailable,
             bern2_request_fn=bern2_request_fn,
             pubtator3_request_fn=pubtator3_request_fn,
+            pubtator3_response=document.metadata.get("pubtator3_payload"),
             bent_request_fn=bent_request_fn,
             medcat_request_fn=medcat_request_fn,
             bern2_options=bern2_options,
@@ -334,6 +335,7 @@ def run_selected_annotators(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    pubtator3_response: Any = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
@@ -364,6 +366,7 @@ def run_selected_annotators(
         annotators,
         bern2_request_fn=bern2_request_fn,
         pubtator3_request_fn=pubtator3_request_fn,
+        pubtator3_response=pubtator3_response,
         bent_request_fn=bent_request_fn,
         medcat_request_fn=medcat_request_fn,
         bern2_options=bern2_options,
@@ -398,6 +401,7 @@ def run_selected_annotators_with_status(
     *,
     bern2_request_fn: Callable[[Document], Any] | None = None,
     pubtator3_request_fn: Callable[[Document], Any] | None = None,
+    pubtator3_response: Any = None,
     bent_request_fn: Callable[[Document], Any] | None = None,
     medcat_request_fn: Callable[[Document], Any] | None = None,
     bern2_options: dict[str, Any] | None = None,
@@ -480,6 +484,7 @@ def run_selected_annotators_with_status(
             elif annotator == "pubtator3":
                 results[annotator] = annotate_with_pubtator3(
                     document,
+                    response=pubtator3_response,
                     request_fn=pubtator3_request_fn,
                     endpoint=pubtator3_options.get("endpoint")
                     if pubtator3_options

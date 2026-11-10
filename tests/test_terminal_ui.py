@@ -573,4 +573,3 @@ def test_terminal_results_keep_execution_status_separate_from_filtered_counts(
         "annotations": annotations,
     })
     assert rows == [{"annotator": "BERN2", "status": expected_status, "entity_count": expected_count}]
-

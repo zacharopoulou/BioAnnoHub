@@ -279,4 +279,3 @@ def annotator_results_lines(annotators: list[dict[str, Any]]) -> list[str]:
     if annotators:
         lines.extend(render_lines(table))
     return lines
-

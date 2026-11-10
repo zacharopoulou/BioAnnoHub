@@ -904,4 +904,3 @@ def _toml_string(value: str) -> str:
 
 def _toml_string_list(values: list[str]) -> str:
     return "[" + ", ".join(_toml_string(v) for v in values) + "]"
-
