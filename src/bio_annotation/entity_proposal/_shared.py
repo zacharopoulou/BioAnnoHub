@@ -104,17 +104,12 @@ def build_annotation_id(
     entity_type: str,
     start: int | None,
     end: int | None,
+    discriminator: str | None = None,
 ) -> str:
-    raw = "|".join(
-        [
-            source,
-            document_id,
-            entity_type,
-            str(start),
-            str(end),
-            span_text,
-        ]
-    )
+    identity = [source, document_id, entity_type, str(start), str(end), span_text]
+    if discriminator is not None:
+        identity.append(discriminator)
+    raw = "|".join(identity)
     digest = hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
     return f"{source}:{digest}"
 
@@ -132,6 +127,7 @@ def make_annotation(
     confidence: Any = None,
     normalization_score: Any = None,
     infer_missing_offsets: bool = True,
+    id_discriminator: str | None = None,
 ) -> Annotation:
     normalized_span = str(span_text).strip()
     if infer_missing_offsets:
@@ -148,6 +144,7 @@ def make_annotation(
         entity_type=normalized_type,
         start=resolved_start,
         end=resolved_end,
+        discriminator=id_discriminator,
     )
 
     return Annotation(

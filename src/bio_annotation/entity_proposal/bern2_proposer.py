@@ -40,8 +40,9 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
     text_matches = isinstance(response_text, str) and response_text == document.text
 
     offset_map: dict[int, int] | None = None
+    span_offset_map: dict[tuple[int, int, str], tuple[int, int]] = {}
     if records and not text_matches and isinstance(response_text, str):
-        offset_map = _unique_offset_map(
+        alignment = _unique_offset_map(
             document.text,
             response_text,
             [
@@ -50,12 +51,19 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
                 for offset in _record_offsets(record)
                 if offset is not None
             ],
+            [
+                (*_record_offsets(record), str(mention).strip())
+                for record in records
+                if (mention := _record_mention(record)) and str(mention).strip()
+            ],
         )
-        if offset_map is None:
+        if alignment is None:
             logger.warning(
                 "BERN2 predictions for %s are unplaced: response text differs and no safe unique alignment was found",
                 document.document_id,
             )
+        else:
+            offset_map, span_offset_map = alignment
     elif records and not text_matches:
         logger.warning(
             "BERN2 predictions for %s are unplaced: response did not include text to verify its coordinate basis",
@@ -63,13 +71,8 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
         )
 
     unaligned_count = 0
-    for record in records:
-        mention = pick_first(
-            record.get("mention"),
-            record.get("text"),
-            record.get("span_text"),
-            record.get("obj"),
-        )
+    for record_index, record in enumerate(records):
+        mention = _record_mention(record)
         if not mention:
             continue
 
@@ -84,6 +87,10 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
                 end,
                 offset_map=offset_map,
             )
+            if mapped is None:
+                key = _span_alignment_key(start, end, mention)
+                if key is not None:
+                    mapped = span_offset_map.get(key)
         else:
             mapped = None
         if mapped is None:
@@ -121,6 +128,7 @@ def parse_bern2_response(document: Document, payload: Any) -> list[Annotation]:
                     record.get("score"),
                 ),
                 infer_missing_offsets=False,
+                id_discriminator=(f"unplaced:{record_index}" if mapped is None else None),
             )
         )
 
@@ -148,12 +156,29 @@ def _record_offsets(record: dict[str, Any]) -> tuple[Any, Any]:
     )
 
 
+def _record_mention(record: dict[str, Any]) -> Any:
+    return pick_first(
+        record.get("mention"),
+        record.get("text"),
+        record.get("span_text"),
+        record.get("obj"),
+    )
+
+
+def _span_alignment_key(start: Any, end: Any, mention: Any) -> tuple[int, int, str] | None:
+    try:
+        return int(start), int(end), str(mention).strip()
+    except (TypeError, ValueError):
+        return None
+
+
 def _unique_offset_map(
     document_text: str,
     response_text: str,
     response_boundaries: list[Any],
-) -> dict[int, int] | None:
-    """Map response boundaries only when every shortest text alignment agrees."""
+    response_spans: list[tuple[Any, Any, str]] | None = None,
+) -> tuple[dict[int, int], dict[tuple[int, int, str], tuple[int, int]]] | None:
+    """Map unambiguous boundaries and uniquely aligned exact mentions."""
     boundaries: set[int] = set()
     for value in response_boundaries:
         try:
@@ -206,7 +231,41 @@ def _unique_offset_map(
         if len(possible) != 1:
             continue
         mapping[response_boundary] = next(iter(possible))
-    return mapping
+
+    span_mapping: dict[tuple[int, int, str], tuple[int, int]] = {}
+    for raw_start, raw_end, raw_mention in response_spans or []:
+        key = _span_alignment_key(raw_start, raw_end, raw_mention)
+        if key is None:
+            continue
+        response_start, response_end, mention = key
+        if not (0 <= response_start <= response_end <= len(response_text)):
+            continue
+        response_span = response_text[response_start:response_end]
+        if response_span.strip() != mention:
+            continue
+        edge_whitespace_cost = len(response_span) - len(mention)
+        candidate_start = document_text.find(mention)
+        candidates: set[tuple[int, int]] = set()
+        while candidate_start != -1:
+            candidate_end = candidate_start + len(mention)
+            prefix_cost = forward[response_start].get(candidate_start)
+            suffix_cost = backward[len(response_text) - response_end].get(
+                len(document_text) - candidate_end
+            )
+            if (
+                prefix_cost is not None
+                and suffix_cost is not None
+                and prefix_cost + edge_whitespace_cost + suffix_cost == distance
+            ):
+                candidates.add((candidate_start, candidate_end))
+                if len(candidates) > 1:
+                    break
+            candidate_start = document_text.find(mention, candidate_start + 1)
+        if len(candidates) == 1:
+            # A unique mention occurrence may fix ambiguous start/end boundaries,
+            # but only when it lies on a globally shortest text alignment.
+            span_mapping[key] = next(iter(candidates))
+    return mapping, span_mapping
 
 
 def _boundary_distances(

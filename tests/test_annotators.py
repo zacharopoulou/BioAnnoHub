@@ -145,6 +145,29 @@ def test_bern2_maps_offsets_from_changed_response_text() -> None:
     assert document.text[annotations[0].start : annotations[0].end] == "Glioma"
 
 
+def test_bern2_maps_unique_mention_when_response_omits_document_prefix() -> None:
+    document = Document(
+        document_id="PMID:prefix",
+        title="Background",
+        abstract="EGFR drives tumor growth.",
+        source="pubtator3",
+    )
+    response_text = "EGFR drives tumor growth."
+    response = {
+        "text": response_text,
+        "annotations": [
+            {"mention": "EGFR", "span": {"begin": 0, "end": 4}, "type": "Gene"}
+        ],
+    }
+
+    annotations = annotate_with_bern2(document, response=response)
+
+    expected_start = document.text.index("EGFR")
+    assert len(annotations) == 1
+    assert (annotations[0].start, annotations[0].end) == (expected_start, expected_start + 4)
+    assert document.text[annotations[0].start : annotations[0].end] == "EGFR"
+
+
 def test_bern2_leaves_span_unplaced_when_response_dropped_text_inside_mention() -> None:
     document = Document(
         document_id="PMID:unicode",
@@ -203,6 +226,28 @@ def test_bern2_leaves_ambiguous_repeated_text_unplaced() -> None:
     assert len(annotations) == 1
     assert annotations[0].start is None
     assert annotations[0].end is None
+
+
+def test_bern2_keeps_ids_distinct_for_repeated_unplaced_predictions() -> None:
+    document = Document(
+        document_id="PMID:repeated-unplaced",
+        title="",
+        abstract="EGFR and EGFR",
+        source="pubtator3",
+    )
+    response = {
+        "text": "EGFR",
+        "annotations": [
+            {"mention": "EGFR", "span": {"begin": 0, "end": 4}, "type": "Gene"},
+            {"mention": "EGFR", "span": {"begin": 0, "end": 4}, "type": "Gene"},
+        ],
+    }
+
+    annotations = annotate_with_bern2(document, response=response)
+
+    assert len(annotations) == 2
+    assert all(annotation.start is None and annotation.end is None for annotation in annotations)
+    assert len({annotation.annotation_id for annotation in annotations}) == 2
 
 def test_bern2_call_surfaces_connection_failures(monkeypatch) -> None:
     document = sample_document()
@@ -974,6 +1019,25 @@ def test_scispacy_scibert_leaves_nonmatching_offset_unplaced() -> None:
     assert annotations[0].span_text == "RhoG"
     assert annotations[0].start is None
     assert annotations[0].end is None
+
+
+def test_scispacy_scibert_keeps_ids_distinct_for_repeated_unplaced_predictions() -> None:
+    document = Document(
+        document_id="PMID:repeated-unplaced",
+        title="",
+        abstract="RhoGx followed by RhoG.",
+        source="pubtator3",
+    )
+    response = [
+        FakeScispacyEntity("RhoG", "ENTITY", 0, 5),
+        FakeScispacyEntity("RhoG", "ENTITY", 0, 5),
+    ]
+
+    annotations = annotate_with_scispacy_scibert(document, response=response)
+
+    assert len(annotations) == 2
+    assert all(annotation.start is None and annotation.end is None for annotation in annotations)
+    assert len({annotation.annotation_id for annotation in annotations}) == 2
 
 
 def test_scispacy_md_links_entities_to_umls_like_scibert() -> None:

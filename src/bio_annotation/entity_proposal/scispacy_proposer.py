@@ -85,7 +85,7 @@ def parse_scispacy_response(
 
     annotations: list[Annotation] = []
     unplaced_span_count = 0
-    for entity in payload:
+    for entity_index, entity in enumerate(payload):
         raw_span_text = getattr(entity, "text", None)
         label = getattr(entity, "label_", None)
         start = getattr(entity, "start_char", None)
@@ -119,6 +119,11 @@ def parse_scispacy_response(
                 canonical_name=canonical_name,
                 normalization_score=normalization_score,
                 infer_missing_offsets=source != SCISPACY_SCIBERT_ANNOTATOR,
+                id_discriminator=(
+                    f"unplaced:{entity_index}"
+                    if source == SCISPACY_SCIBERT_ANNOTATOR and start is None and end is None
+                    else None
+                ),
             )
         )
     if unplaced_span_count:
