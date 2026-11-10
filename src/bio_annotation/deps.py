@@ -203,11 +203,12 @@ def ensure_tool_environments(
     *,
     input_fn: Callable[[str], str] = input,
     output_fn: Callable[[str], None] = print,
-) -> None:
+) -> dict[str, str]:
     """Offer to run the setup script for annotators that need one.
 
     Never raises: a declined or failed setup leaves the annotator unavailable and
-    the run continues without it, as it did before this prompt existed.
+    the run continues without it, as it did before this prompt existed. Returns the
+    unavailable annotators with the reason for each.
     """
 
     pending = [
@@ -216,20 +217,24 @@ def ensure_tool_environments(
         if annotator in TOOL_SETUP_SCRIPTS
         and not tool_ready(annotator, settings_by_annotator.get(annotator, {}))
     ]
+    unavailable: dict[str, str] = {}
     for annotator in pending:
         script = repo_root() / TOOL_SETUP_SCRIPTS[annotator]
         skipped = f"The {annotator} step will return no annotations this run."
         if not script.exists() or shutil.which("bash") is None:
-            output_fn(f"Warning: {annotator} is not set up and {script} cannot be run here. {skipped}")
+            unavailable[annotator] = f"{annotator} is not set up and {script} cannot be run here."
+            output_fn(f"Warning: {unavailable[annotator]} {skipped}")
             continue
         if os.environ.get(DISABLE_ENV_VAR) or not sys.stdin.isatty():
-            output_fn(f"Warning: {annotator} is not set up. Run {script} first. {skipped}")
+            unavailable[annotator] = f"{annotator} is not set up. Run {script} first."
+            output_fn(f"Warning: {unavailable[annotator]} {skipped}")
             continue
 
         output_fn("")
         output_fn(f"{annotator} needs a one-time setup: {script}")
         output_fn(TOOL_SETUP_NOTES[annotator])
         if input_fn("Run it now? [Y/n] ").strip().lower() not in ("", "y", "yes"):
+            unavailable[annotator] = f"{annotator} setup was skipped."
             output_fn(f"Skipping setup. {skipped}")
             continue
         env = None
@@ -238,4 +243,6 @@ def ensure_tool_environments(
             kbs = bent_required_kbs(settings_by_annotator.get(annotator, {}))
             env = {**os.environ, "BENT_KBS": ",".join(kbs)}
         if subprocess.run(["bash", str(script)], check=False, env=env).returncode != 0:
-            output_fn(f"{script} failed. {skipped}")
+            unavailable[annotator] = f"{script} failed."
+            output_fn(f"{unavailable[annotator]} {skipped}")
+    return unavailable

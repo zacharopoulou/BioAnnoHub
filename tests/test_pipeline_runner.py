@@ -565,6 +565,55 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     assert seen_linkers == ["gene-linker", "disease-linker"]
 
 
+def test_run_pipeline_skips_annotator_after_failed_setup(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678", "87654321"]',
+                "",
+                "[annotators]",
+                'enabled = ["bent"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def unexpected_bent(document: Document, **kwargs: object) -> list[Annotation]:
+        raise AssertionError("bent should be skipped after a failed setup")
+
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.execution.ensure_tool_environments",
+        lambda annotators, settings: {"bent": "bent setup was skipped."},
+    )
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_bent", unexpected_bent)
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    assert len(payload["document_annotations"]) == 2
+    for document in payload["document_annotations"]:
+        assert _without_durations(document["annotators"]) == [
+            {
+                "name": "bent",
+                "status": "failed",
+                "annotation_count": 0,
+                "reason": "bent setup was skipped.",
+            }
+        ]
+
+
 def test_run_pipeline_skips_annotator_after_failed_preflight(tmp_path, monkeypatch) -> None:
     config_path = tmp_path / "pipeline.toml"
     config_path.write_text(

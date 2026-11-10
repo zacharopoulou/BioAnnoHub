@@ -40,7 +40,7 @@ def run_pipeline_from_config(
     started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
     config = load_pipeline_config(config_path)
-    validate_optional_annotator_dependencies(
+    unavailable_annotators = validate_optional_annotator_dependencies(
         config,
         flair_spans_by_document=flair_spans_by_document,
         clinicalbert_responses_by_document=clinicalbert_responses_by_document,
@@ -82,6 +82,7 @@ def run_pipeline_from_config(
         scispacy_responses_by_document=scispacy_responses_by_document,
         stanza_entities_by_document=stanza_entities_by_document,
         progress=progress,
+        unavailable_annotators=unavailable_annotators,
     )
     if config.output_path is not None:
         run_dir = run_dir or create_run_dir(config.output_path.parent)
