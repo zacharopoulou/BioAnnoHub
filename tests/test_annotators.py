@@ -161,7 +161,12 @@ def test_flair_adapter_preserves_unsupported_span_labels() -> None:
 
 
 def test_flair_adapter_loads_configured_model() -> None:
-    document = sample_document()
+    document = Document(
+        document_id="PMID:12345678",
+        pmid="12345678",
+        title="PTEN regulates glioblastoma",
+        source="pubmed",
+    )
     loaded_models: list[str] = []
 
     class FakeTagger:
@@ -201,7 +206,12 @@ def test_flair_adapter_loads_configured_model() -> None:
 
 
 def test_flair_adapter_keeps_top_linker_label() -> None:
-    document = sample_document()
+    document = Document(
+        document_id="PMID:12345678",
+        pmid="12345678",
+        title="PTEN regulates glioblastoma",
+        source="pubmed",
+    )
     span = FakeSpan(
         text="PTEN",
         start_position=0,
@@ -1386,14 +1396,17 @@ def test_cli_accepts_global_log_level_before_subcommand() -> None:
 
 def test_cli_load_documents_runs(monkeypatch) -> None:
     monkeypatch.setattr(
-        "bio_annotation.preprocessing.document_loader.fetch_pubmed_record",
-        lambda pmid, **kwargs: {
-            "pmid": pmid,
-            "title": "Mock title",
-            "abstract": "Mock abstract",
-            "year": "2024",
-            "elinks": {},
-        },
+        "bio_annotation.fetch.PubTator3Source.fetch",
+        lambda self, request: [
+            Document(
+                document_id=f"PMID:{pmid}",
+                pmid=pmid,
+                title="Mock title",
+                abstract="Mock abstract",
+                source="pubtator3",
+            )
+            for pmid in request.pmids
+        ],
     )
     stream = StringIO()
     with redirect_stdout(stream):

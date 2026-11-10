@@ -21,9 +21,21 @@ Each pipeline config is organized around:
 
 ## Fetch Defaults
 
-PMID-based inputs use PubTator3 as the default fetch source when `[input].source` is omitted.
+PMID-based annotation always uses PubTator3 for title, abstract, and optional full text. If `[input].source` is omitted, BioAnnoHub fetches text from PubTator3 only. Entrez is requested only when you select it as a source, select Entrez-only fields, or request enrichment sources.
 
-Use comments inside `examples/pmid-single.toml` and `examples/pmid-file.toml` to switch to Entrez, Europe PMC, merged fetch, field filtering, or PubTator3 full text.
+Entrez metadata is attached only to PMIDs returned by PubTator3. It never fills or replaces the annotation text. PMIDs PubTator3 does not return with usable text are skipped and reported in a warning. Use `input.fields_per_source` to select the Entrez metadata fields:
+
+```toml
+[input]
+mode = "pmid_file"
+pmid_file = "data/inputs/example_pmids.txt"
+source = ["pubtator3", "entrez"]
+
+[input.fields_per_source]
+entrez = ["mesh_terms", "authors", "journal", "year"]
+```
+
+Add `"full_text"` to `input.fields` and enable `[input.pubtator3].full_text = true` to request PubTator3 full text where available.
 
 ## Annotator Tables
 
@@ -47,10 +59,10 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 ## Current Examples
 
 - `examples/pmid-single.toml`
-  Inline PMID input using the default PubTator3 fetch source.
+  Inline PMID input using PubTator3 text without an Entrez request.
 - `examples/pmid-file.toml`
-  PMID batch input using the default PubTator3 fetch source. Commented options show Entrez, Europe PMC, merged fetch, field filtering, and PubTator3 full text.
+  PMID batch input using PubTator3 text without an Entrez request.
 - `examples/corpus-file.toml`
   Local text-table input annotated with Flair (PubTator3 only annotates PubMed/PMC publications).
 - `examples/fetch-merge.toml`
-  Advanced multi-source fetch example. Fetches from PubTator3, Entrez, and Europe PMC, then merges results into one canonical document per PMID.
+  PMID batch example where PubTator3 supplies all text and Entrez adds selected metadata only.

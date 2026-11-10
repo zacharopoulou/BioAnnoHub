@@ -93,6 +93,7 @@ def parse_flair_spans(
     spans: Iterable[Any],
     *,
     link_labels: Iterable[Any] | None = None,
+    offset_shift: int = 0,
 ) -> list[Annotation]:
     annotations: list[Annotation] = []
     links_by_span = _flair_links_by_span(link_labels)
@@ -107,6 +108,8 @@ def parse_flair_spans(
             _span_key(span),
             (None, None, None),
         )
+        start = getattr(span, "start_position", None)
+        end = getattr(span, "end_position", None)
 
         annotations.append(
             make_annotation(
@@ -114,8 +117,8 @@ def parse_flair_spans(
                 source="flair",
                 span_text=text,
                 entity_type=label,
-                start=getattr(span, "start_position", None),
-                end=getattr(span, "end_position", None),
+                start=None if start is None else int(start) + offset_shift,
+                end=None if end is None else int(end) + offset_shift,
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
                 confidence=score,
@@ -138,6 +141,7 @@ def parse_flair_labels(
     labels: Iterable[Any],
     *,
     link_labels: Iterable[Any] | None = None,
+    offset_shift: int = 0,
 ) -> list[Annotation]:
     annotations: list[Annotation] = []
     links_by_span = _flair_links_by_span(link_labels)
@@ -152,6 +156,8 @@ def parse_flair_labels(
             _span_key(span),
             (None, None, None),
         )
+        start = getattr(span, "start_position", None)
+        end = getattr(span, "end_position", None)
 
         annotations.append(
             make_annotation(
@@ -159,8 +165,8 @@ def parse_flair_labels(
                 source="flair",
                 span_text=text,
                 entity_type=getattr(label, "value", None),
-                start=getattr(span, "start_position", None),
-                end=getattr(span, "end_position", None),
+                start=None if start is None else int(start) + offset_shift,
+                end=None if end is None else int(end) + offset_shift,
                 canonical_id=canonical_id,
                 canonical_name=canonical_name,
                 confidence=getattr(label, "score", None),
@@ -189,27 +195,62 @@ def annotate_with_flair(
         tagger = loader(model)
 
     if tagger is not None:
+        segments = _document_text_segments(document)
+        if not segments:
+            return []
+
         if sentence_factory is None:
             try:
                 from flair.data import Sentence
             except ImportError:
                 return []
-            sentence = Sentence(document.text)
+            sentence_segments = [(Sentence(text), offset) for text, offset in segments]
         else:
-            sentence = sentence_factory(document.text)
+            sentence_segments = [(sentence_factory(text), offset) for text, offset in segments]
 
-        tagger.predict(sentence)
-        for linker in linkers or []:
-            linker.predict(sentence)
-        if hasattr(sentence, "get_labels"):
-            return parse_flair_labels(
-                document,
-                _get_sentence_labels(sentence, "ner"),
-                link_labels=_get_sentence_labels(sentence, "link"),
-            )
-        if hasattr(sentence, "get_spans"):
-            link_labels = sentence.get_labels("link") if hasattr(sentence, "get_labels") else None
-            return parse_flair_spans(document, sentence.get_spans("ner"), link_labels=link_labels)
-        return []
+        annotations: list[Annotation] = []
+        # Keep the document's title and body as separate Flair inputs. Flair's
+        # Sentence reconstruction turns the canonical paragraph separator
+        # (\n\n) into spaces, which makes HunFlair's Ab3P preprocessor unable to
+        # map its sentence splits back to the input text.
+        for sentence, offset in sentence_segments:
+            tagger.predict(sentence)
+            for linker in linkers or []:
+                linker.predict(sentence)
+
+            if hasattr(sentence, "get_labels"):
+                annotations.extend(
+                    parse_flair_labels(
+                        document,
+                        _get_sentence_labels(sentence, "ner"),
+                        link_labels=_get_sentence_labels(sentence, "link"),
+                        offset_shift=offset,
+                    )
+                )
+            elif hasattr(sentence, "get_spans"):
+                link_labels = sentence.get_labels("link") if hasattr(sentence, "get_labels") else None
+                annotations.extend(
+                    parse_flair_spans(
+                        document,
+                        sentence.get_spans("ner"),
+                        link_labels=link_labels,
+                        offset_shift=offset,
+                    )
+                )
+        return annotations
 
     return []
+
+
+def _document_text_segments(document: Document) -> list[tuple[str, int]]:
+    """Return title/body text and their offsets in the canonical document text."""
+
+    title = document.title.strip()
+    body = (document.full_text if document.full_text else document.abstract).strip()
+    segments: list[tuple[str, int]] = []
+    if title:
+        segments.append((title, 0))
+    if body:
+        body_offset = len(title) + 2 if title else 0
+        segments.append((body, body_offset))
+    return segments
