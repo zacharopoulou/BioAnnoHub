@@ -5,10 +5,9 @@ import json
 from pathlib import Path
 from typing import Any, Callable
 
-from bio_annotation.io.readers import fetch_pubmed_record
-from bio_annotation.pipeline_config import PipelineConfig
+from bio_annotation.pipeline.progress import ProgressReporter
+from bio_annotation.pipeline_config import PipelineConfig, effective_pmid_fetch_sources
 from bio_annotation.schemas.document import Document
-
 
 PubMedFetcher = Callable[[str], dict[str, Any]]
 OrchestratorFactory = Callable[[], Any]
@@ -23,9 +22,24 @@ def load_document_from_pmid(
     enrichment_sources: list[str] | None = None,
 ) -> Document:
     if fetcher is None:
-        record = fetch_pubmed_record(pmid, enrichments=enrichment_sources)
-    else:
-        record = fetcher(pmid)
+        normalized_pmids = _dedupe_pmids([pmid])
+        if not normalized_pmids:
+            raise ValueError("PMID must not be empty.")
+        normalized_pmid = normalized_pmids[0]
+        documents = _fetch_pmids_from_pubtator3(
+            [normalized_pmid],
+            enrichment_sources=enrichment_sources,
+        )
+        if not documents:
+            raise ValueError(
+                f"PubTator3 returned no usable text for PMID {normalized_pmid}; the article was skipped."
+            )
+        document = documents[0]
+        if extra_metadata:
+            document.metadata.update(extra_metadata)
+        return document
+
+    record = fetcher(pmid)
     normalized_pmid = str(record.get("pmid") or pmid).strip()
     metadata = extra_metadata.copy() if extra_metadata else {}
     metadata["pubmed_record"] = dict(record)
@@ -71,8 +85,15 @@ def load_documents_from_pmids(
     fetcher: PubMedFetcher | None = None,
     enrichment_sources: list[str] | None = None,
 ) -> list[Document]:
+    normalized_pmids = _dedupe_pmids(pmids)
+    if fetcher is None:
+        return _fetch_pmids_from_pubtator3(
+            normalized_pmids,
+            enrichment_sources=enrichment_sources,
+        )
+
     documents: list[Document] = []
-    for pmid in _dedupe_pmids(pmids):
+    for pmid in normalized_pmids:
         documents.append(
             load_document_from_pmid(
                 pmid,
@@ -81,6 +102,31 @@ def load_documents_from_pmids(
             )
         )
     return documents
+
+
+def _fetch_pmids_from_pubtator3(
+    pmids: list[str],
+    *,
+    enrichment_sources: list[str] | None = None,
+) -> list[Document]:
+    if not pmids:
+        return []
+    from bio_annotation.fetch import (
+        EntrezSource,
+        EuropePmcSource,
+        FetchInput,
+        PubTator3Source,
+        PubtatorFirstOrchestrator,
+    )
+
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=PubTator3Source(),
+        entrez=EntrezSource(enrichments=tuple(enrichment_sources or ())),
+        europe_pmc=EuropePmcSource(),
+    )
+    request = FetchInput.from_pmid_list(pmids)
+    sources = ["pubtator3", "entrez", "europe_pmc"] if enrichment_sources else ["pubtator3"]
+    return orchestrator.fetch(request, prefer=sources)
 
 
 def load_documents_from_pmid_file(
@@ -148,6 +194,7 @@ def load_documents_from_config(
     config: PipelineConfig,
     *,
     orchestrator_factory: OrchestratorFactory | None = None,
+    progress: ProgressReporter | None = None,
 ) -> list[Document]:
     """Load documents per input mode. PMID and PMID-file modes route through the fetch orchestrator."""
 
@@ -156,6 +203,7 @@ def load_documents_from_config(
         return _load_documents_via_orchestrator(
             config,
             orchestrator_factory=orchestrator_factory,
+            progress=progress,
         )
     if mode == "text_table":
         if config.text_file is None:
@@ -178,6 +226,7 @@ def _load_documents_via_orchestrator(
     config: PipelineConfig,
     *,
     orchestrator_factory: OrchestratorFactory | None,
+    progress: ProgressReporter | None = None,
 ) -> list[Document]:
     pmids = _resolve_pmids_from_config(config)
     if not pmids:
@@ -186,8 +235,18 @@ def _load_documents_via_orchestrator(
     orchestrator = _build_orchestrator(
         orchestrator_factory,
         pubtator3_full_text=config.pubtator3_full_text,
+        entrez_enrichments=config.enrichment_sources,
+        progress=progress,
     )
-    fetch_sources = config.fetch_sources or ["pubtator3"]
+    fetch_sources = effective_pmid_fetch_sources(
+        config.fetch_sources,
+        config.fetch_fields,
+        config.fetch_fields_per_source,
+        config.enrichment_sources,
+    )
+    if orchestrator_factory is not None:
+        # Preserve explicit injected orchestrators used by callers and local fixtures.
+        fetch_sources = config.fetch_sources or ["pubtator3"]
     if len(fetch_sources) == 1:
         return orchestrator.fetch(request, prefer=fetch_sources[0])
     return orchestrator.fetch(request, prefer=list(fetch_sources))
@@ -246,28 +305,39 @@ def _build_orchestrator(
     factory: OrchestratorFactory | None,
     *,
     pubtator3_full_text: bool,
+    entrez_enrichments: list[str] | None = None,
+    progress: ProgressReporter | None = None,
 ) -> Any:
     if factory is not None:
         return factory()
     from bio_annotation.fetch import (
         EntrezSource,
         EuropePmcSource,
-        FetchOrchestrator,
         PubTator3Source,
+        PubtatorFirstOrchestrator,
     )
 
-    return FetchOrchestrator(
-        sources=[
-            PubTator3Source(full_text=pubtator3_full_text),
-            EntrezSource(),
-            EuropePmcSource(),
-        ]
+    return PubtatorFirstOrchestrator(
+        pubtator=PubTator3Source(full_text=pubtator3_full_text),
+        entrez=EntrezSource(enrichments=tuple(entrez_enrichments or ())),
+        europe_pmc=EuropePmcSource(),
+        progress=progress,
     )
 
 
 def resolve_input_description(config: PipelineConfig) -> dict[str, Any]:
+    fetch_sources = (
+        effective_pmid_fetch_sources(
+            config.fetch_sources,
+            config.fetch_fields,
+            config.fetch_fields_per_source,
+            config.enrichment_sources,
+        )
+        if config.input_mode in {"pmids", "pmid_file"}
+        else list(config.fetch_sources)
+    )
     base_fetch = {
-        "fetch_sources": list(config.fetch_sources),
+        "fetch_sources": fetch_sources,
         "fetch_fields": list(config.fetch_fields) if config.fetch_fields is not None else None,
         "fetch_fields_per_source": (
             {k: list(v) for k, v in config.fetch_fields_per_source.items()}

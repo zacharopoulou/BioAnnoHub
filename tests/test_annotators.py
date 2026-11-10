@@ -1576,14 +1576,17 @@ def test_cli_accepts_global_log_level_before_subcommand() -> None:
 
 def test_cli_load_documents_runs(monkeypatch) -> None:
     monkeypatch.setattr(
-        "bio_annotation.preprocessing.document_loader.fetch_pubmed_record",
-        lambda pmid, **kwargs: {
-            "pmid": pmid,
-            "title": "Mock title",
-            "abstract": "Mock abstract",
-            "year": "2024",
-            "elinks": {},
-        },
+        "bio_annotation.fetch.PubTator3Source.fetch",
+        lambda self, request: [
+            Document(
+                document_id=f"PMID:{pmid}",
+                pmid=pmid,
+                title="Mock title",
+                abstract="Mock abstract",
+                source="pubtator3",
+            )
+            for pmid in request.pmids
+        ],
     )
     stream = StringIO()
     with redirect_stdout(stream):

@@ -84,6 +84,47 @@ SUPPORTED_FETCH_FIELDS_BY_SOURCE = {
     ),
 }
 
+PMID_ANNOTATION_SOURCES = frozenset({"pubtator3", "entrez", "europe_pmc"})
+
+
+def effective_pmid_fetch_sources(
+    fetch_sources: list[str],
+    fetch_fields: list[str] | None,
+    fetch_fields_per_source: dict[str, list[str]] | None,
+    enrichment_sources: list[str] | None = None,
+) -> list[str]:
+    """Return PubTator3 for text and both metadata sources when metadata is requested."""
+
+    entrez_metadata_fields = SUPPORTED_FETCH_FIELDS_BY_SOURCE["entrez"] - {
+        "pmid",
+        "title",
+        "abstract",
+    }
+    europe_pmc_metadata_fields = SUPPORTED_FETCH_FIELDS_BY_SOURCE["europe_pmc"] - {
+        "pmid",
+        "title",
+        "abstract",
+        "full_text",
+    }
+    requests_entrez = (
+        "entrez" in fetch_sources
+        or bool(fetch_fields_per_source and fetch_fields_per_source.get("entrez"))
+        or bool(fetch_fields and entrez_metadata_fields.intersection(fetch_fields))
+        or bool(enrichment_sources)
+    )
+    requests_europe_pmc = (
+        requests_entrez
+        or "europe_pmc" in fetch_sources
+        or bool(fetch_fields_per_source and fetch_fields_per_source.get("europe_pmc"))
+        or bool(fetch_fields and europe_pmc_metadata_fields.intersection(fetch_fields))
+    )
+    sources = ["pubtator3"]
+    if requests_entrez:
+        sources.append("entrez")
+    if requests_europe_pmc:
+        sources.append("europe_pmc")
+    return sources
+
 
 @dataclass(frozen=True)
 class PipelineConfig:
@@ -155,9 +196,11 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
     )
     fetch_fields_per_source = _read_fields_per_source(input_config.get("fields_per_source"))
     _validate_fetch_fields(
+        input_mode=input_mode,
         fetch_sources=fetch_sources,
         fetch_fields=fetch_fields,
         fetch_fields_per_source=fetch_fields_per_source,
+        enrichment_sources=enrichment_sources,
     )
     pubtator3_full_text = _read_pubtator3_full_text(input_config.get("pubtator3"))
 
@@ -240,7 +283,7 @@ def _read_enrichment_sources(value: object) -> list[str]:
 
 
 def _read_fetch_sources(value: object) -> list[str]:
-    """Parse input.source: missing -> [] (loader defaults to pubtator3), str -> one source, list -> chain."""
+    """Parse source preferences; PMID annotation always adds PubTator3 as its text source."""
 
     if value is None:
         return []
@@ -299,12 +342,52 @@ def _read_fields_per_source(value: object) -> dict[str, list[str]] | None:
 
 def _validate_fetch_fields(
     *,
+    input_mode: str,
     fetch_sources: list[str],
     fetch_fields: list[str] | None,
     fetch_fields_per_source: dict[str, list[str]] | None,
+    enrichment_sources: list[str],
 ) -> None:
+    if input_mode in {"pmids", "pmid_file"}:
+        invalid_sources = [
+            source for source in fetch_sources if source not in PMID_ANNOTATION_SOURCES
+        ]
+        invalid_field_sources = [
+            source
+            for source in (fetch_fields_per_source or {})
+            if source not in PMID_ANNOTATION_SOURCES
+        ]
+        unsupported = list(dict.fromkeys(invalid_sources + invalid_field_sources))
+        if unsupported:
+            raise ValueError(
+                "PMID annotation inputs use PubTator3 for text and Entrez/Europe PMC for metadata; "
+                "unsupported fetch source(s): "
+                + ", ".join(unsupported)
+                + "."
+            )
+        europe_pmc_text_fields = {
+            field
+            for field in (fetch_fields_per_source or {}).get("europe_pmc", [])
+            if field in {"title", "abstract", "full_text"}
+        }
+        if europe_pmc_text_fields:
+            raise ValueError(
+                "Europe PMC is metadata-only for PMID annotation inputs; remove text field(s): "
+                + ", ".join(sorted(europe_pmc_text_fields))
+                + "."
+            )
+
     if fetch_fields is not None:
-        active_sources = fetch_sources or ["pubtator3"]
+        active_sources = (
+            effective_pmid_fetch_sources(
+                fetch_sources,
+                fetch_fields,
+                fetch_fields_per_source,
+                enrichment_sources,
+            )
+            if input_mode in {"pmids", "pmid_file"}
+            else fetch_sources or ["pubtator3"]
+        )
         supported = set().union(
             *(SUPPORTED_FETCH_FIELDS_BY_SOURCE[source] for source in active_sources)
         )

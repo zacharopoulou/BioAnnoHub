@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-DEFAULT_LOG_LEVEL = "WARNING"
+DEFAULT_LOG_LEVEL = "INFO"
 LOG_FORMAT = "%(levelname)s:%(name)s:%(message)s"
 
 
@@ -19,7 +19,7 @@ def _normalize_log_level(level: str | int) -> int:
         return level
     normalized = level.strip().upper()
     if not normalized:
-        return logging.WARNING
+        return logging.INFO
     value = getattr(logging, normalized, None)
     if isinstance(value, int):
         return value

@@ -1,56 +1,49 @@
-# Configuration Guide
+# Config Guide
 
-This directory contains runnable pipeline configurations for BioAnnoHub.
+A config makes a run repeatable. Copy an example from [`examples/`](examples/) and change its inputs and options.
 
-## Files
+## Run a config
 
-- `pipeline.toml`
-  Default config, set up for a first live PubTator3 PMID run.
-- `examples/`
-  Small runnable configs for common input modes, plus one advanced multi-source fetch example.
-
-## Main Sections
-
-Each pipeline config is organized around:
-
-- `[input]`
-- `[enrichment]`
-- `[annotators]`
-- `[filters]`
-- `[output]`
-
-## Fetch Defaults
-
-PMID-based inputs use PubTator3 as the default fetch source when `[input].source` is omitted.
-
-Use comments inside `examples/pmid-single.toml` and `examples/pmid-file.toml` to switch to Entrez, Europe PMC, merged fetch, field filtering, or PubTator3 full text.
-
-## Annotator Tables
-
-Annotator runtime metadata is defined under nested annotator tables.
-
-Example:
-
-```toml
-[annotators]
-enabled = ["pubtator3"]
-
-[annotators.pubtator3]
-runtime = "remote_api"
-endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
-format = "biocjson"
-timeout = 60
+```bash
+uv run bioannohub run-config --config configs/examples/pmid-single.toml
 ```
 
-The pipeline reads these settings and uses them at runtime for the matching annotator.
+To find PMIDs first:
 
-## Current Examples
+```bash
+uv run bioannohub search-pmids \
+  --query 'glioblastoma AND microRNA' \
+  --output data/inputs/query_pmids.txt
+```
 
-- `examples/pmid-single.toml`
-  Inline PMID input using the default PubTator3 fetch source.
-- `examples/pmid-file.toml`
-  PMID batch input using the default PubTator3 fetch source. Commented options show Entrez, Europe PMC, merged fetch, field filtering, and PubTator3 full text.
-- `examples/corpus-file.toml`
-  Local text-table input annotated with Flair (PubTator3 only annotates PubMed/PMC publications).
-- `examples/fetch-merge.toml`
-  Advanced multi-source fetch example. Fetches from PubTator3, Entrez, and Europe PMC, then merges results into one canonical document per PMID.
+Set `input.mode = "pmid_file"` and `input.pmid_file` to that file in your config. Run progress is shown by default; add `--log-level DEBUG` before `run-config` for detailed service logs.
+
+## PMID text and metadata
+
+PubTator3 provides the title and abstract for annotation. Entrez and Europe PMC add metadata; they do not replace the annotation text. Metadata is attached when PubTator3 returns usable text. If a source fails, the run keeps any results received from the other sources.
+
+For example, request Entrez and Europe PMC metadata and a few enrichments:
+
+```toml
+[input]
+mode = "pmid_file"
+pmid_file = "data/inputs/query_pmids.txt"
+source = ["pubtator3", "entrez"]
+
+[enrichment]
+sources = ["elinks", "crossref"]
+```
+
+Selecting `entrez` also requests Europe PMC metadata. Enrichments are optional; supported values are `elinks`, `crossref`, `europe_pmc`, `semantic_scholar`, `unpaywall`, and `biorxiv`. Unpaywall requires `NCBI_EMAIL`.
+
+Use `input.fields_per_source` to limit metadata saved in the JSON:
+
+```toml
+[input.fields_per_source]
+entrez = ["authors", "journal", "mesh_terms", "year"]
+europe_pmc = ["citation_count", "is_open_access", "license"]
+```
+
+## Output files
+
+Each run writes JSON, document/keyword/annotation TSVs, and an HTML report to a timestamped folder next to the configured output path. The JSON retains returned metadata and nested enrichment results, subject to the requested fields and service availability. The document TSV has one row per paper and a fixed set of compact columns; large nested fields such as references remain in JSON.

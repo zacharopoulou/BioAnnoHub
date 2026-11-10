@@ -687,8 +687,6 @@ def test_run_pipeline_skips_annotator_after_failed_setup(tmp_path, monkeypatch) 
                 "reason": "bent setup was skipped.",
             }
         ]
-
-
 def test_run_pipeline_skips_annotator_after_failed_preflight(tmp_path, monkeypatch) -> None:
     config_path = tmp_path / "pipeline.toml"
     config_path.write_text(
