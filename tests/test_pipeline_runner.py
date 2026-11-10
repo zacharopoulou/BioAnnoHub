@@ -14,7 +14,8 @@ def _without_durations(statuses):
     return [{k: v for k, v in status.items() if k != "duration_seconds"} for status in statuses]
 
 from bio_annotation.cli import main
-from bio_annotation.fetch import FetchOrchestrator
+from bio_annotation.annotators.pubtator3 import parse_pubtator3_response
+from bio_annotation.fetch import FetchOrchestrator, PubTator3Source
 from bio_annotation.fetch.input import FetchInput, FetchKind
 from bio_annotation.deps import DISABLE_ENV_VAR
 from bio_annotation.schemas.document import Document
@@ -173,6 +174,80 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
         annotation["annotation_id"] for annotation in payload["annotations"]
     ]
     assert "annotations" not in payload["document_annotations"][0]
+
+
+def test_pipeline_reuses_pubtator3_fetch_response_for_annotations(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                'source = "pubtator3"',
+                'fields = ["title", "abstract"]',
+                "",
+                "[annotators]",
+                'enabled = ["pubtator3"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    response = {
+        "documents": [
+            {
+                "id": "12345678",
+                "infons": {"article-id_pmid": "12345678"},
+                "passages": [
+                    {
+                        "offset": 0,
+                        "text": "PTEN in cancer",
+                        "infons": {"section_type": "TITLE"},
+                        "annotations": [
+                            {
+                                "text": "PTEN",
+                                "infons": {"type": "Gene", "identifier": "5728"},
+                                "locations": [{"offset": 0, "length": 4}],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ]
+    }
+    fetch_calls: list[tuple[tuple[str, ...], str, bool]] = []
+    passed_responses: list[object] = []
+
+    class CountingClient:
+        def fetch_publications_by_pmids(
+            self,
+            pmids: list[str] | tuple[str, ...],
+            *,
+            format: str,
+            full: bool,
+        ) -> dict[str, object]:
+            fetch_calls.append((tuple(pmids), format, full))
+            return response
+
+    def fake_annotator(document: Document, *, response=None, **kwargs):
+        passed_responses.append(response)
+        return parse_pubtator3_response(document, response)
+
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_pubtator3", fake_annotator)
+    orchestrator = FetchOrchestrator(sources=[PubTator3Source(client=CountingClient())])
+
+    payload = run_pipeline_from_config(
+        config_path,
+        orchestrator_factory=lambda: orchestrator,
+    )
+
+    assert fetch_calls == [(("12345678",), "biocjson", False)]
+    assert passed_responses == [{"documents": response["documents"]}]
+    assert payload["annotation_summary"]["annotation_count"] == 1
+    assert payload["annotations"][0]["canonical_id"] == "5728"
 
 
 def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
@@ -565,6 +640,107 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     assert seen_linkers == ["gene-linker", "disease-linker"]
 
 
+def test_run_pipeline_skips_annotator_after_failed_setup(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678", "87654321"]',
+                "",
+                "[annotators]",
+                'enabled = ["bent"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    def unexpected_bent(document: Document, **kwargs: object) -> list[Annotation]:
+        raise AssertionError("bent should be skipped after a failed setup")
+
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.execution.ensure_tool_environments",
+        lambda annotators, settings: {"bent": "bent setup was skipped."},
+    )
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_bent", unexpected_bent)
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    assert len(payload["document_annotations"]) == 2
+    for document in payload["document_annotations"]:
+        assert _without_durations(document["annotators"]) == [
+            {
+                "name": "bent",
+                "status": "failed",
+                "annotation_count": 0,
+                "reason": "bent setup was skipped.",
+            }
+        ]
+
+
+def test_run_pipeline_skips_annotator_after_failed_preflight(tmp_path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678", "87654321"]',
+                "",
+                "[annotators]",
+                'enabled = ["flair"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    load_attempts: list[str] = []
+
+    def failing_tagger_loader(model: str) -> object:
+        load_attempts.append(model)
+        raise RuntimeError("hunflair2 download failed")
+
+    def unexpected_flair(document: Document, **kwargs: object) -> list[Annotation]:
+        raise AssertionError("flair should be skipped after a failed preflight")
+
+    monkeypatch.setattr("bio_annotation.deps.find_spec", lambda name: object())
+    monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_tagger", failing_tagger_loader)
+    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", unexpected_flair)
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    assert load_attempts == ["hunflair2"]
+    for document in payload["document_annotations"]:
+        assert _without_durations(document["annotators"]) == [
+            {
+                "name": "flair",
+                "status": "failed",
+                "annotation_count": 0,
+                "reason": "hunflair2 download failed",
+            }
+        ]
+
+
 def test_run_selected_annotators_passes_scispacy_model(monkeypatch) -> None:
     document = Document(
         document_id="doc1",
@@ -645,7 +821,7 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
 
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", broken_flair)
 
-    with caplog.at_level("WARNING", logger="bio_annotation.pipeline_runner"):
+    with caplog.at_level("WARNING", logger="bio_annotation.pipeline.progress"):
         results, statuses = run_selected_annotators_with_status(
             document,
             ["flair"],
@@ -661,7 +837,8 @@ def test_run_selected_annotators_records_failures(monkeypatch, caplog) -> None:
             "reason": "hunflair2 is unavailable",
         }
     ]
-    assert "flair unavailable: hunflair2 is unavailable" in caplog.text
+    assert "[1/1] Flair / HunFlair failed on doc1" in caplog.text
+    assert ": hunflair2 is unavailable" in caplog.text
 
 
 def test_build_keyword_annotations_groups_by_keyword_with_mentions_and_evidence() -> None:

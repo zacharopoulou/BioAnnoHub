@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+import ctypes
+import os
+import sys
+import threading
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -12,6 +17,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.theme import Theme
 from rich.text import Text
+
+from bio_annotation.pipeline.progress import ProgressEvent, ProgressReporter, describe
 
 
 THEME_WIDTH = 100
@@ -30,6 +37,64 @@ BIOANNOHUB_THEME = Theme(
         "path": "bright_blue",
     }
 )
+
+
+@contextmanager
+def annotator_spinner() -> Iterator[ProgressReporter]:
+    terminal = os.fdopen(os.dup(1), "w", encoding="utf-8", errors="replace")
+    console = Console(file=terminal, theme=BIOANNOHUB_THEME)
+    status = console.status("Running annotation...", spinner="dots")
+    status.start()
+    try:
+        with _native_output_above(console):
+
+            def report(event: ProgressEvent) -> None:
+                if event.event == "start":
+                    status.update(Text(describe(event), style="muted"))
+                else:
+                    # Printed above the spinner so outcomes survive the run.
+                    style = "warning" if event.event == "error" else "ok"
+                    console.print(Text(describe(event), style=style))
+
+            yield report
+    finally:
+        status.stop()
+
+
+@contextmanager
+def _native_output_above(console: Console) -> Iterator[None]:
+    sys.stdout.flush()
+    sys.stderr.flush()
+    read_fd, write_fd = os.pipe()
+    saved_fds = [os.dup(1), os.dup(2)]
+    os.dup2(write_fd, 1)
+    os.dup2(write_fd, 2)
+    os.close(write_fd)
+
+    def forward() -> None:
+        with os.fdopen(read_fd, encoding="utf-8", errors="replace") as captured:
+            for line in captured:
+                console.print(Text(line.rstrip("\n"), style="muted"))
+
+    reader = threading.Thread(target=forward, daemon=True)
+    reader.start()
+    try:
+        yield
+    finally:
+        _flush_c_stdio()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        for fd, saved in zip((1, 2), saved_fds):
+            os.dup2(saved, fd)
+            os.close(saved)
+        reader.join(timeout=1)
+
+
+def _flush_c_stdio() -> None:
+    try:
+        ctypes.CDLL(None).fflush(None)
+    except (OSError, AttributeError, TypeError):
+        pass
 
 
 def render_lines(renderable: Any) -> list[str]:
@@ -214,4 +279,3 @@ def annotator_results_lines(annotators: list[dict[str, Any]]) -> list[str]:
     if annotators:
         lines.extend(render_lines(table))
     return lines
-
