@@ -37,12 +37,12 @@ def test_missing_extras_maps_annotators_and_skips_remote_ones(monkeypatch) -> No
 
 def test_ensure_extras_syncs_missing_and_already_installed_extras(monkeypatch, uv_environment) -> None:
     # uv sync is exact, so an installed extra must be re-declared or it is pruned.
-    monkeypatch.setattr(deps, "extra_installed", lambda extra: extra == "benchmarks")
+    monkeypatch.setattr(deps, "extra_installed", lambda extra: extra == "stanza")
 
     deps.ensure_extras(["flair"], input_fn=lambda prompt: "", output_fn=lambda line: None)
 
     assert uv_environment == [
-        ["uv", "sync", "--project", "/proj", "--extra", "benchmarks", "--extra", "flair"]
+        ["uv", "sync", "--project", "/proj", "--extra", "flair", "--extra", "stanza"]
     ]
 
 
