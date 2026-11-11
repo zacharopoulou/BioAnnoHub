@@ -97,6 +97,22 @@ uv run bioannohub search-pmids --query 'glioblastoma AND microRNA' --output data
 Benchmark datasets should become a first-class input path so annotators can be
 evaluated with the same pipeline abstractions used for PMIDs and local corpora.
 
+## Retracted PMID handling
+
+PMID and PMID-file inputs are checked against PubMed's `Retracted Publication`
+type before fetching documents. Retracted papers are excluded by default, and
+the run summary lists the PMID values that were excluded. Set
+`input.include_retracted = true` to ask for confirmation before including them
+in an interactive run. In non-interactive config runs, setting it to `true` is
+an explicit choice to include them and the summary reports that choice.
+
+```toml
+[input]
+mode = "pmids"
+pmids = ["31452104"]
+include_retracted = true
+```
+
 ## User Experience
 
 The primary interface should be config-first.

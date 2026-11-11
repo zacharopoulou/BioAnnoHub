@@ -301,6 +301,7 @@ def main(argv: list[str] | None = None) -> int:
                     "fetch_fields": config.fetch_fields,
                     "fetch_fields_per_source": config.fetch_fields_per_source,
                     "pubtator3_full_text": config.pubtator3_full_text,
+                    "include_retracted": config.include_retracted,
                 },
                 indent=2,
             )
@@ -496,6 +497,17 @@ def print_run_config_summary(payload: dict[str, object], output_path: Path | Non
     print(f"Documents: {payload.get('document_count', 0)}")
     print(f"Annotations: {summary.get('annotation_count', 0)}")
     print(f"Keywords: {summary.get('keyword_count', 0)}")
+
+    input_summary = payload.get("input")
+    input_summary = input_summary if isinstance(input_summary, dict) else {}
+    retraction_check = input_summary.get("retraction_check")
+    retraction_check = retraction_check if isinstance(retraction_check, dict) else {}
+    excluded = retraction_check.get("excluded_pmids")
+    included = retraction_check.get("included_pmids")
+    if isinstance(excluded, list) and excluded:
+        print(f"Excluded retracted PMID(s): {', '.join(str(pmid) for pmid in excluded)}")
+    if isinstance(included, list) and included:
+        print(f"Included retracted PMID(s): {', '.join(str(pmid) for pmid in included)}")
 
     annotator_summary = payload.get("annotator_summary")
     if isinstance(annotator_summary, dict):

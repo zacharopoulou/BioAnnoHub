@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,10 +13,11 @@ from bio_annotation.pipeline.options import RUN_MANIFEST_NAME, RUN_RESULTS_DIR
 from bio_annotation.pipeline.progress import ProgressReporter
 from bio_annotation.pipeline.output import write_pipeline_output
 from bio_annotation.pipeline_config import load_pipeline_config
+from bio_annotation.io.search import find_retracted_pmids
 from bio_annotation.preprocessing.document_loader import (
     load_documents_from_config,
-    load_documents_from_pmid_file,
     load_documents_from_pmids,
+    resolve_pmids_from_config,
 )
 from bio_annotation.schemas.document import Document
 
@@ -36,6 +38,7 @@ def run_pipeline_from_config(
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
     run_dir: Path | None = None,
     progress: ProgressReporter | None = None,
+    confirm_retracted_pmids: Callable[[list[str]], bool] | None = None,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc)
     started = time.perf_counter()
@@ -49,19 +52,57 @@ def run_pipeline_from_config(
         scispacy_responses_by_document=scispacy_responses_by_document,
         stanza_entities_by_document=stanza_entities_by_document,
     )
-    if pmid_fetcher is not None and config.input_mode == "pmids":
+    input_pmids = resolve_pmids_from_config(config)
+    retracted_pmids: list[str] = []
+    include_retracted = False
+    if input_pmids:
+        retracted_pmids = find_retracted_pmids(input_pmids)
+        if retracted_pmids:
+            if config.include_retracted:
+                prompt = (
+                    f"Found {len(retracted_pmids)} retracted PMID(s): "
+                    f"{', '.join(retracted_pmids)}. Include them in this analysis? [y/N]: "
+                )
+                if confirm_retracted_pmids is not None:
+                    include_retracted = confirm_retracted_pmids(retracted_pmids)
+                elif sys.stdin.isatty():
+                    print(
+                        f"Found retracted PMID(s): {', '.join(retracted_pmids)}.",
+                        file=sys.stderr,
+                    )
+                    try:
+                        include_retracted = input(prompt).strip().lower() in {"y", "yes"}
+                    except EOFError:
+                        include_retracted = False
+                else:
+                    # Setting this to true in a non-interactive config is an explicit choice.
+                    include_retracted = True
+
+    retracted_set = set(retracted_pmids)
+    excluded_retracted_pmids = [] if include_retracted else list(retracted_pmids)
+    eligible_pmids = [
+        pmid for pmid in input_pmids if include_retracted or pmid not in retracted_set
+    ]
+    retraction_check = {
+        "status": "checked" if input_pmids else "not_applicable",
+        "submitted_pmids": input_pmids,
+        "retracted_pmids": retracted_pmids,
+        "included_pmids": retracted_pmids if include_retracted else [],
+        "excluded_pmids": excluded_retracted_pmids,
+        "include_retracted_requested": config.include_retracted,
+    }
+
+    if pmid_fetcher is not None and config.input_mode in {"pmids", "pmid_file"}:
         documents = load_documents_from_pmids(
-            config.pmids,
+            eligible_pmids,
             fetcher=pmid_fetcher,
             enrichment_sources=config.enrichment_sources,
         )
-    elif pmid_fetcher is not None and config.input_mode == "pmid_file":
-        if config.pmid_file is None:
-            raise ValueError("input.pmid_file must be set when input.mode = 'pmid_file'.")
-        documents = load_documents_from_pmid_file(
-            config.pmid_file,
-            fetcher=pmid_fetcher,
-            enrichment_sources=config.enrichment_sources,
+    elif config.input_mode in {"pmids", "pmid_file"}:
+        documents = load_documents_from_config(
+            config,
+            orchestrator_factory=orchestrator_factory,
+            pmids_override=eligible_pmids,
         )
     else:
         documents = load_documents_from_config(
@@ -84,6 +125,7 @@ def run_pipeline_from_config(
         progress=progress,
         unavailable_annotators=unavailable_annotators,
     )
+    payload["input"]["retraction_check"] = retraction_check
     if config.output_path is not None:
         run_dir = run_dir or create_run_dir(config.output_path.parent)
         actual_output_path = run_dir / RUN_RESULTS_DIR / config.output_path.name

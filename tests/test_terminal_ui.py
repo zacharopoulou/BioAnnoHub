@@ -119,6 +119,61 @@ def test_build_terminal_ui_config_for_pmid_file(tmp_path) -> None:
     assert config.pmid_file == pmid_file
     assert config.annotators == ["pubtator3"]
     assert config.annotator_settings["pubtator3"]["format"] == "biocjson"
+    assert config.include_retracted is False
+
+
+def test_terminal_ui_confirms_retracted_papers_when_option_enabled(tmp_path) -> None:
+    output_dir = tmp_path / "out"
+    prompts = iter(
+        [
+            "1",  # PMIDs
+            "12345678",
+            "y",  # ask before including retracted papers
+            "1",  # biomedical domain
+            "1",  # NER task
+            "1",  # BERN2
+            "all",  # all entity types
+            "",  # start annotation
+            "y",  # include the retracted paper
+        ]
+    )
+    messages: list[str] = []
+
+    def fake_pipeline_run(
+        config_path: Path,
+        *,
+        run_dir: Path | None = None,
+        progress: ProgressReporter | None = None,
+        confirm_retracted_pmids=None,
+    ) -> dict[str, object]:
+        config = load_pipeline_config(config_path)
+        assert config.include_retracted is True
+        assert confirm_retracted_pmids is not None
+        decision = confirm_retracted_pmids(["12345678"])
+        return {
+            "document_count": 1 if decision else 0,
+            "input": {
+                "retraction_check": {
+                    "included_pmids": ["12345678"] if decision else [],
+                    "excluded_pmids": [] if decision else ["12345678"],
+                }
+            },
+            "annotation_summary": {"annotation_count": 0},
+            "documents": [],
+            "annotations": [],
+            "document_annotations": [],
+        }
+
+    payload = run_terminal_annotation_ui(
+        runs_dir=output_dir,
+        input_fn=lambda _prompt: next(prompts),
+        output_fn=messages.append,
+        pipeline_run_fn=fake_pipeline_run,
+    )
+
+    assert payload["document_count"] == 1
+    assert any("Retracted papers found" in message for message in messages)
+    assert any("Included retracted PMID(s): 12345678" in message for message in messages)
 
 
 def test_build_terminal_ui_config_includes_bern2_endpoint(tmp_path) -> None:
@@ -297,6 +352,7 @@ def test_run_terminal_annotation_ui_uses_existing_pmid_file(tmp_path) -> None:
         [
             "2",  # PMID file
             str(pmid_file),
+            "",  # exclude retracted papers by default
             "1",  # biomedical domain
             "1",  # NER task
             "1",  # pubtator3
@@ -343,6 +399,7 @@ def test_run_terminal_annotation_ui_selects_all_compatible_annotators(tmp_path) 
         [
             "1",  # PMIDs
             "123",
+            "",  # exclude retracted papers by default
             "1",  # biomedical domain
             "1",  # NER task
             "all",  # all compatible annotators
@@ -521,8 +578,8 @@ def test_cancelled_setup_never_creates_a_run_or_calls_the_pipeline(tmp_path, ans
 
 def test_restart_discards_previous_answers_before_creating_one_run(tmp_path) -> None:
     prompts = iter([
-        "1", "123", "1", "1", "2", "all", "restart",
-        "1", "456", "1", "2", "2", "all", "",
+        "1", "123", "", "1", "1", "2", "all", "restart",
+        "1", "456", "", "1", "2", "2", "all", "",
     ])
     runs = tmp_path / "runs"
     calls = []
@@ -549,7 +606,7 @@ def test_restart_discards_previous_answers_before_creating_one_run(tmp_path) -> 
 
 @pytest.mark.parametrize("task_choice, expects_linker_notice", [("1", False), ("2", True), ("3", True)])
 def test_flair_linker_notice_matches_the_selected_task(tmp_path, task_choice, expects_linker_notice) -> None:
-    prompts = iter(["1", "123", "1", task_choice, "3", "all", "exit"])
+    prompts = iter(["1", "123", "", "1", task_choice, "3", "all", "exit"])
     messages = []
     run_terminal_annotation_ui(
         runs_dir=tmp_path / "runs", input_fn=lambda _: next(prompts), output_fn=messages.append,

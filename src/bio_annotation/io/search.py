@@ -125,6 +125,44 @@ def search_pubmed_pmids(
     return collected[:max_results] if max_results is not None else collected
 
 
+def find_retracted_pmids(
+    pmids: list[str],
+    *,
+    esearch_fn: Callable[[str], dict[str, Any]] | None = None,
+    batch_size: int = 25,
+) -> list[str]:
+    """Return submitted PMIDs tagged as Retracted Publication, preserving input order."""
+
+    if batch_size < 1:
+        raise ValueError("batch_size must be >= 1.")
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_pmid in pmids:
+        pmid = str(raw_pmid).strip()
+        if pmid.upper().startswith("PMID:"):
+            pmid = pmid.split(":", 1)[1].strip()
+        if not pmid:
+            continue
+        if not pmid.isdecimal():
+            raise ValueError(f"Invalid PMID for retraction check: {raw_pmid!r}.")
+        if pmid not in seen:
+            seen.add(pmid)
+            normalized.append(pmid)
+    if not normalized:
+        return []
+
+    search = esearch_fn or _esearch
+    retracted: set[str] = set()
+    for offset in range(0, len(normalized), batch_size):
+        batch = normalized[offset : offset + batch_size]
+        id_query = " OR ".join(f"{pmid}[PMID]" for pmid in batch)
+        term = f"({id_query}) AND {_RETRACTED_PUBLICATION_FILTER}"
+        result = search(term)
+        retracted.update(str(pmid).strip() for pmid in result.get("pmids", []))
+    return [pmid for pmid in normalized if pmid in retracted]
+
+
+
 def write_pmids(path: Path, pmids: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(f"{pmid}\n" for pmid in pmids), encoding="utf-8")
