@@ -298,15 +298,118 @@ def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
             "name": "bern2",
             "status": "no_annotations",
             "annotation_count": 0,
-            "reason": "No annotations returned. Verify the Bern2 service is reachable and returned entities for this document.",
+            "reason": "No entities found in this document.",
         },
         {
             "name": "flair",
             "status": "no_annotations",
             "annotation_count": 0,
-            "reason": "No annotations returned. The Flair model may be unavailable/not cached, or it found no entities.",
+            "reason": "No entities found in this document.",
         },
     ]
+
+
+def test_clinicalbert_empty_result_after_successful_load_is_no_entities(
+    tmp_path, monkeypatch
+) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[enrichment]",
+                "sources = []",
+                "",
+                "[annotators]",
+                'enabled = ["clinicalbert"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.validate_optional_annotator_dependencies",
+        lambda config, **kwargs: {},
+    )
+    monkeypatch.setattr(
+        "bio_annotation.pipeline_runner._load_clinicalbert_pipeline",
+        lambda model: lambda text: [],
+    )
+    events = []
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+        progress=events.append,
+    )
+
+    assert any(event.phase == "preflight" and event.event == "done" for event in events)
+    assert _without_durations(payload["document_annotations"][0]["annotators"]) == [
+        {
+            "name": "clinicalbert",
+            "status": "no_annotations",
+            "annotation_count": 0,
+            "reason": "No entities found in this document.",
+        }
+    ]
+
+
+def test_clinicalbert_model_load_failure_reports_error_and_setup_hint(
+    tmp_path, monkeypatch
+) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[enrichment]",
+                "sources = []",
+                "",
+                "[annotators]",
+                'enabled = ["clinicalbert"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.validate_optional_annotator_dependencies",
+        lambda config, **kwargs: {},
+    )
+
+    def fail_to_load(_model):
+        raise OSError("model config is missing")
+
+    monkeypatch.setattr(
+        "bio_annotation.pipeline_runner._load_clinicalbert_pipeline", fail_to_load
+    )
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    status = payload["document_annotations"][0]["annotators"][0]
+    assert status["status"] == "failed"
+    assert "model config is missing" in status["reason"]
+    assert "uv sync --extra clinicalbert" in status["reason"]
 
 
 def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
@@ -736,7 +839,10 @@ def test_run_pipeline_skips_annotator_after_failed_preflight(tmp_path, monkeypat
                 "name": "flair",
                 "status": "failed",
                 "annotation_count": 0,
-                "reason": "hunflair2 download failed",
+                "reason": (
+                    "hunflair2 download failed. The Flair annotator requires the optional "
+                    "Flair dependency. Install it with: uv sync --extra flair"
+                ),
             }
         ]
 
