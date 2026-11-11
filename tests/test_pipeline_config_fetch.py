@@ -28,6 +28,19 @@ pmids = ["12345678"]
 def test_source_omitted_yields_empty_list(tmp_path: Path) -> None:
     config = load_pipeline_config(_write_toml(tmp_path, _BASE))
     assert config.fetch_sources == []
+    assert config.include_retracted is False
+
+
+def test_include_retracted_option_is_parsed_and_must_be_boolean(tmp_path: Path) -> None:
+    config = load_pipeline_config(
+        _write_toml(tmp_path, _BASE + "include_retracted = true\n")
+    )
+    assert config.include_retracted is True
+
+    with pytest.raises(ValueError, match="input.include_retracted must be true or false"):
+        load_pipeline_config(
+            _write_toml(tmp_path, _BASE + 'include_retracted = "yes"\n')
+        )
 
 
 def test_source_as_string_becomes_one_element_list(tmp_path: Path) -> None:

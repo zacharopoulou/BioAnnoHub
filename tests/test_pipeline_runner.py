@@ -13,6 +13,11 @@ import pytest
 def _without_durations(statuses):
     return [{k: v for k, v in status.items() if k != "duration_seconds"} for status in statuses]
 
+
+@pytest.fixture(autouse=True)
+def _skip_live_retraction_lookup(monkeypatch):
+    monkeypatch.setattr("bio_annotation.pipeline.runner.find_retracted_pmids", lambda pmids: [])
+
 from bio_annotation.cli import main
 from bio_annotation.annotators.pubtator3 import parse_pubtator3_response
 from bio_annotation.fetch import FetchOrchestrator, PubTator3Source
@@ -176,6 +181,137 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert "annotations" not in payload["document_annotations"][0]
 
 
+def _write_retraction_test_config(tmp_path, *, include_retracted: bool | None = None):
+    config_path = tmp_path / "retractions.toml"
+    lines = [
+        "[input]",
+        'mode = "pmids"',
+        'pmids = ["12345678", "87654321"]',
+    ]
+    if include_retracted is not None:
+        lines.append(f"include_retracted = {str(include_retracted).lower()}")
+    lines.extend(["", "[annotators]", "enabled = []", "", "[filters]", "entity_types = []"])
+    config_path.write_text("\n".join(lines), encoding="utf-8")
+    return config_path
+
+
+def test_user_pmids_exclude_retracted_by_default_and_report_them(tmp_path, monkeypatch) -> None:
+    config_path = _write_retraction_test_config(tmp_path)
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.find_retracted_pmids",
+        lambda pmids: ["12345678"],
+    )
+    fetched = []
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: (
+            fetched.append(pmid)
+            or {"pmid": pmid, "title": f"title {pmid}", "abstract": "abstract"}
+        ),
+    )
+
+    assert fetched == ["87654321"]
+    assert [document["pmid"] for document in payload["documents"]] == ["87654321"]
+    assert payload["input"]["retraction_check"]["excluded_pmids"] == ["12345678"]
+
+
+def test_user_pmid_file_excludes_retracted_before_fetching(tmp_path, monkeypatch) -> None:
+    pmid_file = tmp_path / "pmids.txt"
+    pmid_file.write_text("12345678\n87654321\n", encoding="utf-8")
+    config_path = tmp_path / "pmid-file.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmid_file"',
+                f'pmid_file = "{pmid_file.as_posix()}"',
+                "",
+                "[annotators]",
+                "enabled = []",
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.find_retracted_pmids",
+        lambda pmids: ["12345678"],
+    )
+    fetched = []
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: (
+            fetched.append(pmid)
+            or {"pmid": pmid, "title": f"title {pmid}", "abstract": "abstract"}
+        ),
+    )
+
+    assert fetched == ["87654321"]
+    assert payload["input"]["retraction_check"]["submitted_pmids"] == [
+        "12345678",
+        "87654321",
+    ]
+    assert payload["input"]["retraction_check"]["excluded_pmids"] == ["12345678"]
+
+
+@pytest.mark.parametrize(
+    "decision, expected_pmids",
+    [(False, ["87654321"]), (True, ["12345678", "87654321"])],
+)
+def test_include_retracted_option_prompts_and_respects_user_choice(
+    tmp_path, monkeypatch, decision, expected_pmids
+) -> None:
+    config_path = _write_retraction_test_config(tmp_path, include_retracted=True)
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.find_retracted_pmids",
+        lambda pmids: ["12345678"],
+    )
+    prompted = []
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": f"title {pmid}",
+            "abstract": "abstract",
+        },
+        confirm_retracted_pmids=lambda pmids: prompted.extend(pmids) or decision,
+    )
+
+    assert prompted == ["12345678"]
+    assert [document["pmid"] for document in payload["documents"]] == expected_pmids
+    check = payload["input"]["retraction_check"]
+    assert check["included_pmids"] == (["12345678"] if decision else [])
+    assert check["excluded_pmids"] == ([] if decision else ["12345678"])
+
+
+def test_noninteractive_include_retracted_setting_is_explicit_consent(
+    tmp_path, monkeypatch
+) -> None:
+    from io import StringIO
+
+    config_path = _write_retraction_test_config(tmp_path, include_retracted=True)
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.find_retracted_pmids",
+        lambda pmids: ["12345678"],
+    )
+    monkeypatch.setattr("bio_annotation.pipeline.runner.sys.stdin", StringIO(""))
+    fetched = []
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: (
+            fetched.append(pmid)
+            or {"pmid": pmid, "title": f"title {pmid}", "abstract": "abstract"}
+        ),
+    )
+
+    assert fetched == ["12345678", "87654321"]
+    assert payload["input"]["retraction_check"]["included_pmids"] == ["12345678"]
 def test_pipeline_reuses_pubtator3_fetch_response_for_annotations(tmp_path, monkeypatch) -> None:
     config_path = tmp_path / "pipeline.toml"
     config_path.write_text(
@@ -298,15 +434,118 @@ def test_run_pipeline_records_annotators_without_results(tmp_path) -> None:
             "name": "bern2",
             "status": "no_annotations",
             "annotation_count": 0,
-            "reason": "No annotations returned. Verify the Bern2 service is reachable and returned entities for this document.",
+            "reason": "No entities found in this document.",
         },
         {
             "name": "flair",
             "status": "no_annotations",
             "annotation_count": 0,
-            "reason": "No annotations returned. The Flair model may be unavailable/not cached, or it found no entities.",
+            "reason": "No entities found in this document.",
         },
     ]
+
+
+def test_clinicalbert_empty_result_after_successful_load_is_no_entities(
+    tmp_path, monkeypatch
+) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[enrichment]",
+                "sources = []",
+                "",
+                "[annotators]",
+                'enabled = ["clinicalbert"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.validate_optional_annotator_dependencies",
+        lambda config, **kwargs: {},
+    )
+    monkeypatch.setattr(
+        "bio_annotation.pipeline_runner._load_clinicalbert_pipeline",
+        lambda model: lambda text: [],
+    )
+    events = []
+
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+        progress=events.append,
+    )
+
+    assert any(event.phase == "preflight" and event.event == "done" for event in events)
+    assert _without_durations(payload["document_annotations"][0]["annotators"]) == [
+        {
+            "name": "clinicalbert",
+            "status": "no_annotations",
+            "annotation_count": 0,
+            "reason": "No entities found in this document.",
+        }
+    ]
+
+
+def test_clinicalbert_model_load_failure_reports_error_and_setup_hint(
+    tmp_path, monkeypatch
+) -> None:
+    config_path = tmp_path / "pipeline.toml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "[input]",
+                'mode = "pmids"',
+                'pmids = ["12345678"]',
+                "",
+                "[enrichment]",
+                "sources = []",
+                "",
+                "[annotators]",
+                'enabled = ["clinicalbert"]',
+                "",
+                "[filters]",
+                "entity_types = []",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "bio_annotation.pipeline.runner.validate_optional_annotator_dependencies",
+        lambda config, **kwargs: {},
+    )
+
+    def fail_to_load(_model):
+        raise OSError("model config is missing")
+
+    monkeypatch.setattr(
+        "bio_annotation.pipeline_runner._load_clinicalbert_pipeline", fail_to_load
+    )
+    payload = run_pipeline_from_config(
+        config_path,
+        pmid_fetcher=lambda pmid: {
+            "pmid": pmid,
+            "title": "PTEN regulates glioblastoma",
+            "abstract": "PTEN is important in glioblastoma.",
+        },
+    )
+
+    status = payload["document_annotations"][0]["annotators"][0]
+    assert status["status"] == "failed"
+    assert "model config is missing" in status["reason"]
+    assert "uv sync --extra clinicalbert" in status["reason"]
 
 
 def test_cli_run_config_outputs_payload(tmp_path, monkeypatch) -> None:
@@ -736,7 +975,10 @@ def test_run_pipeline_skips_annotator_after_failed_preflight(tmp_path, monkeypat
                 "name": "flair",
                 "status": "failed",
                 "annotation_count": 0,
-                "reason": "hunflair2 download failed",
+                "reason": (
+                    "hunflair2 download failed. The Flair annotator requires the optional "
+                    "Flair dependency. Install it with: uv sync --extra flair"
+                ),
             }
         ]
 

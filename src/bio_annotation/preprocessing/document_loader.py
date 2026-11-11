@@ -148,6 +148,7 @@ def load_documents_from_config(
     config: PipelineConfig,
     *,
     orchestrator_factory: OrchestratorFactory | None = None,
+    pmids_override: list[str] | None = None,
 ) -> list[Document]:
     """Load documents per input mode. PMID and PMID-file modes route through the fetch orchestrator."""
 
@@ -156,6 +157,7 @@ def load_documents_from_config(
         return _load_documents_via_orchestrator(
             config,
             orchestrator_factory=orchestrator_factory,
+            pmids_override=pmids_override,
         )
     if mode == "text_table":
         if config.text_file is None:
@@ -178,8 +180,13 @@ def _load_documents_via_orchestrator(
     config: PipelineConfig,
     *,
     orchestrator_factory: OrchestratorFactory | None,
+    pmids_override: list[str] | None = None,
 ) -> list[Document]:
-    pmids = _resolve_pmids_from_config(config)
+    pmids = (
+        _dedupe_pmids(pmids_override)
+        if pmids_override is not None
+        else _resolve_pmids_from_config(config)
+    )
     if not pmids:
         return []
     request = _build_orchestrator_request(config, pmids)
@@ -204,6 +211,14 @@ def _resolve_pmids_from_config(config: PipelineConfig) -> list[str]:
         if line.strip()
     ]
     return _dedupe_pmids(raw)
+
+
+def resolve_pmids_from_config(config: PipelineConfig) -> list[str]:
+    """Return the normalized PMID input from a config or PMID file."""
+
+    if config.input_mode not in {"pmids", "pmid_file"}:
+        return []
+    return _resolve_pmids_from_config(config)
 
 
 def _build_orchestrator_request(config: PipelineConfig, pmids: list[str]) -> Any:
