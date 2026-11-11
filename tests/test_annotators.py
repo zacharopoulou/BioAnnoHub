@@ -442,7 +442,7 @@ def test_pubtator3_adapter_remaps_publication_offsets_to_document_text() -> None
         pmid="9288106",
         title="Ataxia-telangiectasia causes cancer.",
         abstract="A-T is a recessive multi-system disorder.",
-        source="benchmark:ncbi_disease",
+        source="external_corpus",
     )
     source_abstract_start = len(document.title) + 1
     canonical_abstract_start = len(document.title) + 2
@@ -540,13 +540,13 @@ def test_pubtator3_adapter_parses_pubtator_text_format() -> None:
     assert annotations[1].entity_type == "disease"
 
 
-def test_pubtator3_uses_pmid_for_benchmark_documents() -> None:
+def test_pubtator3_uses_pmid_for_external_corpus_documents() -> None:
     document = Document(
         document_id="9949209",
         pmid="9949209",
         title="Genetic mapping of the copper toxicosis locus.",
         abstract="Wilson disease causes hepatic copper accumulation.",
-        source="benchmark:ncbi_disease",
+        source="external_corpus",
     )
 
     class FakeClient:

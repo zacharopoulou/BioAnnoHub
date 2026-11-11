@@ -2,12 +2,19 @@
 
 This directory contains runnable pipeline configurations for BioAnnoHub.
 
+For a guided first run, start with the [README quickstart](../README.md).
+
 ## Files
 
 - `pipeline.toml`
-  Default config, set up for a first live PubTator3 PMID run.
+  Default PMID config with BERN2, Flair, and PubTator3 enabled. Flair requires
+  its optional dependencies and model assets.
 - `examples/`
-  Small runnable configs for common input modes, plus one advanced multi-source fetch example.
+  Runnable configs for common input modes, plus an advanced multi-source fetch example. The `examples/data/` folder contains their small sample inputs.
+
+Run the repository examples from the repository root. Relative input and output
+paths resolve from the working directory. `inspect-config` does not run models;
+`load-documents` fetches articles when using PMID input.
 
 ## Main Sections
 
@@ -54,3 +61,5 @@ The pipeline reads these settings and uses them at runtime for the matching anno
   Local text-table input annotated with Flair (PubTator3 only annotates PubMed/PMC publications).
 - `examples/fetch-merge.toml`
   Advanced multi-source fetch example. Fetches from PubTator3, Entrez, and Europe PMC, then merges results into one canonical document per PMID.
+
+The PMID list and text table used by these examples are in `examples/data/`. Paths in the example configs are written relative to the repository root.
