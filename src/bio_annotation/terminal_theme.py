@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+import ctypes
+import os
+import sys
+import threading
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -12,6 +17,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.theme import Theme
 from rich.text import Text
+
+from bio_annotation.pipeline.progress import ProgressEvent, ProgressReporter, describe
 
 
 THEME_WIDTH = 100
@@ -30,6 +37,64 @@ BIOANNOHUB_THEME = Theme(
         "path": "bright_blue",
     }
 )
+
+
+@contextmanager
+def annotator_spinner() -> Iterator[ProgressReporter]:
+    terminal = os.fdopen(os.dup(1), "w", encoding="utf-8", errors="replace")
+    console = Console(file=terminal, theme=BIOANNOHUB_THEME)
+    status = console.status("Running annotation...", spinner="dots")
+    status.start()
+    try:
+        with _native_output_above(console):
+
+            def report(event: ProgressEvent) -> None:
+                if event.event == "start":
+                    status.update(Text(describe(event), style="muted"))
+                else:
+                    # Printed above the spinner so outcomes survive the run.
+                    style = "warning" if event.event == "error" else "ok"
+                    console.print(Text(describe(event), style=style))
+
+            yield report
+    finally:
+        status.stop()
+
+
+@contextmanager
+def _native_output_above(console: Console) -> Iterator[None]:
+    sys.stdout.flush()
+    sys.stderr.flush()
+    read_fd, write_fd = os.pipe()
+    saved_fds = [os.dup(1), os.dup(2)]
+    os.dup2(write_fd, 1)
+    os.dup2(write_fd, 2)
+    os.close(write_fd)
+
+    def forward() -> None:
+        with os.fdopen(read_fd, encoding="utf-8", errors="replace") as captured:
+            for line in captured:
+                console.print(Text(line.rstrip("\n"), style="muted"))
+
+    reader = threading.Thread(target=forward, daemon=True)
+    reader.start()
+    try:
+        yield
+    finally:
+        _flush_c_stdio()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        for fd, saved in zip((1, 2), saved_fds):
+            os.dup2(saved, fd)
+            os.close(saved)
+        reader.join(timeout=1)
+
+
+def _flush_c_stdio() -> None:
+    try:
+        ctypes.CDLL(None).fflush(None)
+    except (OSError, AttributeError, TypeError):
+        pass
 
 
 def render_lines(renderable: Any) -> list[str]:
@@ -70,8 +135,9 @@ def help_lines() -> list[str]:
     return render_lines(
         Panel(
             Text.assemble(
-                ("Choose an input source, annotators, and entity filters.\n", "muted"),
-                ("Each run writes ", "muted"),
+                ("Choose input, filter annotators by domain and supported task, then choose annotators and entity filters.\n", "muted"),
+                ("Type 'restart' or 'exit' at any prompt; press Enter at the final prompt to run.\n", "muted"),
+                ("Each completed run writes ", "muted"),
                 ("config", "field"),
                 (", ", "muted"),
                 ("JSON", "field"),
@@ -79,7 +145,7 @@ def help_lines() -> list[str]:
                 ("TSV review tables", "field"),
                 (", and a ", "muted"),
                 ("manifest", "field"),
-                (".", "muted"),
+                (". Annotations retain their source; entity filters apply after execution to combined results.", "muted"),
             ),
             title="Workflow",
             title_align="left",
@@ -100,12 +166,36 @@ def choice_lines(title: str, choices: tuple[tuple[str, str], ...], *, default_in
         border_style="panel.border",
         pad_edge=True,
     )
+    defaults = set(default_indexes or [])
     table.add_column("#", justify="right", no_wrap=True, style="accent")
     table.add_column("Option")
-    table.add_column("Default", justify="center", no_wrap=True, style="ok")
-    defaults = set(default_indexes or [])
+    if defaults:
+        table.add_column("Default", justify="center", no_wrap=True, style="ok")
     for index, (_, label) in enumerate(choices, start=1):
-        table.add_row(str(index), label, "default" if index in defaults else "")
+        row = [str(index), label]
+        if defaults:
+            row.append("default" if index in defaults else "")
+        table.add_row(*row)
+    return render_lines(table)
+
+
+def annotator_capability_lines(
+    rows: Iterable[tuple[str, str, str, str, str]],
+) -> list[str]:
+    table = Table(
+        title="Selected annotator capabilities",
+        box=box.ROUNDED,
+        show_lines=True,
+        show_header=True,
+        header_style="table.header",
+        title_style="table.title",
+        border_style="panel.border",
+        pad_edge=True,
+    )
+    for column in ("Annotator", "Domains", "Inputs", "Tasks", "Entity types"):
+        table.add_column(column)
+    for row in rows:
+        table.add_row(*row)
     return render_lines(table)
 
 
@@ -122,7 +212,14 @@ def warning_lines(title: str, messages: Iterable[str]) -> list[str]:
     )
 
 
-def run_plan_lines(*, input_mode: str, annotators: list[str], entity_types: list[str]) -> list[str]:
+def run_plan_lines(
+    *,
+    input_mode: str,
+    domain: str = "Biomedical",
+    task: str = "NER-capable",
+    annotators: list[str],
+    entity_types: list[str],
+) -> list[str]:
     table = Table(
         title="Run plan",
         box=box.ROUNDED,
@@ -133,6 +230,8 @@ def run_plan_lines(*, input_mode: str, annotators: list[str], entity_types: list
     table.add_column("Field", style="field")
     table.add_column("Value")
     table.add_row("Input", input_mode)
+    table.add_row("Domain filter", domain)
+    table.add_row("Task filter", task)
     table.add_row("Annotators", ", ".join(annotators) or "all")
     table.add_row("Entity filters", ", ".join(entity_types) if entity_types else "all entity types")
     return render_lines(table)
@@ -156,3 +255,27 @@ def run_summary_lines(*, document_count: int, annotation_count: int, results_pat
     table.add_row("Config", str(config_path))
     table.add_row("Manifest", str(manifest_path))
     return render_lines(table)
+
+
+def annotator_results_lines(annotators: list[dict[str, Any]]) -> list[str]:
+    """Render per-annotator outcomes and post-filter entity counts."""
+    with_results = sum(int(row.get("entity_count", 0)) > 0 for row in annotators)
+    table = Table(
+        title="Annotator results",
+        box=box.ROUNDED,
+        title_style="table.title",
+        border_style="panel.border",
+    )
+    table.add_column("Annotator", style="field")
+    table.add_column("Status")
+    table.add_column("Entities after filters", justify="right")
+    for row in annotators:
+        table.add_row(
+            str(row.get("annotator", "Unknown")),
+            str(row.get("status", "Unknown")),
+            str(row.get("entity_count", 0)),
+        )
+    lines = [f"Annotators with results after filters: {with_results}/{len(annotators)}"]
+    if annotators:
+        lines.extend(render_lines(table))
+    return lines

@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 AnnotationTask = Literal["NER", "NEN"]
 NormalizationStatus = Literal["normalized", "preserved_if_returned", "not_returned"]
+AnnotationDomain = Literal["biomedical", "clinical"]
+AnnotatorInputMode = Literal["pmid", "plain_text"]
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,8 @@ class AnnotatorCapability:
     normalization_status: NormalizationStatus
     normalization_databases: dict[str, tuple[str, ...]]
     normalization_fields: tuple[str, ...]
+    domains: tuple[AnnotationDomain, ...] = ("biomedical",)
+    input_modes: tuple[AnnotatorInputMode, ...] = ("pmid", "plain_text")
 
 
 # MACCROBAT clinical label set (41 labels), shared so any clinical NER annotator
@@ -180,8 +184,9 @@ SCISPACY_ENTITY_TYPE_SPECS: tuple[tuple[str, str, str, str, tuple[str, ...]], ..
     ("scispacy_craft", "en_ner_craft_md", "TAXON", "species", ()),
     ("scispacy_craft", "en_ner_craft_md", "GO", "gene_ontology", ()),
     ("scispacy_craft", "en_ner_craft_md", "SO", "sequence_ontology", ()),
-    # General scispaCy models: same generic ENTITY detection, linked to UMLS.
-    # Labeled by exact model id; scibert is the accurate one, md the lighter one.
+    # General scispaCy models detect broad mention spans with raw label ENTITY;
+    # they do not assign types such as gene or disease. Their UMLS linker adds
+    # normalization candidates independently of the generic entity type.
     ("scispacy_scibert", "en_core_sci_scibert", "ENTITY", "biomedical_entity", ("UMLS",)),
     ("scispacy_md", "en_core_sci_md", "ENTITY", "biomedical_entity", ("UMLS",)),
 )
@@ -277,7 +282,7 @@ ENTITY_TYPE_DISPLAY_NAMES: dict[str, str] = {
     "cell_type": "Cell type",
     "dna": "DNA",
     "rna": "RNA",
-    "biomedical_entity": "Biomedical entity",
+    "biomedical_entity": "Generic biomedical mention (ENTITY)",
     "cell": "Cell",
     "cancer": "Cancer",
     "amino_acid": "Amino acid",
@@ -349,6 +354,9 @@ def _stanza_capability(annotator: str, label: str) -> AnnotatorCapability:
             spec.canonical_entity_type: spec.database_ids for spec in specs
         },
         normalization_fields=(),
+        domains=("clinical",)
+        if annotator in {"stanza_i2b2", "stanza_radiology"}
+        else ("biomedical",),
     )
 
 
@@ -373,6 +381,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             "annotation.id",
             "PubTator text column 6",
         ),
+        input_modes=("pmid",),
     ),
     "bern2": AnnotatorCapability(
         label="BERN2",
@@ -421,6 +430,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "clinicalbert"
         },
         normalization_fields=(),
+        domains=("clinical",),
     ),
     "apollo": AnnotatorCapability(
         label="Clinical-AI-Apollo Medical-NER",
@@ -437,6 +447,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "apollo"
         },
         normalization_fields=(),
+        domains=("clinical",),
     ),
     "d4data": AnnotatorCapability(
         label="d4data biomedical-ner-all",
@@ -453,6 +464,8 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "d4data"
         },
         normalization_fields=(),
+        # This model is trained on MACCROBAT clinical case reports.
+        domains=("clinical",),
     ),
     "medcat": AnnotatorCapability(
         label="MedCAT",
@@ -471,6 +484,7 @@ ANNOTATOR_CAPABILITIES: dict[str, AnnotatorCapability] = {
             if spec.annotator == "medcat"
         },
         normalization_fields=("cui",),
+        domains=("clinical",),
     ),
     "scispacy_jnlpba": AnnotatorCapability(
         label="scispaCy en_ner_jnlpba_md",
@@ -633,6 +647,27 @@ def normalize_entity_type(label: Any) -> str:
 def annotator_tasks(annotator: str) -> tuple[AnnotationTask, ...]:
     capability = ANNOTATOR_CAPABILITIES.get(annotator)
     return capability.tasks if capability else ()
+
+
+def annotator_tasks_for_selection(
+    annotator: str, *, flair_linking: bool = False
+) -> tuple[AnnotationTask, ...]:
+    """Return the tasks available with the requested optional settings."""
+
+    tasks = annotator_tasks(annotator)
+    if annotator == "flair" and not flair_linking:
+        return tuple(task for task in tasks if task != "NEN")
+    return tasks
+
+
+def annotator_domains(annotator: str) -> tuple[AnnotationDomain, ...]:
+    capability = ANNOTATOR_CAPABILITIES.get(annotator)
+    return capability.domains if capability else ()
+
+
+def annotator_input_modes(annotator: str) -> tuple[AnnotatorInputMode, ...]:
+    capability = ANNOTATOR_CAPABILITIES.get(annotator)
+    return capability.input_modes if capability else ()
 
 
 def annotator_supports_nen(annotator: str) -> bool:

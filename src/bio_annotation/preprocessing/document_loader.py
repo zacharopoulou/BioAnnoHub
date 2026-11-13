@@ -219,6 +219,16 @@ def _build_orchestrator_request(config: PipelineConfig, pmids: list[str]) -> Any
         if config.fetch_fields_per_source
         else None
     )
+    fetch_sources = config.fetch_sources or ["pubtator3"]
+    if "pubtator3" in config.annotators and "pubtator3" in fetch_sources:
+        pubtator3_fields = (
+            fields_per_source.get("pubtator3")
+            if fields_per_source is not None and "pubtator3" in fields_per_source
+            else fields
+        )
+        if pubtator3_fields is not None:
+            fields_per_source = dict(fields_per_source or {})
+            fields_per_source["pubtator3"] = pubtator3_fields | {"annotations"}
     if len(pmids) == 1:
         return FetchInput.from_pmid(
             pmids[0],
