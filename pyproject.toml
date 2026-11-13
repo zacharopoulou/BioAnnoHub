@@ -62,6 +62,16 @@ dev = [
     "pytest>=8.0",
 ]
 
+# PyPI's Linux torch wheels bundle ~3 GB of CUDA libraries that the annotators
+# do not use; take the CPU build instead. macOS/Windows wheels are CPU already.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

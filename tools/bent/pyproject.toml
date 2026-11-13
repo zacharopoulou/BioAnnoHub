@@ -7,7 +7,21 @@ description = "Isolated Python environment for running BENT as a subprocess."
 requires-python = ">=3.7,<=3.10.13"
 dependencies = [
     "bent==0.0.80",
+    # BENT imports pkg_resources, which newer setuptools no longer ships.
+    "setuptools<81",
+    # Listed directly only so the source below applies to it.
+    "torch==2.0.0 ; python_full_version >= '3.10'",
 ]
 
 [tool.uv]
 package = false
+
+# BENT runs on CPU. PyPI's Linux torch 2.0.0 wheel needs ~3 GB of CUDA libraries
+# that uv does not even lock, because that wheel's metadata differs from the others.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux' and python_full_version >= '3.10'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true

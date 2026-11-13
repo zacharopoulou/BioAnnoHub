@@ -33,11 +33,8 @@ for model in ("samrawal/bert-base-uncased_clinical-ner", "Clinical-AI-Apollo/Med
 PY
 
 RUN python - <<'PY' && chmod -R a+rwX /opt/models/flair /opt/models/huggingface
-from flair.models import EntityMentionLinker
 from flair.nn import Classifier
 Classifier.load("hunflair2")
-for linker in ("gene-linker", "disease-linker", "chemical-linker", "species-linker"):
-    EntityMentionLinker.load(linker)
 PY
 
 RUN python - <<'PY' && chmod -R a+rwX /opt/models/stanza
