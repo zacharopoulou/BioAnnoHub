@@ -71,13 +71,14 @@ def test_mentions_point_into_their_sentence() -> None:
         assert text in {form.lower() for form in [entity_data["label"], *entity_data["forms"]]}
 
 
-def test_v2_report_has_entity_types_tabs_and_explorer(tmp_path: Path) -> None:
+def test_v2_report_has_bioconcepts_popups_and_explorer(tmp_path: Path) -> None:
     html = write_html_report_v2(_payload(), tmp_path / "results_v2.html").read_text(encoding="utf-8")
-    # one "Entity types" button, opening a pop-up with two tabs
-    assert 'data-open-dialog="entity-types-dialog"' in html
-    assert re.search(r'<dialog[^>]*id="entity-types-dialog"[^>]*data-tabs', html)
-    assert 'data-tab="distribution"' in html and 'data-tab="bioconcepts"' in html
-    # Bioconcepts only inside pop-ups: the run's in the tabs, each document's behind its own button
+    # "Bioconcepts in this run" button, opening the run's Bioconcepts (no distribution tab)
+    assert 'data-open-dialog="run-bioconcepts-dialog"' in html
+    dialog = re.search(r'<dialog[^>]*id="run-bioconcepts-dialog".*?</dialog>', html, re.S).group(0)
+    assert "stats-run" in dialog
+    assert 'class="type-histogram"' not in html and "data-tab" not in html
+    # Bioconcepts only inside pop-ups: the run's behind the summary button, each document's behind its own
     summary = html[html.index('<section class="summary">'):html.index("</section>")]
     assert "stats-panel" not in summary
     assert 'data-open-dialog="bioconcepts-doc-pmid-1"' in html

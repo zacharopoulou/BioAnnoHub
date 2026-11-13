@@ -620,12 +620,6 @@ body.entity-panel-open { margin-right: 430px; }
 /* the filter bar now sits above the documents, not under the summary */
 .filter-bar { margin: 0 0 1.5em; }
 
-/* Tabs in the "Entity types" pop-up */
-.tabs { display: flex; gap: 0.3em; border-bottom: 1px solid var(--border); margin-bottom: 1em; }
-.tab { font: inherit; font-size: 0.9em; padding: 0.4em 1em; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--text-muted); cursor: pointer; }
-.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-.tab-panel[hidden] { display: none; }
-
 /* Bioconcepts inside a pop-up: no card, no height limit (the pop-up scrolls) */
 .dist-dialog { overflow-y: auto; }
 .dist-dialog .stats-panel { max-height: none; overflow: visible; border: 0; box-shadow: none; padding: 0; }
@@ -972,14 +966,6 @@ body.entity-panel-open { margin-right: 430px; }
       const dialog = keyword.closest("dialog");
       if (dialog) dialog.close();
       explore(keyword.textContent);
-      return;
-    }
-    // tabs in a pop-up: show the panel of the clicked tab
-    const tab = event.target.closest("[data-tab]");
-    if (tab) {
-      const box = tab.closest("[data-tabs]");
-      box.querySelectorAll("[data-tab]").forEach((other) => other.setAttribute("aria-selected", String(other === tab)));
-      box.querySelectorAll("[data-tab-panel]").forEach((panel) => { panel.hidden = panel.dataset.tabPanel !== tab.dataset.tab; });
     }
   });
 

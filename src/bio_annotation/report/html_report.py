@@ -284,7 +284,7 @@ def _render_body(payload: dict[str, Any]) -> str:
             '<button type="button" class="dist-button" data-open-dialog="distribution-dialog">'
             "Show entity type distribution</button>"
         )
-        parts.append(_render_annotator_table(annotators_used, annotations))
+        parts.append(_render_annotator_table(annotators_used, annotations, payload.get("pipeline")))
     else:
         parts.append('<p class="meta">Annotators: none</p>')
     parts.append("</div>")
@@ -572,8 +572,36 @@ def _render_stats_panel(
     return "\n".join(parts)
 
 
-def _render_annotator_table(annotators: list[str], annotations: list[dict[str, Any]]) -> str:
-    """One row per annotator of the run: domain, task, entity types found and annotation count."""
+def _run_tasks(
+    source: str,
+    *,
+    returned_ids: bool,
+    pipeline: dict[str, Any] | None,
+) -> list[str]:
+    """The tasks an annotator did in this run: what it can do with the run's settings,
+    limited to the task chosen for the run ("NER", "NEN" or "both") when one was saved."""
+    tasks = set(annotator_tasks(source))
+    if not tasks:
+        # annotators missing from the capability table: NEN if they returned ids in this run
+        tasks = {"NER", "NEN"} if returned_ids else {"NER"}
+    settings = (pipeline or {}).get("annotator_settings")
+    if source == "flair" and isinstance(settings, dict) and settings.get("flair", {}).get("linking") is not True:
+        tasks.discard("NEN")  # HunFlair links to IDs only with linking = true
+    chosen = (pipeline or {}).get("task")
+    if chosen in ("NER", "NEN"):
+        tasks = (tasks & {chosen}) or tasks
+    return [task for task in ("NER", "NEN") if task in tasks]
+
+
+def _render_annotator_table(
+    annotators: list[str],
+    annotations: list[dict[str, Any]],
+    pipeline: dict[str, Any] | None = None,
+) -> str:
+    """One row per annotator of the run: domain, task, entity types found and annotation count.
+
+    `pipeline` is the run's "pipeline" section of results.json (annotator settings, chosen task).
+    """
     types_by_source: dict[str, Counter] = defaultdict(Counter)
     has_ids: set[str] = set()
     for annotation in annotations:
@@ -584,9 +612,7 @@ def _render_annotator_table(annotators: list[str], annotations: list[dict[str, A
 
     rows = []
     for source in annotators:
-        tasks = annotator_tasks(source)
-        # annotators missing from the capability table: NEN if they returned ids in this run
-        nen = "NEN" in tasks if tasks else source in has_ids
+        tasks = _run_tasks(source, returned_ids=source in has_ids, pipeline=pipeline)
         domain = "Clinical" if source in _CLINICAL_ANNOTATORS else "Biomedical"
         counts = types_by_source[source]
         chips = "".join(
@@ -598,7 +624,7 @@ def _render_annotator_table(annotators: list[str], annotations: list[dict[str, A
             "<tr>"
             f"<td>{escape(_ANNOTATOR_LABELS.get(source, source))}</td>"
             f"<td>{domain}</td>"
-            f'<td class="nowrap">{"NER + NEN" if nen else "NER"}</td>'
+            f'<td class="nowrap">{" + ".join(tasks)}</td>'
             f'<td><div class="type-chips">{chips}</div></td>'
             f'<td class="num">{sum(counts.values())}</td>'
             "</tr>"

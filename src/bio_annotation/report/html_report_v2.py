@@ -1,8 +1,8 @@
 """Entity-oriented version of the HTML report (results_v2.html), written next to results.html.
 
 Differences from html_report.py:
-- the "Bioconcepts" panels move into pop-ups: the summary's "Entity types" button opens
-  the distribution and the run's Bioconcepts as two tabs, and each document has its own button;
+- the "Bioconcepts" panels move into pop-ups: the summary's "Bioconcepts in this run" button
+  opens the run's Bioconcepts, and each document has its own button;
 - the co-mention graph is replaced by an entity explorer: search for an entity (or pick one
   from the list of all entities, by type) and see the entities it is mentioned with, one at a time;
 - entities with the same ID count as one entity, whatever text they were written with.
@@ -34,7 +34,6 @@ from bio_annotation.report.html_report import (
     _render_documents_overview,
     _render_filter_bar,
     _render_stats_panel,
-    _render_type_histogram,
     _source_priority,
     _span_key,
     _split_annotations_by_region,
@@ -77,16 +76,16 @@ def _render_body(payload: dict[str, Any]) -> str:
     )
     if annotations:
         parts.append(
-            '<button type="button" class="dist-button" data-open-dialog="entity-types-dialog">'
-            "Entity types</button>"
+            '<button type="button" class="dist-button" data-open-dialog="run-bioconcepts-dialog">'
+            "Bioconcepts in this run</button>"
         )
-        parts.append(_render_annotator_table(annotators_used, annotations))
+        parts.append(_render_annotator_table(annotators_used, annotations, payload.get("pipeline")))
     else:
         parts.append('<p class="meta">Annotators: none</p>')
     parts.append("</div></section>")
 
     if annotations:
-        parts.append(_render_entity_types_dialog(annotations))
+        parts.append(_render_run_bioconcepts_dialog(annotations))
         if documents:
             parts.append(_render_explorer(documents, annotations, annotators_used))
     if len(documents) > 1:
@@ -103,11 +102,10 @@ def _render_body(payload: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
-def _dialog(dialog_id: str, title: str, body: str, *, tabs: bool = False) -> str:
+def _dialog(dialog_id: str, title: str, body: str) -> str:
     """A pop-up (<dialog>) with a title and a close button; opened by a data-open-dialog button."""
     return (
-        f'<dialog class="dist-dialog" id="{escape(dialog_id, quote=True)}" aria-labelledby="{escape(dialog_id, quote=True)}-title"'
-        f'{" data-tabs" if tabs else ""}>'
+        f'<dialog class="dist-dialog" id="{escape(dialog_id, quote=True)}" aria-labelledby="{escape(dialog_id, quote=True)}-title">'
         '<div class="dist-dialog-body"><div class="dist-dialog-header">'
         f'<h3 id="{escape(dialog_id, quote=True)}-title">{escape(title)}</h3>'
         '<button type="button" class="entity-popup-close" data-close-dialog aria-label="Close">&times;</button></div>'
@@ -115,20 +113,14 @@ def _dialog(dialog_id: str, title: str, body: str, *, tabs: bool = False) -> str
     )
 
 
-def _render_entity_types_dialog(annotations: list[dict[str, Any]]) -> str:
-    """The summary's "Entity types" pop-up: Distribution and Bioconcepts tabs."""
-    bioconcepts = _render_stats_panel(_compute_stats(annotations), heading="Bioconcepts in this run", css_class="stats-run")
-    body = (
-        '<div class="tabs" role="tablist">'
-        '<button type="button" class="tab" role="tab" data-tab="distribution" aria-selected="true">Distribution</button>'
-        '<button type="button" class="tab" role="tab" data-tab="bioconcepts" aria-selected="false">Bioconcepts</button>'
-        "</div>"
-        f'<div class="tab-panel" data-tab-panel="distribution">{_render_type_histogram(annotations)}</div>'
-        '<div class="tab-panel" data-tab-panel="bioconcepts" hidden>'
+def _render_run_bioconcepts_dialog(annotations: list[dict[str, Any]]) -> str:
+    """The summary's "Bioconcepts in this run" pop-up; each type shows its total."""
+    return _dialog(
+        "run-bioconcepts-dialog",
+        "Bioconcepts in this run",
         '<p class="hint">Click a keyword to explore it in the entity explorer.</p>'
-        f"{bioconcepts}</div>"
+        + _render_stats_panel(_compute_stats(annotations), heading="Bioconcepts in this run", css_class="stats-run"),
     )
-    return _dialog("entity-types-dialog", "Entity types", body, tabs=True)
 
 
 def _render_document(

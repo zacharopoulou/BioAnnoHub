@@ -375,6 +375,22 @@ def test_summary_has_annotator_table_instead_of_legend(tmp_path: Path) -> None:
     assert 'class="legend"' not in html
 
 
+def test_task_column_shows_the_tasks_of_this_run() -> None:
+    from bio_annotation.report.html_report import _run_tasks
+
+    no_linking = {"annotator_settings": {"flair": {"linking": False}}}
+    # HunFlair can link to IDs, but not with linking off
+    assert _run_tasks("flair", returned_ids=False, pipeline=no_linking) == ["NER"]
+    assert _run_tasks("flair", returned_ids=True, pipeline={"annotator_settings": {"flair": {"linking": True}}}) == ["NER", "NEN"]
+    # the task chosen for the run limits what is shown; "both" keeps everything the annotator did
+    assert _run_tasks("pubtator3", returned_ids=True, pipeline={"task": "NER"}) == ["NER"]
+    assert _run_tasks("pubtator3", returned_ids=True, pipeline={"task": "NEN"}) == ["NEN"]
+    assert _run_tasks("pubtator3", returned_ids=True, pipeline={"task": "both"}) == ["NER", "NEN"]
+    assert _run_tasks("clinicalbert", returned_ids=False, pipeline={"task": "NEN"}) == ["NER"]
+    # results without a pipeline section (older runs): what the annotator can do
+    assert _run_tasks("flair", returned_ids=False, pipeline=None) == ["NER", "NEN"]
+
+
 def test_distribution_opens_from_a_button(tmp_path: Path) -> None:
     html = write_html_report(sample_payload(), tmp_path / "report.html").read_text(encoding="utf-8")
     assert 'data-open-dialog="distribution-dialog"' in html
