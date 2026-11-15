@@ -731,10 +731,12 @@ def _render_documents_overview(
         for entity_type in ordered_types:
             seg_count = type_counts[entity_type]
             seg_width = 100 * seg_count / running_total if running_total else 0
+            # data-tip: the page shows it in its own hover pop-up (a title would show the browser's grey one)
+            label = escape(_type_label(entity_type), quote=True)
             segments.append(
                 f'<span class="doc-seg doc-seg-{escape(entity_type)} fam-{entity_family(entity_type)}" '
                 f'style="width:{seg_width:.2f}%" '
-                f'title="{escape(_type_label(entity_type))}: {seg_count}"></span>'
+                f'data-tip="{label}" data-tip-count="{seg_count}" aria-label="{label}: {seg_count}"></span>'
             )
         bar_width = max(8, int(round(100 * total / max_total)))
         parts.append(

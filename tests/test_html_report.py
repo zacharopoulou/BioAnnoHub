@@ -399,6 +399,18 @@ def test_filter_groups_have_all_and_none_buttons(tmp_path: Path) -> None:
     assert "[data-filter-set]" in html  # the page's script handles them
 
 
+def test_document_bars_use_the_page_hover_popup(tmp_path: Path) -> None:
+    payload = sample_payload()
+    second = {**payload["documents"][0], "document_id": "PMID:2", "pmid": "2"}
+    payload["documents"].append(second)
+    payload["document_count"] = 2
+    html = write_html_report(payload, tmp_path / "report.html").read_text(encoding="utf-8")
+    segment = re.search(r'<span class="doc-seg [^>]*>', html).group(0)
+    assert 'data-tip="' in segment and "data-tip-count=" in segment
+    assert "title=" not in segment  # no browser tooltip on top of the page's pop-up
+    assert ".seg-tip" in html
+
+
 def test_distribution_opens_from_a_button(tmp_path: Path) -> None:
     html = write_html_report(sample_payload(), tmp_path / "report.html").read_text(encoding="utf-8")
     assert 'data-open-dialog="distribution-dialog"' in html

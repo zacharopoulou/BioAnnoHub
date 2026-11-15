@@ -174,6 +174,11 @@ mark.entity.is-selected { outline: 2px solid var(--accent); outline-offset: 1px;
 /* same colours as the highlights: pale fill, dark border */
 .doc-seg[class*="fam-"] { background: var(--fbar); }
 .doc-seg + .doc-seg { box-shadow: inset 1px 0 0 #fff; }  /* thin white gap between segments */
+/* hover pop-up of a bar segment, in the page's lavender */
+.seg-tip { position: fixed; z-index: 1100; pointer-events: none; white-space: nowrap; font-size: 0.85em; padding: 4px 9px; border-radius: 4px; background: var(--accent-bg); color: var(--text); border: 1px solid var(--accent-soft); box-shadow: 0 4px 12px rgba(31, 29, 43, 0.12); }
+.seg-tip[hidden] { display: none; }
+.seg-tip-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; background: var(--fbar); border: 1px solid var(--ffg); }
+.seg-tip-count { margin-left: 6px; font-weight: 700; color: var(--accent); }
 
 /* The entity type, as a small label inside each highlight ("Show type labels"). */
 body.show-type-labels mark.entity[data-label]::after {
@@ -950,6 +955,29 @@ body.entity-panel-open { margin-right: 430px; }
     const set = kind === "source" ? shownSources : shownFamilies;
     if (box.checked) set.add(box.value); else set.delete(box.value);
     redrawAll();
+  });
+
+  // Hover pop-up of the "Annotations per document" bar segments: type and count,
+  // drawn by the page (in its colours) from the segment's data-tip attributes.
+  const segTip = document.createElement("div");
+  segTip.className = "seg-tip";
+  segTip.hidden = true;
+  document.body.appendChild(segTip);
+  document.addEventListener("mouseover", (event) => {
+    const seg = event.target.closest && event.target.closest(".doc-seg[data-tip]");
+    if (!seg) { segTip.hidden = true; return; }
+    const swatch = document.createElement("span");
+    swatch.className = "seg-tip-swatch " + ([...seg.classList].find((c) => c.startsWith("fam-")) || "");
+    const count = document.createElement("span");
+    count.className = "seg-tip-count";
+    count.textContent = seg.dataset.tipCount;
+    segTip.replaceChildren(swatch, document.createTextNode(seg.dataset.tip), count);
+    segTip.hidden = false;
+  });
+  document.addEventListener("mousemove", (event) => {
+    if (segTip.hidden) return;
+    segTip.style.left = Math.min(event.clientX + 12, window.innerWidth - segTip.offsetWidth - 8) + "px";
+    segTip.style.top = event.clientY + 16 + "px";
   });
 
   // "All" / "None" next to a filter group: tick or untick every box of that group,
