@@ -391,6 +391,14 @@ def test_task_column_shows_the_tasks_of_this_run() -> None:
     assert _run_tasks("flair", returned_ids=False, pipeline=None) == ["NER", "NEN"]
 
 
+def test_filter_groups_have_all_and_none_buttons(tmp_path: Path) -> None:
+    html = write_html_report(sample_payload(), tmp_path / "report.html").read_text(encoding="utf-8")
+    for kind in ("source", "family"):
+        assert f'data-filter-set="{kind}" data-checked="true">All</button>' in html
+        assert f'data-filter-set="{kind}" data-checked="false">None</button>' in html
+    assert "[data-filter-set]" in html  # the page's script handles them
+
+
 def test_distribution_opens_from_a_button(tmp_path: Path) -> None:
     html = write_html_report(sample_payload(), tmp_path / "report.html").read_text(encoding="utf-8")
     assert 'data-open-dialog="distribution-dialog"' in html

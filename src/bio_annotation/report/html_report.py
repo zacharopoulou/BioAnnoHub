@@ -471,14 +471,14 @@ def _render_filter_bar(annotators: list[str], annotations: list[dict[str, Any]])
     """Checkboxes to show or hide highlights per annotator and per entity family."""
     present_families = {entity_family(a.get("entity_type")) for a in annotations}
     parts = ['<section class="filter-bar" aria-label="Highlight filters">']
-    parts.append('<div class="filter-group"><span class="filter-title">Annotators</span>')
+    parts.append(f'<div class="filter-group"><span class="filter-title">Annotators</span>{_select_all_buttons("source")}')
     for name in annotators:
         parts.append(
             f'<label class="filter-chip"><input type="checkbox" data-filter="source" '
             f'value="{escape(name, quote=True)}" checked> {escape(_ANNOTATOR_LABELS.get(name, name))}</label>'
         )
     parts.append("</div>")
-    parts.append('<div class="filter-group"><span class="filter-title">Entity types</span>')
+    parts.append(f'<div class="filter-group"><span class="filter-title">Entity types</span>{_select_all_buttons("family")}')
     for family, label in _FAMILY_LABELS.items():
         if family not in present_families:
             continue
@@ -493,6 +493,14 @@ def _render_filter_bar(annotators: list[str], annotations: list[dict[str, Any]])
     )
     parts.append("</section>")
     return "\n".join(parts)
+
+
+def _select_all_buttons(kind: str) -> str:
+    """"All" and "None" buttons that tick or untick every checkbox of a filter group."""
+    return "".join(
+        f'<button type="button" class="filter-toggle" data-filter-set="{kind}" data-checked="{value}">{label}</button>'
+        for value, label in (("true", "All"), ("false", "None"))
+    )
 
 
 def _compute_stats(annotations: list[dict[str, Any]]) -> dict[str, list[tuple[str, int]]]:
