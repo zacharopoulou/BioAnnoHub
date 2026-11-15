@@ -257,6 +257,7 @@ def main(argv: list[str] | None = None) -> int:
                     "fetch_fields": config.fetch_fields,
                     "fetch_fields_per_source": config.fetch_fields_per_source,
                     "pubtator3_full_text": config.pubtator3_full_text,
+                    "task": config.task,
                 },
                 indent=2,
             )

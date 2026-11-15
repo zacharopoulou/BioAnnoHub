@@ -552,7 +552,11 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         ]
     else:
         raise ValueError(f"Unsupported terminal UI input mode: {answers.input_mode}")
-    lines += ["", "[enrichment]", "sources = []", "", "[annotators]", f"enabled = {_toml_string_list(answers.annotators)}"]
+    lines += [
+        "", "[enrichment]", "sources = []", "", "[annotators]",
+        f"enabled = {_toml_string_list(answers.annotators)}",
+        f"task = {_toml_string(answers.task)}",  # shown in the report's Task column
+    ]
     if "bern2" in answers.annotators:
         lines += [
             "",

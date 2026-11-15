@@ -313,6 +313,7 @@ def build_pipeline_output(
             "mode": "ingestion_only" if not enabled_annotators else "ingestion_and_annotation",
             "annotators_enabled": enabled_annotators,
             "annotator_settings": {name: annotator_settings.get(name, {}) for name in enabled_annotators},
+            "task": config.task,
         },
         "document_count": len(corpus_documents),
         "corpus_summary": summarize_ingestion(documents),

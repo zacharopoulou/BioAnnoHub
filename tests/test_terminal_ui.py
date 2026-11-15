@@ -137,6 +137,25 @@ def test_build_terminal_ui_config_includes_bern2_endpoint(tmp_path) -> None:
     assert 'endpoint = "https://bern2.korea.ac.kr/plain"' in config_text
 
 
+def test_build_terminal_ui_config_saves_the_chosen_task(tmp_path) -> None:
+    paths = create_run_paths(tmp_path / "out")
+    answers = TerminalUIAnswers(
+        input_mode="pmids",
+        pmids=["123"],
+        pmid_file=None,
+        annotators=["pubtator3", "flair"],
+        entity_types=[],
+        task="both",
+    )
+    config_path = paths.run_dir / "config.toml"
+    config_path.write_text(build_terminal_ui_config_text(answers, paths), encoding="utf-8")
+
+    config = load_pipeline_config(config_path)
+
+    assert config.task == "both"
+    assert "task" not in config.annotator_settings
+
+
 def test_build_terminal_ui_config_includes_scispacy_models(tmp_path) -> None:
     paths = create_run_paths(tmp_path / "out")
     answers = TerminalUIAnswers(

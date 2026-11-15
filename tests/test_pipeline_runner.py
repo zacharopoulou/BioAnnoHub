@@ -100,6 +100,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
                 "",
                 "[annotators]",
                 'enabled = ["bern2", "pubtator3"]',
+                'task = "NEN"',
                 "",
                 "[annotators.pubtator3]",
                 'runtime = "remote_api"',
@@ -149,6 +150,7 @@ def test_run_pipeline_from_config_with_pmids(tmp_path) -> None:
     assert payload["input"]["mode"] == "pmids"
     assert payload["pipeline"]["mode"] == "ingestion_and_annotation"
     assert payload["pipeline"]["annotators_enabled"] == ["bern2", "pubtator3"]
+    assert payload["pipeline"]["task"] == "NEN"  # the chosen task, for the report's Task column
     assert payload["documents"][0]["metadata"]["pubmed_record"]["pmcid"] == "PMC1234567"
     assert payload["annotation_summary"]["annotation_count"] == 2
     assert payload["annotator_summary"]["configured"] == ["bern2", "pubtator3"]

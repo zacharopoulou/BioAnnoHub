@@ -105,6 +105,8 @@ class PipelineConfig:
     fetch_fields: list[str] | None
     fetch_fields_per_source: dict[str, list[str]] | None
     pubtator3_full_text: bool
+    # task chosen for the run in the terminal: "NER", "NEN" or "both" (None when not set)
+    task: str | None = None
 
 
 def load_pipeline_config(path: Path) -> PipelineConfig:
@@ -144,6 +146,7 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         allow_empty=True,
     )
     annotator_settings = _read_annotator_settings(annotator_config)
+    task = _read_task(annotator_config.get("task"))
     entity_types = _read_string_list(filter_config.get("entity_types"), field_name="filters.entity_types", allow_empty=True)
     output_path_value = output_config.get("path")
     output_path = Path(output_path_value) if isinstance(output_path_value, str) and output_path_value.strip() else None
@@ -188,7 +191,18 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         fetch_fields=fetch_fields,
         fetch_fields_per_source=fetch_fields_per_source,
         pubtator3_full_text=pubtator3_full_text,
+        task=task,
     )
+
+
+def _read_task(value: object) -> str | None:
+    """Parse [annotators].task: "NER", "NEN" or "both" (any case); None when absent."""
+    if value is None:
+        return None
+    tasks = {"ner": "NER", "nen": "NEN", "both": "both"}
+    if not isinstance(value, str) or value.strip().lower() not in tasks:
+        raise ValueError(f'annotators.task must be "NER", "NEN" or "both", got {value!r}.')
+    return tasks[value.strip().lower()]
 
 
 def _read_string_list(value: object, *, field_name: str, allow_empty: bool = False) -> list[str]:
@@ -357,7 +371,7 @@ def _read_pubtator3_full_text(value: object) -> bool:
 def _read_annotator_settings(annotator_config: dict[str, object]) -> dict[str, dict[str, object]]:
     settings: dict[str, dict[str, object]] = {}
     for name, value in annotator_config.items():
-        if name == "enabled":
+        if name in ("enabled", "task"):
             continue
         if not isinstance(name, str) or not name.strip():
             raise ValueError("annotators contains an invalid annotator key.")

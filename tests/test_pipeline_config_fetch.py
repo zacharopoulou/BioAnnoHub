@@ -122,3 +122,21 @@ def test_pubtator3_section_not_table_is_rejected(tmp_path: Path) -> None:
     body = _BASE + 'pubtator3 = "not_a_table"\n'
     with pytest.raises(ValueError, match="must be a table"):
         load_pipeline_config(_write_toml(tmp_path, body))
+
+
+# annotators.task (the task chosen in the terminal, shown in the report's Task column)
+
+def test_task_omitted_is_none(tmp_path: Path) -> None:
+    assert load_pipeline_config(_write_toml(tmp_path, _BASE)).task is None
+
+
+@pytest.mark.parametrize(("value", "expected"), [("NER", "NER"), ("nen", "NEN"), ("Both", "both")])
+def test_task_is_read_from_annotators(tmp_path: Path, value: str, expected: str) -> None:
+    body = _BASE + f'\n[annotators]\nenabled = ["pubtator3"]\ntask = "{value}"\n'
+    assert load_pipeline_config(_write_toml(tmp_path, body)).task == expected
+
+
+def test_task_rejects_unknown_values(tmp_path: Path) -> None:
+    body = _BASE + '\n[annotators]\nenabled = ["pubtator3"]\ntask = "linking"\n'
+    with pytest.raises(ValueError, match="annotators.task"):
+        load_pipeline_config(_write_toml(tmp_path, body))
