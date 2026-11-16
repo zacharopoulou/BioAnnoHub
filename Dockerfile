@@ -61,7 +61,7 @@ PY
 
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra all
+    uv sync --frozen --extra all
 
 ENV UV_FROZEN=1 \
     UV_NO_SYNC=1 \
