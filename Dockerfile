@@ -67,7 +67,9 @@ ENV UV_FROZEN=1 \
     UV_NO_SYNC=1 \
     UV_PYTHON_DOWNLOADS=never \
     UV_CACHE_DIR=/tmp/uv-cache \
-    MPLCONFIGDIR=/tmp/matplotlib
+    MPLCONFIGDIR=/tmp/matplotlib \
+    HF_HUB_OFFLINE=1 \
+    USER=bioannohub
 
 WORKDIR /work
 

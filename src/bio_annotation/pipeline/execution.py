@@ -34,8 +34,11 @@ from bio_annotation.deps import (
     EXTRA_INSTALL_HINTS,
     BENT_SETUP_HINT,
     extra_installed,
+    flair_linker_installed,
+    model_installed,
     tool_ready,
 )
+from bio_annotation.entity_proposal._shared import not_in_image_hint
 from bio_annotation.entity_proposal.medcat_proposer import reset_reported_endpoints
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
@@ -869,6 +872,17 @@ def validate_optional_annotator_dependencies(
         extra = ANNOTATOR_EXTRAS[annotator]
         if not extra_installed(extra):
             raise ValueError(EXTRA_INSTALL_HINTS[extra])
+    for annotator in required:
+        settings = config.annotator_settings.get(annotator, {})
+        scispacy_model = (
+            _read_scispacy_options(annotator, settings)["model"] if annotator in SCISPACY_ANNOTATOR_SET else None
+        )
+        if not model_installed(annotator, scispacy_model):
+            raise ValueError(not_in_image_hint(f"The {annotator} annotator"))
+    if "flair" in required:
+        flair_options = _read_flair_options(config.annotator_settings.get("flair", {}))
+        if flair_options["linking"] and not all(map(flair_linker_installed, flair_options["linkers"])):
+            raise ValueError(not_in_image_hint("Flair linking"))
     if (
         "bent" in config.annotators
         and bent_request_fn is None

@@ -48,3 +48,18 @@ def test_tool_ready_trusts_custom_bent_installation(bent_project, key) -> None:
     assert deps.tool_ready("bent", {key: "/opt/bent/bin/python"}) is True
     assert deps.tool_ready("bent", {key: "  "}) is False
 
+
+
+def test_model_installed_checks_stanza_resources(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("STANZA_RESOURCES_DIR", str(tmp_path))
+    assert deps.model_installed("stanza_bc5cdr") is False
+
+    (tmp_path / "en" / "ner").mkdir(parents=True)
+    (tmp_path / "en" / "ner" / "bc5cdr.pt").touch()
+
+    assert deps.model_installed("stanza_bc5cdr") is True
+
+
+def test_model_installed_checks_scispacy_package() -> None:
+    assert deps.model_installed("scispacy_md", "en_core_sci_not_a_model") is False
+    assert deps.model_installed("bern2") is True

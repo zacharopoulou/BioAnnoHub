@@ -118,7 +118,7 @@ def _load_stanza_pipeline(package: str, model: str) -> Any:
         lang="en",
         package=None,
         processors={"tokenize": package, "ner": model},
-        download_method=stanza.DownloadMethod.REUSE_RESOURCES,
+        download_method=None,
         verbose=False,
     )
 

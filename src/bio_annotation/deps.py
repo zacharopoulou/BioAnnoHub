@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Iterable
@@ -18,6 +19,7 @@ from bio_annotation.entity_proposal.scispacy_proposer import (
 from bio_annotation.entity_proposal.stanza_proposer import (
     STANZA_ANNOTATORS,
     STANZA_INSTALL_HINT,
+    stanza_model_for_annotator,
 )
 
 EXTRA_MODULES: dict[str, tuple[str, ...]] = {
@@ -64,6 +66,31 @@ def missing_extras(annotators: Iterable[str]) -> list[str]:
         if extra is not None and extra not in missing and not extra_installed(extra):
             missing.append(extra)
     return missing
+
+
+def model_installed(annotator: str, scispacy_model: str | None = None) -> bool:
+    """Whether the local model a scispaCy or Stanza annotator loads is present."""
+
+    if annotator in SCISPACY_MODEL_BY_ANNOTATOR:
+        model = scispacy_model or SCISPACY_MODEL_BY_ANNOTATOR[annotator]
+        try:
+            return Path(model).exists() or find_spec(model) is not None
+        except (ImportError, ValueError):
+            return False
+    if annotator in STANZA_ANNOTATORS:
+        resources = Path(os.environ.get("STANZA_RESOURCES_DIR", Path.home() / "stanza_resources"))
+        return (resources / "en" / "ner" / f"{stanza_model_for_annotator(annotator)}.pt").is_file()
+    return True
+
+
+def flair_linker_installed(linker: str) -> bool:
+    from flair.models import EntityMentionLinker
+
+    try:
+        EntityMentionLinker._fetch_model(linker)
+    except Exception:
+        return False
+    return True
 
 
 def repo_root() -> Path:
