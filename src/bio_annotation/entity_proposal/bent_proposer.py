@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import make_annotation, not_in_image_hint
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -26,10 +26,7 @@ DEFAULT_BENT_TYPES: dict[str, str] = {
     "cell_type": "cell_ontology",
 }
 
-SETUP_HINT = (
-    "Run tools/bent/setup.sh to install BENT and its dictionaries, then enable "
-    "annotators.bent in your config."
-)
+SETUP_HINT = not_in_image_hint("BENT")
 
 
 def parse_bent_response(document: Document, payload: Any) -> list[Annotation]:
@@ -128,7 +125,7 @@ def call_bent(
 
         if completed.returncode != 0:
             stderr = completed.stderr.strip() or completed.stdout.strip()
-            raise RuntimeError(f"BENT failed (exit {completed.returncode}): {stderr}. {SETUP_HINT}")
+            raise RuntimeError(f"BENT failed (exit {completed.returncode}): {stderr}")
 
         out_file = out_dir / "document.ann"
         if not out_file.exists():

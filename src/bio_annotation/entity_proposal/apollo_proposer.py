@@ -3,16 +3,13 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import make_annotation, not_in_image_hint
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 DEFAULT_APOLLO_MODEL = "Clinical-AI-Apollo/Medical-NER"
 
-APOLLO_INSTALL_HINT = (
-    "The apollo annotator requires the optional Hugging Face dependencies. "
-    "Install them with: uv sync --extra apollo"
-)
+APOLLO_INSTALL_HINT = not_in_image_hint("The apollo annotator")
 
 # Apollo can emit spans with leading/trailing punctuation (e.g. "glioblastoma:",
 # "clinical behavior."); trim those boundary characters off the edges while

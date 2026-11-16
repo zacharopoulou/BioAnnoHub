@@ -11,6 +11,10 @@ from bio_annotation.schemas.entity import Annotation
 ENTITY_TYPE_MAP = ENTITY_TYPE_ALIASES
 
 
+def not_in_image_hint(label: str) -> str:
+    return f"{label} is not included in this image; it is in the full BioAnnoHub image."
+
+
 def pick_first(*values: Any) -> Any:
     for value in values:
         if value is not None:

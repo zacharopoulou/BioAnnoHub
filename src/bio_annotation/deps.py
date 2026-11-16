@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from importlib.util import find_spec
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Iterable
 
 from bio_annotation.entity_proposal.apollo_proposer import APOLLO_INSTALL_HINT
-from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT
+from bio_annotation.entity_proposal.bent_proposer import DEFAULT_BENT_PROJECT, SETUP_HINT as BENT_SETUP_HINT
 from bio_annotation.entity_proposal.clinicalbert_proposer import CLINICALBERT_INSTALL_HINT
 from bio_annotation.entity_proposal.d4data_proposer import D4DATA_INSTALL_HINT
 from bio_annotation.entity_proposal.flair_proposer import FLAIR_INSTALL_HINT
@@ -91,18 +91,3 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
         return bent_root(directory) is not None
     return True
 
-
-def unavailable_tools(
-    annotators: Iterable[str],
-    settings_by_annotator: dict[str, dict[str, object]],
-    *,
-    output_fn: Callable[[str], None] = print,
-) -> dict[str, str]:
-    """Annotators with their own environment that are not installed, with the reason for each."""
-
-    unavailable: dict[str, str] = {}
-    for annotator in annotators:
-        if annotator == "bent" and not tool_ready(annotator, settings_by_annotator.get(annotator, {})):
-            unavailable[annotator] = f"{annotator} is not installed in this environment."
-            output_fn(f"Warning: {unavailable[annotator]} The {annotator} step will return no annotations this run.")
-    return unavailable

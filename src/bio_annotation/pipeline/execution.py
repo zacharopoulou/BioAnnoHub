@@ -32,8 +32,9 @@ from bio_annotation.annotators.stanza import annotate_with_stanza
 from bio_annotation.deps import (
     ANNOTATOR_EXTRAS,
     EXTRA_INSTALL_HINTS,
+    BENT_SETUP_HINT,
     extra_installed,
-    unavailable_tools,
+    tool_ready,
 )
 from bio_annotation.entity_proposal.medcat_proposer import reset_reported_endpoints
 from bio_annotation.entity_proposal.stanza_proposer import (
@@ -117,7 +118,6 @@ def build_pipeline_output(
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
     progress: ProgressReporter | None = None,
-    unavailable_annotators: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     reporter = progress or log_progress
     enabled_annotators = list(config.annotators)
@@ -148,7 +148,7 @@ def build_pipeline_output(
         if annotator in STANZA_ANNOTATORS
     }
 
-    unavailable = dict(unavailable_annotators or {})
+    unavailable: dict[str, str] = {}
     flair_tagger = None
     flair_linkers: list[Any] = []
     if "flair" in enabled_annotators and flair_spans_by_document is None:
@@ -795,17 +795,17 @@ def _no_annotations_reason(annotator: str) -> str:
     if annotator == "clinicalbert":
         return (
             "No annotations returned. The ClinicalBERT model may be unavailable/not "
-            "downloaded (uv sync --extra clinicalbert), or it found no entities."
+            "downloaded, or it found no entities."
         )
     if annotator == "apollo":
         return (
             "No annotations returned. The apollo model may be unavailable/not "
-            "downloaded (uv sync --extra apollo), or it found no entities."
+            "downloaded, or it found no entities."
         )
     if annotator == "d4data":
         return (
             "No annotations returned. The d4data model may be unavailable/not "
-            "downloaded (uv sync --extra d4data), or it found no entities."
+            "downloaded, or it found no entities."
         )
     if annotator == "medcat":
         return (
@@ -816,8 +816,7 @@ def _no_annotations_reason(annotator: str) -> str:
     if annotator in SCISPACY_ANNOTATOR_SET:
         return (
             "No annotations returned. The scispaCy model may be unavailable/not "
-            "installed (uv sync --extra scispacy, then install the model package), "
-            "or it found no entities."
+            "installed, or it found no entities."
         )
     if annotator in STANZA_ANNOTATORS:
         return (
@@ -851,7 +850,8 @@ def validate_optional_annotator_dependencies(
     d4data_responses_by_document: dict[str, list[Any]] | None = None,
     scispacy_responses_by_document: dict[str, dict[str, list[Any]]] | None = None,
     stanza_entities_by_document: dict[str, dict[str, list[Any]]] | None = None,
-) -> dict[str, str]:
+    bent_request_fn: Callable[[Document], Any] | None = None,
+) -> None:
     injected = {
         "flair": flair_spans_by_document,
         "clinicalbert": clinicalbert_responses_by_document,
@@ -865,13 +865,16 @@ def validate_optional_annotator_dependencies(
         for annotator in config.annotators
         if (extra := ANNOTATOR_EXTRAS.get(annotator)) is not None and injected[extra] is None
     ]
-    # A missing BENT never blocks the run: the remaining annotators still run.
-    unavailable = unavailable_tools(config.annotators, config.annotator_settings)
     for annotator in required:
         extra = ANNOTATOR_EXTRAS[annotator]
         if not extra_installed(extra):
             raise ValueError(EXTRA_INSTALL_HINTS[extra])
-    return unavailable
+    if (
+        "bent" in config.annotators
+        and bent_request_fn is None
+        and not tool_ready("bent", config.annotator_settings.get("bent", {}))
+    ):
+        raise ValueError(BENT_SETUP_HINT)
 
 
 def _load_flair_tagger(model: str) -> Any:

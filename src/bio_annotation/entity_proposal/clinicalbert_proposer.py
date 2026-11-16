@@ -3,17 +3,14 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import make_annotation, not_in_image_hint
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 # i2b2-2010 clinical NER (problem / test / treatment), fine-tuned from BERT.
 DEFAULT_CLINICALBERT_MODEL = "samrawal/bert-base-uncased_clinical-ner"
 
-CLINICALBERT_INSTALL_HINT = (
-    "The ClinicalBERT annotator requires the optional Hugging Face dependencies. "
-    "Install them with: uv sync --extra clinicalbert"
-)
+CLINICALBERT_INSTALL_HINT = not_in_image_hint("The ClinicalBERT annotator")
 
 # The model can emit spans with leading/trailing punctuation; trim those boundary
 # characters off the edges while keeping offsets correct. Hyphen and slash are

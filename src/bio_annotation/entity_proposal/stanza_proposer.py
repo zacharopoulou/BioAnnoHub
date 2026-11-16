@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import make_annotation, not_in_image_hint
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
@@ -35,10 +35,7 @@ def default_package_for_model(model: str) -> str:
     return STANZA_MODEL_PACKAGES.get(model, DEFAULT_STANZA_PACKAGE)
 
 
-STANZA_INSTALL_HINT = (
-    "The Stanza annotators require the optional Stanza dependency. "
-    "Install it with: uv sync --extra stanza"
-)
+STANZA_INSTALL_HINT = not_in_image_hint("Stanza")
 
 
 def stanza_source(model: str) -> str:

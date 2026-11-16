@@ -3,14 +3,11 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import make_annotation, not_in_image_hint
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-FLAIR_INSTALL_HINT = (
-    "The Flair annotator requires the optional Flair dependency. "
-    "Install it with: uv sync --extra flair"
-)
+FLAIR_INSTALL_HINT = not_in_image_hint("The Flair annotator")
 
 SpanKey = tuple[int | None, int | None, str]
 LinkInfo = tuple[str | None, str | None, Any]

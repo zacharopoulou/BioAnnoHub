@@ -4,14 +4,11 @@ import logging
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import align_span_offsets, make_annotation
+from bio_annotation.entity_proposal._shared import align_span_offsets, make_annotation, not_in_image_hint
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
-SCISPACY_INSTALL_HINT = (
-    "The scispaCy annotators require scispaCy and the supported model packages. "
-    "Install them with: uv sync --extra scispacy"
-)
+SCISPACY_INSTALL_HINT = not_in_image_hint("scispaCy")
 
 SCISPACY_MODEL_BY_ANNOTATOR: dict[str, str] = {
     "scispacy_jnlpba": "en_ner_jnlpba_md",

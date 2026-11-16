@@ -3,16 +3,13 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Any, Callable, Iterable
 
-from bio_annotation.entity_proposal._shared import make_annotation
+from bio_annotation.entity_proposal._shared import make_annotation, not_in_image_hint
 from bio_annotation.schemas.document import Document
 from bio_annotation.schemas.entity import Annotation
 
 DEFAULT_D4DATA_MODEL = "d4data/biomedical-ner-all"
 
-D4DATA_INSTALL_HINT = (
-    "The d4data annotator requires the optional Hugging Face dependencies. "
-    "Install them with: uv sync --extra d4data"
-)
+D4DATA_INSTALL_HINT = not_in_image_hint("The d4data annotator")
 
 _BOUNDARY_CHARS = " \t\n\r\f\v.,;:!?()[]{}\"'"
 

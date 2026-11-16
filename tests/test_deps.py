@@ -48,17 +48,3 @@ def test_tool_ready_trusts_custom_bent_installation(bent_project, key) -> None:
     assert deps.tool_ready("bent", {key: "/opt/bent/bin/python"}) is True
     assert deps.tool_ready("bent", {key: "  "}) is False
 
-
-def test_unavailable_tools_warns_and_continues_without_bent(bent_project) -> None:
-    messages: list[str] = []
-
-    unavailable = deps.unavailable_tools(["bent", "bern2"], {}, output_fn=messages.append)
-
-    assert list(unavailable) == ["bent"]
-    assert any("no annotations this run" in message for message in messages)
-
-
-def test_unavailable_tools_accepts_installed_bent(bent_project) -> None:
-    _install_bent(bent_project)
-
-    assert deps.unavailable_tools(["bent"], {}, output_fn=lambda line: None) == {}

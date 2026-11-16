@@ -514,7 +514,7 @@ def test_load_flair_tagger_reports_optional_dependency(monkeypatch) -> None:
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
 
-    with pytest.raises(RuntimeError, match="uv sync --extra flair"):
+    with pytest.raises(RuntimeError, match="Flair annotator is not included in this image"):
         _load_flair_tagger("hunflair2")
 
 
@@ -544,7 +544,7 @@ def test_run_pipeline_preflights_missing_flair_dependency(tmp_path, monkeypatch)
 
     monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
 
-    with pytest.raises(ValueError, match="uv sync --extra flair"):
+    with pytest.raises(ValueError, match="Flair annotator is not included in this image"):
         run_pipeline_from_config(config_path)
 
     assert "flair" in checked_modules
@@ -638,14 +638,14 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     assert seen_linkers == ["gene-linker", "disease-linker"]
 
 
-def test_run_pipeline_skips_bent_when_not_installed(tmp_path, monkeypatch) -> None:
+def test_run_pipeline_rejects_bent_when_not_installed(tmp_path, monkeypatch) -> None:
     config_path = tmp_path / "pipeline.toml"
     config_path.write_text(
         "\n".join(
             [
                 "[input]",
                 'mode = "pmids"',
-                'pmids = ["12345678", "87654321"]',
+                'pmids = ["12345678"]',
                 "",
                 "[annotators]",
                 'enabled = ["bent"]',
@@ -656,35 +656,10 @@ def test_run_pipeline_skips_bent_when_not_installed(tmp_path, monkeypatch) -> No
         ),
         encoding="utf-8",
     )
+    monkeypatch.setattr("bio_annotation.pipeline.execution.tool_ready", lambda annotator, settings: False)
 
-    def unexpected_bent(document: Document, **kwargs: object) -> list[Annotation]:
-        raise AssertionError("bent should be skipped when it is not installed")
-
-    monkeypatch.setattr(
-        "bio_annotation.pipeline.execution.unavailable_tools",
-        lambda annotators, settings: {"bent": "bent is not installed in this environment."},
-    )
-    monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_bent", unexpected_bent)
-
-    payload = run_pipeline_from_config(
-        config_path,
-        pmid_fetcher=lambda pmid: {
-            "pmid": pmid,
-            "title": "PTEN regulates glioblastoma",
-            "abstract": "PTEN is important in glioblastoma.",
-        },
-    )
-
-    assert len(payload["document_annotations"]) == 2
-    for document in payload["document_annotations"]:
-        assert _without_durations(document["annotators"]) == [
-            {
-                "name": "bent",
-                "status": "failed",
-                "annotation_count": 0,
-                "reason": "bent is not installed in this environment.",
-            }
-        ]
+    with pytest.raises(ValueError, match="BENT is not included in this image"):
+        run_pipeline_from_config(config_path)
 
 
 def test_run_pipeline_skips_annotator_after_failed_preflight(tmp_path, monkeypatch) -> None:
@@ -799,7 +774,7 @@ def test_run_pipeline_preflights_missing_scispacy_dependency(tmp_path, monkeypat
 
     monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
 
-    with pytest.raises(ValueError, match="uv sync --extra scispacy"):
+    with pytest.raises(ValueError, match="scispaCy is not included in this image"):
         run_pipeline_from_config(config_path)
 
     assert "scispacy" in checked_modules

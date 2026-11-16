@@ -210,12 +210,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command in (None, "info"):
         print("BioAnnoHub")
         print("Workflow: terminal UI -> reproducible config -> annotators -> comparable outputs")
-        print("Quickstart: uv sync && uv run bioannohub annotate")
-        print("Demo: uv run bioannohub demo")
-        print("Inspect config: uv run bioannohub inspect-config")
-        print("Preview documents: uv run bioannohub load-documents")
-        print("Run config: uv run bioannohub run-config")
-        print("Search PMIDs: uv run bioannohub search-pmids --query '...' --output data/inputs/query_pmids.txt")
+        print("Quickstart: bioannohub annotate")
+        print("Demo: bioannohub demo")
+        print("Inspect config: bioannohub inspect-config")
+        print("Preview documents: bioannohub load-documents")
+        print("Run config: bioannohub run-config")
+        print("Search PMIDs: bioannohub search-pmids --query '...' --output data/inputs/query_pmids.txt")
         return 0
 
     if args.command == "demo":
