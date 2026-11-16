@@ -12,6 +12,7 @@ from bio_annotation.schemas.entity import Annotation
 
 DEFAULT_BENT_MODE = "ner_nel"
 DEFAULT_BENT_PROJECT = "tools/bent"
+REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BENT_TIMEOUT = 900
 DEFAULT_BENT_TYPES: dict[str, str] = {
     "disease": "medic",
@@ -80,7 +81,7 @@ def call_bent(
 ) -> str:
     """Run BENT as an isolated subprocess and return raw BRAT standoff output."""
 
-    project_path = Path(project).resolve()
+    project_path = (REPO_ROOT / project).resolve()
     script_path = Path(script).resolve() if script else project_path / "run_bent.py"
     if not script_path.exists():
         raise RuntimeError(f"BENT wrapper script not found at {script_path}. {SETUP_HINT}")

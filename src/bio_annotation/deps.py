@@ -146,7 +146,7 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-def bent_root(project: str) -> Path | None:
+def bent_root(project: str | Path) -> Path | None:
     """Locate the installed bent package inside the tool venv, if provisioned."""
 
     roots = sorted((Path(project) / ".venv" / "lib").glob("python*/site-packages/bent"))
@@ -180,7 +180,8 @@ def tool_ready(annotator: str, settings: dict[str, object]) -> bool:
             return True
         project = settings.get("project")
         directory = project.strip() if isinstance(project, str) and project.strip() else DEFAULT_BENT_PROJECT
-        if Path(directory).resolve() != (repo_root() / TOOL_SETUP_SCRIPTS["bent"]).parent:
+        directory = (repo_root() / directory).resolve()
+        if directory != (repo_root() / TOOL_SETUP_SCRIPTS["bent"]).parent:
             return True
 
         root = bent_root(directory)

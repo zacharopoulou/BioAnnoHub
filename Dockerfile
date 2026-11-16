@@ -13,9 +13,9 @@ ENV UV_LINK_MODE=copy \
     STANZA_RESOURCES_DIR=/opt/models/stanza \
     SCISPACY_CACHE=/opt/models/scispacy \
     TOTALANNOTATOR_NO_AUTO_INSTALL=1 \
-    PATH=/app/.venv/bin:$PATH
+    PATH=/repository/.venv/bin:$PATH
 
-WORKDIR /app
+WORKDIR /repository
 
 COPY tools/bent/pyproject.toml tools/bent/uv.lock tools/bent/setup.sh tools/bent/
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -60,6 +60,8 @@ ENV UV_FROZEN=1 \
     UV_PYTHON_DOWNLOADS=never \
     UV_CACHE_DIR=/tmp/uv-cache \
     MPLCONFIGDIR=/tmp/matplotlib
+
+WORKDIR /work
 
 ENTRYPOINT ["bioannohub"]
 CMD ["--help"]
