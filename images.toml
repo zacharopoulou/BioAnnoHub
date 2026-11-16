@@ -1,0 +1,35 @@
+# Annotators shipped in each Docker image. tools/fetch_models.py downloads their
+# models at build time. The full image ships everything in slim plus its own list.
+
+[slim]
+annotators = [
+    "pubtator3",
+    "bern2",
+    "medcat",
+    "flair",
+    "clinicalbert",
+    "apollo",
+    "d4data",
+    "stanza_radiology",
+    "scispacy_bionlp13cg",
+]
+
+[full]
+annotators = [
+    "bent",
+    "stanza_bc5cdr",
+    "stanza_bionlp13cg",
+    "stanza_jnlpba",
+    "stanza_i2b2",
+    "stanza_anatem",
+    "stanza_bc4chemd",
+    "stanza_linnaeus",
+    "stanza_ncbi_disease",
+    "stanza_s800",
+    "scispacy_jnlpba",
+    "scispacy_bc5cdr",
+    "scispacy_craft",
+    "scispacy_scibert",
+    "scispacy_md",
+]
+flair_linkers = true
