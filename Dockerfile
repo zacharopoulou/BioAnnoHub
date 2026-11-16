@@ -22,6 +22,15 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     bash tools/bent/setup.sh \
     && chmod -R a+rwX tools/bent/.venv
 
+RUN tools/bent/.venv/bin/python - <<'PY' && chmod -R a+rwX /opt/models/huggingface
+from transformers import AutoModelForTokenClassification, AutoTokenizer
+kinds = ("Anatomical", "Bioprocess", "Cell-Component", "Cell-Line", "Cell-Type", "Chemical", "Disease", "Gene", "Organism", "Variant")
+for kind in kinds:
+    model = f"pruas/BENT-PubMedBERT-NER-{kind}"
+    AutoModelForTokenClassification.from_pretrained(model)
+    AutoTokenizer.from_pretrained(model)
+PY
+
 COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra all --no-install-project

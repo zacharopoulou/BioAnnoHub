@@ -36,6 +36,10 @@ def patch_transformers_relative_redirects() -> None:
 
     import transformers.file_utils as file_utils
 
+    # Newer releases download through huggingface_hub, which handles these redirects.
+    if not hasattr(file_utils, "requests"):
+        return
+
     original_head = file_utils.requests.head
 
     def head_with_absolute_location(url: str, *args, **kwargs):

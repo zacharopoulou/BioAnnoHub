@@ -119,6 +119,7 @@ def call_bent(
                 text=True,
                 timeout=timeout,
                 env=env,
+                cwd=tmp,
             )
         except FileNotFoundError as exc:
             raise RuntimeError(f"BENT could not be launched ('{command[0]}' not found): {exc}") from exc
