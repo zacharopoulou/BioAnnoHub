@@ -32,9 +32,8 @@ from bio_annotation.annotators.stanza import annotate_with_stanza
 from bio_annotation.deps import (
     ANNOTATOR_EXTRAS,
     EXTRA_INSTALL_HINTS,
-    ensure_extras,
-    ensure_tool_environments,
     extra_installed,
+    unavailable_tools,
 )
 from bio_annotation.entity_proposal.medcat_proposer import reset_reported_endpoints
 from bio_annotation.entity_proposal.stanza_proposer import (
@@ -866,10 +865,8 @@ def validate_optional_annotator_dependencies(
         for annotator in config.annotators
         if (extra := ANNOTATOR_EXTRAS.get(annotator)) is not None and injected[extra] is None
     ]
-    ensure_extras(required)
-    # Setup-script annotators never block the run: a missing environment leaves
-    # them unavailable and the remaining annotators still run.
-    unavailable = ensure_tool_environments(config.annotators, config.annotator_settings)
+    # A missing BENT never blocks the run: the remaining annotators still run.
+    unavailable = unavailable_tools(config.annotators, config.annotator_settings)
     for annotator in required:
         extra = ANNOTATOR_EXTRAS[annotator]
         if not extra_installed(extra):

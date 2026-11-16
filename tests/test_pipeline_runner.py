@@ -17,7 +17,6 @@ from bio_annotation.cli import main
 from bio_annotation.annotators.pubtator3 import parse_pubtator3_response
 from bio_annotation.fetch import FetchOrchestrator, PubTator3Source
 from bio_annotation.fetch.input import FetchInput, FetchKind
-from bio_annotation.deps import DISABLE_ENV_VAR
 from bio_annotation.schemas.document import Document
 from bio_annotation.pipeline_runner import (
     _aggregate_annotator_statuses,
@@ -544,7 +543,6 @@ def test_run_pipeline_preflights_missing_flair_dependency(tmp_path, monkeypatch)
         return None
 
     monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
-    monkeypatch.setenv(DISABLE_ENV_VAR, "1")
 
     with pytest.raises(ValueError, match="uv sync --extra flair"):
         run_pipeline_from_config(config_path)
@@ -640,7 +638,7 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
     assert seen_linkers == ["gene-linker", "disease-linker"]
 
 
-def test_run_pipeline_skips_annotator_after_failed_setup(tmp_path, monkeypatch) -> None:
+def test_run_pipeline_skips_bent_when_not_installed(tmp_path, monkeypatch) -> None:
     config_path = tmp_path / "pipeline.toml"
     config_path.write_text(
         "\n".join(
@@ -660,11 +658,11 @@ def test_run_pipeline_skips_annotator_after_failed_setup(tmp_path, monkeypatch) 
     )
 
     def unexpected_bent(document: Document, **kwargs: object) -> list[Annotation]:
-        raise AssertionError("bent should be skipped after a failed setup")
+        raise AssertionError("bent should be skipped when it is not installed")
 
     monkeypatch.setattr(
-        "bio_annotation.pipeline.execution.ensure_tool_environments",
-        lambda annotators, settings: {"bent": "bent setup was skipped."},
+        "bio_annotation.pipeline.execution.unavailable_tools",
+        lambda annotators, settings: {"bent": "bent is not installed in this environment."},
     )
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_bent", unexpected_bent)
 
@@ -684,7 +682,7 @@ def test_run_pipeline_skips_annotator_after_failed_setup(tmp_path, monkeypatch) 
                 "name": "bent",
                 "status": "failed",
                 "annotation_count": 0,
-                "reason": "bent setup was skipped.",
+                "reason": "bent is not installed in this environment.",
             }
         ]
 
@@ -800,7 +798,6 @@ def test_run_pipeline_preflights_missing_scispacy_dependency(tmp_path, monkeypat
         return None
 
     monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
-    monkeypatch.setenv(DISABLE_ENV_VAR, "1")
 
     with pytest.raises(ValueError, match="uv sync --extra scispacy"):
         run_pipeline_from_config(config_path)

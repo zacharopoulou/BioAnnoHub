@@ -12,7 +12,6 @@ ENV UV_LINK_MODE=copy \
     FLAIR_CACHE_ROOT=/opt/models/flair \
     STANZA_RESOURCES_DIR=/opt/models/stanza \
     SCISPACY_CACHE=/opt/models/scispacy \
-    TOTALANNOTATOR_NO_AUTO_INSTALL=1 \
     PATH=/repository/.venv/bin:$PATH
 
 WORKDIR /repository
