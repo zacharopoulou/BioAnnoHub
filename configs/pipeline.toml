@@ -6,7 +6,7 @@ pmids = ["36403686"]
 sources = []
 
 [annotators]
-enabled = ["bern2", "flair", "pubtator3"]  # add "bent" after running tools/bent/setup.sh
+enabled = ["bern2", "flair", "pubtator3"]
 
 [annotators.bern2]
 runtime = "remote_api"
@@ -24,19 +24,15 @@ endpoint = "https://www.ncbi.nlm.nih.gov/research/pubtator3-api"
 format = "biocjson"
 timeout = 60
 
-# Clinical-AI-Apollo/Medical-NER is a local HuggingFace clinical NER model; add
-# "apollo" to enabled above after installing the optional deps: uv sync --extra apollo
+# Clinical-AI-Apollo/Medical-NER is a local HuggingFace clinical NER model.
 [annotators.apollo]
 model = "Clinical-AI-Apollo/Medical-NER"
 
-# d4data is a local HuggingFace clinical NER model; add "d4data" to enabled above
-# after installing the optional deps with: uv sync --extra d4data
+# d4data is a local HuggingFace clinical NER model.
 [annotators.d4data]
 model = "d4data/biomedical-ner-all"
 
-# scispaCy NER models are installed separately from scispacy itself; add any of
-# these annotators to enabled above after uv sync --extra scispacy and installing
-# the corresponding model package from https://allenai.github.io/scispacy/
+# scispaCy NER models, one annotator per model package.
 [annotators.scispacy_jnlpba]
 model = "en_ner_jnlpba_md"
 
@@ -57,7 +53,7 @@ linker_name = "umls"
 model = "en_core_sci_md"
 linker_name = "umls"
 
-# BENT runs in its own Python <=3.10.13 environment; run tools/bent/setup.sh first.
+# BENT runs in its own Python <=3.10.13 environment.
 [annotators.bent]
 runtime = "local_subprocess"
 mode = "ner_nel"

@@ -6,24 +6,36 @@ Use it from the terminal for an interactive run, or use a TOML config for a repe
 
 ## Get started
 
-Requirements: Python 3.12 or later and [uv](https://docs.astral.sh/uv/).
+Requirements: [Docker](https://docs.docker.com/get-docker/). Everything else, including the annotator models, is inside the image.
+
+Build the image:
 
 ```bash
 git clone https://github.com/zacharopoulou/BioAnnoHub.git
 cd BioAnnoHub
-uv sync
-uv run bioannohub run-config --config configs/examples/pmid-single.toml
+docker build -t bioannohub .
 ```
+
+The build downloads every annotator and model, so it takes about an hour and about 40 GB of disk.
+
+Run an example:
+
+```bash
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  run-config --config configs/examples/pmid-single.toml
+```
+
+The command mounts the current folder at `/work` and runs as your user so output files belong to you. The container only sees that folder, so keep configs and input files inside it.
 
 This example runs PubTator3 on two PMIDs using its remote service, so it needs an internet connection but does not download local models. Results are saved in a timestamped run folder under `outputs/examples/`.
 
 For an interactive run, use:
 
 ```bash
-uv run bioannohub annotate
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub annotate
 ```
 
-The terminal guides you through choosing documents, annotators, and entity types. For a first interactive run, choose PubMed articles by PMID and select PubTator3 only. Selecting local annotators can install optional dependencies and download model files; choosing all annotators may take a while and need extra system tools. See the [annotator guide](docs/annotators.md) before choosing tools.
+The terminal guides you through choosing documents, annotators, and entity types. For a first interactive run, choose PubMed articles by PMID and select PubTator3 only. Local models are already in the image; choosing many of them makes a run slower. See the [annotator guide](docs/annotators.md) before choosing tools.
 
 Domain and supported-task choices narrow the annotators offered in the terminal. Entity-type choices filter saved results; they do not change what a selected tool produces. Choosing `NEN-capable` or `All tasks` enables Flair's entity linkers when Flair is selected.
 
@@ -32,7 +44,8 @@ Domain and supported-task choices narrow the annotators offered in the terminal.
 Search PubMed and save matching PMIDs:
 
 ```bash
-uv run bioannohub search-pmids \
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  search-pmids \
   --query 'glioblastoma AND microRNA' \
   --output data/inputs/query_pmids.txt
 ```
@@ -40,8 +53,10 @@ uv run bioannohub search-pmids \
 Preview a config before running it:
 
 ```bash
-uv run bioannohub inspect-config --config configs/examples/pmid-single.toml
-uv run bioannohub load-documents --config configs/examples/pmid-single.toml
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  inspect-config --config configs/examples/pmid-single.toml
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  load-documents --config configs/examples/pmid-single.toml
 ```
 
 ## Documentation
@@ -58,9 +73,18 @@ Runs are saved in timestamped folders under `outputs/runs/` by default. Each fol
 
 ## Development
 
-Run the local demo or the test suite with:
+Development happens in the same image users run. Run the tests against the code built into the image:
 
 ```bash
-uv run bioannohub demo
-uv run pytest -m 'not integration'
+docker run --rm --entrypoint python -w /repository bioannohub -m pytest -m 'not integration'
 ```
+
+To test local edits without rebuilding, mount your source over the image's copy:
+
+```bash
+docker run --rm --entrypoint python -w /repository \
+  -v "$PWD/src:/repository/src" -v "$PWD/tests:/repository/tests" -v "$PWD/configs:/repository/configs" \
+  bioannohub -m pytest -m 'not integration'
+```
+
+Changes to `pyproject.toml`, `uv.lock`, or the `Dockerfile` need a rebuild. See the [tests guide](tests/README.md) for more.

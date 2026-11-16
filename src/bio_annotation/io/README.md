@@ -22,7 +22,8 @@ By default, BioAnnoHub excludes citations tagged by PubMed with the `Retracted P
 Free-text search:
 
 ```bash
-uv run bioannohub search-pmids \
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  search-pmids \
   --query 'glioblastoma AND microRNA' \
   --output data/inputs/query_pmids.txt
 ```
@@ -30,7 +31,8 @@ uv run bioannohub search-pmids \
 MeSH search:
 
 ```bash
-uv run bioannohub search-pmids \
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  search-pmids \
   --query '"Glioblastoma"[MeSH Terms] AND "MicroRNAs"[MeSH Terms]' \
   --output data/inputs/query_pmids.txt
 ```
@@ -38,7 +40,8 @@ uv run bioannohub search-pmids \
 Publication type filter:
 
 ```bash
-uv run bioannohub search-pmids \
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  search-pmids \
   --query 'glioblastoma AND microRNA' \
   --filter '"Review"[Publication Type]' \
   --output data/inputs/query_pmids.txt
@@ -47,7 +50,8 @@ uv run bioannohub search-pmids \
 Multiple filters with date bounds:
 
 ```bash
-uv run bioannohub search-pmids \
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  search-pmids \
   --query '"Glioblastoma"[MeSH Terms]' \
   --filter '"Review"[Publication Type]' \
   --filter 'english[Language]' \
@@ -59,7 +63,8 @@ uv run bioannohub search-pmids \
 Include matching retracted articles:
 
 ```bash
-uv run bioannohub search-pmids \
+docker run --rm -it -u "$(id -u):$(id -g)" -v "$PWD:/work" bioannohub \
+  search-pmids \
   --query 'glioblastoma AND microRNA' \
   --include-retracted \
   --output data/inputs/query_pmids.txt
