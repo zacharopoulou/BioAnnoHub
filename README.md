@@ -16,7 +16,13 @@ cd BioAnnoHub
 docker build -t bioannohub .
 ```
 
-The build downloads every annotator and model, so it takes about an hour and about 40 GB of disk.
+This builds the slim image, which ships the commonly used annotators. The full image adds BENT, the other Stanza and scispaCy models, and the Flair entity linkers:
+
+```bash
+docker build --build-arg IMAGE=full -t bioannohub:full .
+```
+
+[`images.toml`](images.toml) lists the annotators in each image. Selecting one that is not in your image stops the run with a message pointing at the full image. To use the full image, replace `bioannohub` with `bioannohub:full` in the commands below.
 
 Run an example:
 

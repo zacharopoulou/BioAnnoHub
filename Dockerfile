@@ -1,4 +1,9 @@
-FROM python:3.12-slim-bookworm
+# Build the slim image (default) or the full one:
+#   docker build -t bioannohub .
+#   docker build --build-arg IMAGE=full -t bioannohub:full .
+ARG IMAGE=slim
+
+FROM python:3.12-slim-bookworm AS base
 
 COPY --from=ghcr.io/astral-sh/uv:0.13.1 /uv /uvx /usr/local/bin/
 
@@ -16,52 +21,29 @@ ENV UV_LINK_MODE=copy \
 
 WORKDIR /repository
 
+COPY pyproject.toml uv.lock .python-version ./
+COPY images.toml ./
+COPY tools/fetch_models.py tools/
+
+FROM base AS slim-env
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --extra slim --no-install-project
+RUN python tools/fetch_models.py slim
+
+FROM slim-env AS full-env
 COPY tools/bent/pyproject.toml tools/bent/uv.lock tools/bent/setup.sh tools/bent/
 RUN --mount=type=cache,target=/root/.cache/uv \
     bash tools/bent/setup.sh \
     && chmod -R a+rwX tools/bent/.venv
-
-RUN tools/bent/.venv/bin/python - <<'PY' && chmod -R a+rwX /opt/models/huggingface
-from transformers import AutoModelForTokenClassification, AutoTokenizer
-kinds = ("Anatomical", "Bioprocess", "Cell-Component", "Cell-Line", "Cell-Type", "Chemical", "Disease", "Gene", "Organism", "Variant")
-for kind in kinds:
-    model = f"pruas/BENT-PubMedBERT-NER-{kind}"
-    AutoModelForTokenClassification.from_pretrained(model)
-    AutoTokenizer.from_pretrained(model)
-PY
-
-COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --extra all --no-install-project
+    uv sync --frozen --no-dev --extra full --no-install-project
+RUN python tools/fetch_models.py full
 
-RUN python - <<'PY' && chmod -R a+rwX /opt/models/huggingface
-from transformers import pipeline
-for model in ("samrawal/bert-base-uncased_clinical-ner", "Clinical-AI-Apollo/Medical-NER", "d4data/biomedical-ner-all"):
-    pipeline("ner", model=model, tokenizer=model)
-PY
-
-RUN python - <<'PY' && chmod -R a+rwX /opt/models/flair /opt/models/huggingface
-from flair.nn import Classifier
-Classifier.load("hunflair2")
-PY
-
-RUN python - <<'PY' && chmod -R a+rwX /opt/models/stanza
-import stanza
-models = ("bc5cdr", "bionlp13cg", "jnlpba", "i2b2", "radiology", "anatem", "bc4chemd", "linnaeus", "ncbi_disease", "s800")
-packages = {"i2b2": "mimic", "radiology": "mimic"}
-for model in models:
-    stanza.download("en", package=None, processors={"tokenize": packages.get(model, "craft"), "ner": model}, verbose=False)
-PY
-
-RUN python - <<'PY' && chmod -R a+rwX /opt/models/scispacy
-import scispacy.linking  # noqa: F401
-import spacy
-spacy.load("en_core_sci_md").add_pipe("scispacy_linker", config={"linker_name": "umls"})
-PY
-
+FROM ${IMAGE}-env
+ARG IMAGE
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --extra all
+    uv sync --frozen --extra ${IMAGE}
 
 ENV UV_FROZEN=1 \
     UV_NO_SYNC=1 \

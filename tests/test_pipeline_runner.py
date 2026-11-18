@@ -620,6 +620,7 @@ def test_run_pipeline_preloads_flair_linkers_once(tmp_path, monkeypatch) -> None
         return []
 
     monkeypatch.setattr("bio_annotation.deps.find_spec", fake_find_spec)
+    monkeypatch.setattr("bio_annotation.pipeline.execution.flair_linker_installed", lambda linker: True)
     monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_tagger", fake_tagger_loader)
     monkeypatch.setattr("bio_annotation.pipeline_runner._load_flair_linker", fake_linker_loader)
     monkeypatch.setattr("bio_annotation.pipeline_runner.annotate_with_flair", fake_flair)

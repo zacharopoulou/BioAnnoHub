@@ -76,10 +76,22 @@ else
 fi
 
 echo "==> Downloading BENT core data"
-if [ ! -d "$BENT_ROOT/data/NILINKER" ] || [ ! -d "$BENT_ROOT/data/overlapping_entities" ]; then
+CORE_DATA=(overlapping_entities relations NILINKER/word_concept NILINKER/nilinker_files NILINKER/embeddings)
+core_data_complete() {
+  local dir
+  for dir in "${CORE_DATA[@]}"; do
+    [ -d "$BENT_ROOT/data/$dir" ] || return 1
+  done
+}
+if ! core_data_complete; then
   mkdir -p "$BENT_ROOT/data"
   chmod 755 "$BENT_ROOT/get_data.sh"
+  # get_data.sh ignores failed downloads, so check the result.
   bash "$BENT_ROOT/get_data.sh" "$BENT_ROOT"
+  if ! core_data_complete; then
+    echo "error: BENT core data is incomplete; a download failed, run the setup again." >&2
+    exit 1
+  fi
 else
   echo "    core data already present, skipping."
 fi

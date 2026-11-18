@@ -93,22 +93,6 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
-all = [
-    { name = "en-core-sci-md" },
-    { name = "en-core-sci-scibert" },
-    { name = "en-ner-bc5cdr-md" },
-    { name = "en-ner-bionlp13cg-md" },
-    { name = "en-ner-craft-md" },
-    { name = "en-ner-jnlpba-md" },
-    { name = "flair" },
-    { name = "numpy" },
-    { name = "pyab3p" },
-    { name = "scispacy" },
-    { name = "stanza" },
-    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
-    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
-    { name = "transformers" },
-]
 apollo = [
     { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
     { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
@@ -128,7 +112,28 @@ flair = [
     { name = "flair" },
     { name = "pyab3p" },
 ]
+full = [
+    { name = "en-core-sci-md" },
+    { name = "en-core-sci-scibert" },
+    { name = "en-ner-bc5cdr-md" },
+    { name = "en-ner-bionlp13cg-md" },
+    { name = "en-ner-craft-md" },
+    { name = "en-ner-jnlpba-md" },
+    { name = "flair" },
+    { name = "numpy" },
+    { name = "pyab3p" },
+    { name = "scispacy" },
+    { name = "stanza" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
+    { name = "transformers" },
+]
 scispacy = [
+    { name = "en-ner-bionlp13cg-md" },
+    { name = "numpy" },
+    { name = "scispacy" },
+]
+scispacy-models = [
     { name = "en-core-sci-md" },
     { name = "en-core-sci-scibert" },
     { name = "en-ner-bc5cdr-md" },
@@ -137,6 +142,17 @@ scispacy = [
     { name = "en-ner-jnlpba-md" },
     { name = "numpy" },
     { name = "scispacy" },
+]
+slim = [
+    { name = "en-ner-bionlp13cg-md" },
+    { name = "flair" },
+    { name = "numpy" },
+    { name = "pyab3p" },
+    { name = "scispacy" },
+    { name = "stanza" },
+    { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux'" },
+    { name = "torch", version = "2.11.0+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "sys_platform == 'linux'" },
+    { name = "transformers" },
 ]
 stanza = [
     { name = "stanza" },
@@ -149,13 +165,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bioannohub", extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy"], marker = "extra == 'all'" },
-    { name = "en-core-sci-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_md-0.5.4.tar.gz" },
-    { name = "en-core-sci-scibert", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz" },
-    { name = "en-ner-bc5cdr-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bc5cdr_md-0.5.4.tar.gz" },
+    { name = "bioannohub", extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy"], marker = "extra == 'slim'" },
+    { name = "bioannohub", extras = ["scispacy"], marker = "extra == 'scispacy-models'" },
+    { name = "bioannohub", extras = ["slim", "scispacy-models"], marker = "extra == 'full'" },
+    { name = "en-core-sci-md", marker = "extra == 'scispacy-models'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_md-0.5.4.tar.gz" },
+    { name = "en-core-sci-scibert", marker = "extra == 'scispacy-models'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz" },
+    { name = "en-ner-bc5cdr-md", marker = "extra == 'scispacy-models'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bc5cdr_md-0.5.4.tar.gz" },
     { name = "en-ner-bionlp13cg-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_bionlp13cg_md-0.5.4.tar.gz" },
-    { name = "en-ner-craft-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_craft_md-0.5.4.tar.gz" },
-    { name = "en-ner-jnlpba-md", marker = "extra == 'scispacy'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_jnlpba_md-0.5.4.tar.gz" },
+    { name = "en-ner-craft-md", marker = "extra == 'scispacy-models'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_craft_md-0.5.4.tar.gz" },
+    { name = "en-ner-jnlpba-md", marker = "extra == 'scispacy-models'", url = "https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_ner_jnlpba_md-0.5.4.tar.gz" },
     { name = "flair", marker = "extra == 'flair'", specifier = "==0.15.1" },
     { name = "numpy", marker = "extra == 'scispacy'", specifier = ">=1.26,<2.0" },
     { name = "pyab3p", marker = "extra == 'flair'", specifier = ">=0.1.0" },
@@ -172,7 +190,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'clinicalbert'", specifier = ">=4.30,<5" },
     { name = "transformers", marker = "extra == 'd4data'", specifier = ">=4.30,<5" },
 ]
-provides-extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy", "all"]
+provides-extras = ["flair", "clinicalbert", "apollo", "d4data", "stanza", "scispacy", "scispacy-models", "slim", "full"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8.0" }]
