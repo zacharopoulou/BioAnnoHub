@@ -1,0 +1,44 @@
+name: Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Tests in the slim image
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      # The slim image and its build cache do not fit in the runner's free disk.
+      - name: Free disk space
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL
+
+      - uses: docker/setup-buildx-action@v3.11.1
+
+      - name: Build the slim image
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+          tags: bioannohub:ci
+
+      - name: Run the tests
+        run: docker run --rm --entrypoint python -w /repository bioannohub:ci -m pytest -m 'not integration'

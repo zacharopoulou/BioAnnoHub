@@ -8,21 +8,21 @@ Use it from the terminal for an interactive run, or use a TOML config for a repe
 
 Requirements: [Docker](https://docs.docker.com/get-docker/). Everything else, including the annotator models, is inside the image.
 
-Build the image:
+Get the image and name it `bioannohub`, the name the commands below use:
+
+```bash
+docker pull biogemt/bioannohub:0.1.0
+docker tag biogemt/bioannohub:0.1.0 bioannohub
+```
+
+This is the slim image, which ships the commonly used annotators. The full image, `biogemt/bioannohub:0.1.0-full`, adds BENT, the other Stanza and scispaCy models, and the Flair entity linkers. [`images.toml`](images.toml) lists the annotators in each image. Selecting one that is not in your image stops the run with a message pointing at the full image.
+
+The commands below use the configs in this repository, so run them from a clone:
 
 ```bash
 git clone https://github.com/zacharopoulou/BioAnnoHub.git
 cd BioAnnoHub
-docker build -t bioannohub .
 ```
-
-This builds the slim image, which ships the commonly used annotators. The full image adds BENT, the other Stanza and scispaCy models, and the Flair entity linkers:
-
-```bash
-docker build --build-arg IMAGE=full -t bioannohub:full .
-```
-
-[`images.toml`](images.toml) lists the annotators in each image. Selecting one that is not in your image stops the run with a message pointing at the full image. To use the full image, replace `bioannohub` with `bioannohub:full` in the commands below.
 
 Run an example:
 
@@ -79,7 +79,14 @@ Runs are saved in timestamped folders under `outputs/runs/` by default. Each fol
 
 ## Development
 
-Development happens in the same image users run. Run the tests against the code built into the image:
+Development happens in the same image users run. Build it from the repository:
+
+```bash
+docker build -t bioannohub .
+docker build --build-arg IMAGE=full -t bioannohub:full .
+```
+
+Run the tests against the code built into the image:
 
 ```bash
 docker run --rm --entrypoint python -w /repository bioannohub -m pytest -m 'not integration'
@@ -94,3 +101,10 @@ docker run --rm --entrypoint python -w /repository \
 ```
 
 Changes to `pyproject.toml`, `uv.lock`, or the `Dockerfile` need a rebuild. See the [tests guide](tests/README.md) for more.
+
+### Releasing
+
+1. Set `version` in `pyproject.toml` (for example `0.2.0`) and merge it into `main`.
+2. Tag that commit and push the tag: `git tag v0.2.0 && git push origin v0.2.0`. The Publish workflow checks the tag matches the version, then builds, tests and pushes `biogemt/bioannohub:0.2.0`.
+3. Publish the full image from a machine with about 100 GB of free disk: `docker login`, then `tools/publish_full.sh v0.2.0`. It pushes `biogemt/bioannohub:0.2.0-full`.
+4. Update the version in the Get started commands above.
