@@ -108,3 +108,5 @@ Changes to `pyproject.toml`, `uv.lock`, or the `Dockerfile` need a rebuild. See 
 2. Tag that commit and push the tag: `git tag v0.2.0 && git push origin v0.2.0`. The Publish workflow checks the tag matches the version, then builds, tests and pushes `biogemt/bioannohub:0.2.0`.
 3. Publish the full image from a machine with about 100 GB of free disk: `docker login`, then `tools/publish_full.sh v0.2.0`. It pushes `biogemt/bioannohub:0.2.0-full`.
 4. Update the version in the Get started commands above.
+
+To publish a test image without releasing, push a release candidate tag such as `v0.2.0-rc1`. It goes through the same steps and pushes `biogemt/bioannohub:0.2.0-rc1`.

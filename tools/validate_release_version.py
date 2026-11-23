@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Check that a release tag matches project.version and print the version."""
+"""Check that a release tag matches project.version and print the image version.
+
+Tags are v{version} for releases or v{version}-rcN for test images.
+"""
 
 import re
 import sys
@@ -19,11 +22,11 @@ def main() -> int:
     with PYPROJECT.open("rb") as handle:
         version = tomllib.load(handle)["project"]["version"]
 
-    if not STABLE_VERSION.fullmatch(version) or tag != f"v{version}":
+    if not STABLE_VERSION.fullmatch(version) or not re.fullmatch(rf"v{re.escape(version)}(-rc[1-9][0-9]*)?", tag):
         print(f"Release tag {tag} does not match project.version {version}", file=sys.stderr)
         return 1
 
-    print(version)
+    print(tag.removeprefix("v"))
     return 0
 
 
