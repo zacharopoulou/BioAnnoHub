@@ -31,7 +31,7 @@ def test_retraction_exclusion_is_default_and_can_be_disabled(include_retracted) 
     assert search_pubmed_pmids("glioblastoma OR microRNA", esearch_fn=fake, **options) == ["1"]
     expected = "(glioblastoma OR microRNA)"
     if not include_retracted:
-        expected += ' NOT "Retracted Publication"[Publication Type]'
+        expected += ' NOT (hasretractionin OR "Retracted Publication"[Publication Type])'
     assert terms[0].startswith(expected + " AND (")
 
 
@@ -48,7 +48,8 @@ def test_retraction_setting_is_preserved_across_split_windows(include_retracted)
         include_retracted=include_retracted, esearch_fn=fake,
     )
     assert len(terms) == 3
-    assert all(('NOT "Retracted Publication"[Publication Type]' in term) is not include_retracted for term in terms)
+    exclusion = 'NOT (hasretractionin OR "Retracted Publication"[Publication Type])'
+    assert all((exclusion in term) is not include_retracted for term in terms)
 
 
 def test_default_upper_date_is_today() -> None:

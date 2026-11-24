@@ -26,8 +26,10 @@ ANNOTATOR_ASSET_HINTS: dict[str, str] = {
 @dataclass(frozen=True)
 class ProgressEvent:
     annotator: str
-    phase: str  # "preflight" (model assets) or "annotate" (per document)
+    phase: str  # "fetch", "preflight" or "annotate"
     event: str  # "start", "done" or "error"
+    source: str | None = None
+    document_count: int | None = None
     annotator_index: int | None = None
     annotator_total: int | None = None
     document_id: str | None = None
@@ -55,19 +57,57 @@ SHORT_REASON_LENGTH = 100
 def describe(event: ProgressEvent) -> str:
     """Human-readable one-line message for an event."""
 
+    if event.phase == "fetch":
+        return _describe_fetch(event)
     if event.phase == "preflight":
         return _describe_preflight(event)
     return _describe_annotate(event)
 
 def log_progress(event: ProgressEvent) -> None:
-    """Default reporter: log every event, warn on failures."""
+    """Log concise progress and preserve full failure detail at debug level."""
 
     if event.event == "error":
         logger.warning("%s", describe(event))
         if event.reason and short_reason(event.reason) != event.reason:
             logger.debug("Full %s error: %s", event.label, event.reason)
-    else:
-        logger.info("%s", describe(event))
+        return
+
+    if not should_report_progress(event):
+        return
+
+    logger.info("%s", describe(event))
+
+
+def should_report_progress(event: ProgressEvent) -> bool:
+    """Keep batch logs concise while retaining starts, milestones and outcomes."""
+
+    if event.phase != "annotate" or event.document_index is None:
+        return True
+    if event.event == "start":
+        return event.document_index == 1 or event.document_index % 25 == 0
+    if event.event == "done":
+        return (
+            event.document_index % 25 == 0
+            or event.document_total is not None
+            and event.document_index == event.document_total
+        )
+    return True
+
+
+def _describe_fetch(event: ProgressEvent) -> str:
+    source = event.source or "document source"
+    total = event.document_total
+    count = event.document_count
+    if event.event == "start":
+        target = f" for {total} PMID(s)" if total is not None else ""
+        return f"Fetching {source}{target}"
+    if event.event == "done":
+        if count is not None and total is not None:
+            message = f"Fetched {count}/{total} document(s) from {source}"
+        else:
+            message = f"Finished fetching from {source}"
+        return f"{message}{_elapsed(event)}"
+    return f"{source} fetch failed{_elapsed(event)}: {short_reason(event.reason or '')}"
 
 def _describe_preflight(event: ProgressEvent) -> str:
     if event.event == "start":
@@ -98,8 +138,9 @@ def _describe_annotate(event: ProgressEvent) -> str:
         return message
     return f"{prefix}{event.label} failed{target}{_elapsed(event)}: {short_reason(event.reason or '')}"
 
+
 def short_reason(reason: str) -> str:
-    """One-line summary of an error; tracebacks are reduced to their final exception line."""
+    """Keep progress output to one line, using the final exception for tracebacks."""
 
     lines = [line.strip() for line in reason.splitlines() if line.strip()]
     if not lines:
@@ -108,7 +149,6 @@ def short_reason(reason: str) -> str:
     if len(summary) > SHORT_REASON_LENGTH:
         summary = summary[: SHORT_REASON_LENGTH - 1].rstrip() + "…"
     return summary
-
 
 def _elapsed(event: ProgressEvent) -> str:
     if event.elapsed_seconds is None:

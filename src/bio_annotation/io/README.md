@@ -15,7 +15,7 @@ That means you can use standard PubMed Boolean operators and field tags, includi
 
 Each repeated `--filter` value is appended to the query with `AND`.
 
-By default, BioAnnoHub excludes citations tagged by PubMed with the `Retracted Publication` publication type. Use `--include-retracted` to allow those articles when they match your query. That tag applies to the retracted article; its separate retraction notice is a different citation and is not excluded. This relies on PubMed's current indexing, so a newly retracted article may still appear before PubMed updates its record.
+By default, BioAnnoHub excludes retracted articles using PubMed's filter strategy: `hasretractionin OR "Retracted Publication"[Publication Type]`. The exclusion is applied to the whole query, including queries with `OR`. Use `--include-retracted` to include matching retracted articles. Separate retraction notices remain in the results because they are different citations. This relies on PubMed's current indexing, so a newly retracted article may still appear before PubMed updates its record.
 
 ## Examples
 

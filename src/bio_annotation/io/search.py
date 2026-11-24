@@ -12,7 +12,7 @@ from urllib import error, parse, request
 _ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 _CAP = 10_000
 _MIN_INTERVAL = 0.34  # 3 req/sec NCBI limit (unauthenticated)
-_RETRACTED_PUBLICATION_FILTER = '"Retracted Publication"[Publication Type]'
+_RETRACTED_PUBLICATION_FILTER = 'hasretractionin OR "Retracted Publication"[Publication Type]'
 
 _last_request = 0.0
 
@@ -61,7 +61,7 @@ def search_pubmed_pmids(
     # retraction notice remains a distinct citation.
     term = f"({term})"
     if not include_retracted:
-        term += f" NOT {_RETRACTED_PUBLICATION_FILTER}"
+        term += f" NOT ({_RETRACTED_PUBLICATION_FILTER})"
     fn = esearch_fn or (lambda t: _esearch(t, sort_by=sort_by, timeout=timeout))
 
     lo = _parse_date(date_from, upper=False) if date_from else date(1950, 1, 1)

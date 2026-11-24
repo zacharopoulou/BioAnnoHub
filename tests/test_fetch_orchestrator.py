@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
+from email.message import Message
 from typing import Iterable
+from urllib.error import HTTPError, URLError
 
 import pytest
 
@@ -13,6 +15,7 @@ from bio_annotation.fetch.input import (
 )
 from bio_annotation.fetch.orchestrator import (
     FetchOrchestrator,
+    PubtatorFirstOrchestrator,
     SourceNotFoundError,
     default_fetch_orchestrator,
     unite_into,
@@ -67,6 +70,40 @@ def test_default_orchestrator_excludes_raw_text() -> None:
     assert "raw_text" not in orch.names()
 
 
+def test_default_orchestrator_keeps_entrez_metadata_out_of_text(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "bio_annotation.fetch.pubtator3.PubTator3Source.fetch",
+        lambda _self, _request: [_doc("1", title="PubTator title", source="pubtator3")],
+    )
+    monkeypatch.setattr(
+        "bio_annotation.fetch.entrez.EntrezSource.fetch",
+        lambda _self, _request: [
+            _doc(
+                "1",
+                title="Entrez title",
+                abstract="Entrez abstract",
+                full_text="Entrez full text",
+                year="2024",
+                source="entrez",
+                metadata={"pubmed_record": {"pmid": "1", "authors": ["A. Author"]}},
+            )
+        ],
+    )
+    monkeypatch.setattr("bio_annotation.fetch.europe_pmc.EuropePmcSource.fetch", lambda _self, _request: [])
+    orch = default_fetch_orchestrator()
+
+    out = orch.fetch(
+        FetchInput.from_pmid("1"),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert len(out) == 1
+    assert out[0].title == "PubTator title"
+    assert out[0].abstract == ""
+    assert out[0].full_text is None
+    assert out[0].metadata["pubmed_record"]["authors"] == ["A. Author"]
+
+
 # C. FetchOrchestrator.fetch — single source
 
 def test_single_source_fetch_returns_source_results() -> None:
@@ -113,6 +150,310 @@ def test_origin_sources_records_only_contributors() -> None:
     orch = FetchOrchestrator(sources=[a, b])
     out = orch.fetch(FetchInput.from_pmid("1"), prefer=["a", "b"])
     assert out[0].metadata["origin_sources"] == ["a"]
+
+
+def test_pubtator_first_uses_pubtator_text_and_only_entrez_metadata() -> None:
+    @dataclass(slots=True)
+    class _RecordingSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            return _StubSource.fetch(self, request)
+
+    pubtator = _RecordingSource(
+        "pubtator3",
+        documents=[
+            _doc("2", title="P3 title", abstract="P3 abstract", source="pubtator3"),
+            _doc("1", title="P3 title 1", abstract="P3 abstract 1", source="pubtator3"),
+        ],
+    )
+    entrez = _RecordingSource(
+        "entrez",
+        documents=[
+            _doc(
+                "1",
+                title="Entrez title",
+                abstract="Entrez abstract",
+                source="entrez",
+                metadata={"pubmed_record": {"pmid": "1", "authors": ["A. Author"]}},
+            ),
+            _doc("2", title="Entrez title", abstract="Entrez abstract", source="entrez"),
+        ],
+    )
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=entrez)
+    request = FetchInput.from_pmid_list(
+        ["1", "2"],
+        fields=frozenset({"authors"}),
+        fields_per_source={"entrez": frozenset({"authors"})},
+    )
+
+    out = orchestrator.fetch(request, prefer=["pubtator3", "entrez"])
+
+    assert [doc.pmid for doc in out] == ["1", "2"]
+    assert [doc.title for doc in out] == ["P3 title 1", "P3 title"]
+    assert [doc.abstract for doc in out] == ["P3 abstract 1", "P3 abstract"]
+    assert out[0].metadata["pubmed_record"] == {"pmid": "1", "authors": ["A. Author"]}
+    assert out[1].metadata.get("pubmed_record") is None
+    assert "title" in pubtator.requests[0].fields_for("pubtator3")
+    assert "abstract" in pubtator.requests[0].fields_for("pubtator3")
+    assert entrez.requests[0].pmids == ("1", "2")
+
+
+def test_entrez_metadata_request_also_merges_europe_pmc_metadata() -> None:
+    @dataclass(slots=True)
+    class _RecordingSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            return _StubSource.fetch(self, request)
+
+    pubtator = _RecordingSource(
+        "pubtator3",
+        documents=[_doc("1", title="PubTator title", abstract="PubTator abstract", source="pubtator3")],
+    )
+    entrez = _RecordingSource(
+        "entrez",
+        documents=[
+            _doc("1", title="Entrez title", abstract="Entrez abstract", source="entrez",
+                 metadata={"pubmed_record": {"pmid": "1", "authors": ["A. Author"]}})
+        ],
+    )
+    europe_pmc = _RecordingSource(
+        "europe_pmc",
+        documents=[
+            _doc(
+                "1",
+                title="Europe PMC title",
+                abstract="Europe PMC abstract",
+                source="europe_pmc",
+                metadata={
+                    "citation_count": 27,
+                    "is_open_access": True,
+                    "epmc_meta": {"citedByCount": 27, "title": "Europe PMC title"},
+                },
+            )
+        ],
+    )
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=pubtator,
+        entrez=entrez,
+        europe_pmc=europe_pmc,
+    )
+
+    out = orchestrator.fetch(
+        FetchInput.from_pmid_list(["1"], fields_per_source={"entrez": frozenset({"authors"})}),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert out[0].title == "PubTator title"
+    assert out[0].abstract == "PubTator abstract"
+    assert out[0].metadata["pubmed_record"]["authors"] == ["A. Author"]
+    assert out[0].metadata["citation_count"] == 27
+    assert out[0].metadata["epmc_meta"] == {"citedByCount": 27}
+    assert out[0].metadata["origin_sources"] == ["pubtator3", "entrez", "europe_pmc"]
+
+
+def test_pubtator_first_orchestrator_reports_fetch_progress() -> None:
+    events = []
+    pubtator = _StubSource(
+        "pubtator3",
+        documents=[_doc("1", title="Title", abstract="Abstract", source="pubtator3")],
+    )
+    entrez = _StubSource("entrez", documents=[_doc("1", source="entrez")])
+    europe_pmc = _StubSource("europe_pmc", documents=[_doc("1", source="europe_pmc")])
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=pubtator,
+        entrez=entrez,
+        europe_pmc=europe_pmc,
+        progress=events.append,
+    )
+
+    orchestrator.fetch(FetchInput.from_pmid_list(["1"]), prefer=["pubtator3", "entrez"])
+
+    assert [(event.source, event.event) for event in events] == [
+        ("PubTator3 text", "start"),
+        ("PubTator3 text", "done"),
+        ("entrez metadata", "start"),
+        ("entrez metadata", "done"),
+        ("europe_pmc metadata", "start"),
+        ("europe_pmc metadata", "done"),
+    ]
+    assert events[0].document_total == 1
+    assert events[1].document_count == 1
+
+
+def test_configured_enrichment_survives_entrez_field_filter() -> None:
+    @dataclass(slots=True)
+    class _EnrichedEntrezSource(_StubSource):
+        enrichments: tuple[str, ...] = ("crossref",)
+
+    pubtator = _StubSource(
+        "pubtator3",
+        documents=[_doc("1", title="PubTator title", source="pubtator3")],
+    )
+    entrez = _EnrichedEntrezSource(
+        "entrez",
+        documents=[
+            _doc(
+                "1",
+                source="entrez",
+                metadata={
+                    "pubmed_record": {
+                        "pmid": "1",
+                        "authors": ["Ada Author"],
+                        "elinks": {"crossref_references": [{"DOI": "10.1000/example"}]},
+                    }
+                },
+            )
+        ],
+    )
+    europe_pmc = _StubSource("europe_pmc")
+    orchestrator = PubtatorFirstOrchestrator(pubtator, entrez, europe_pmc)
+
+    (document,) = orchestrator.fetch(
+        FetchInput.from_pmid_list(
+            ["1"],
+            fields_per_source={"entrez": frozenset({"authors"})},
+        ),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert document.title == "PubTator title"
+    assert document.metadata["pubmed_record"] == {
+        "pmid": "1",
+        "authors": ["Ada Author"],
+        "elinks": {"crossref_references": [{"DOI": "10.1000/example"}]},
+    }
+
+
+def test_pubtator_first_skips_requested_pmids_without_text(caplog: pytest.LogCaptureFixture) -> None:
+    pubtator = _StubSource(
+        "pubtator3",
+        documents=[_doc("1", title="", abstract="", source="pubtator3")],
+    )
+    entrez = _StubSource("entrez", documents=[_doc("2", title="Entrez title", source="entrez")])
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=entrez)
+
+    out = orchestrator.fetch(
+        FetchInput.from_pmid_list(["1", "2"]),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert out == []
+    assert "1, 2" in caplog.text
+
+
+def test_pubtator_first_splits_failed_batch_and_skips_only_unavailable_pmid(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    @dataclass(slots=True)
+    class _FailOneBatchSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            if "bad" in request.pmids:
+                raise ValueError("PubTator3 rejected PMID")
+            return [
+                _doc(pmid, title=f"PubTator title {pmid}", source="pubtator3")
+                for pmid in request.pmids
+            ]
+
+    pubtator = _FailOneBatchSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=pubtator,
+        entrez=_StubSource("entrez"),
+    )
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "bad", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert [request.pmids for request in pubtator.requests] == [
+        ("1", "bad", "2"),
+        ("1",),
+        ("bad", "2"),
+        ("bad",),
+        ("2",),
+    ]
+    assert "Skipping PMID bad" in caplog.text
+
+
+def test_pubtator_first_retries_transient_batch_error_without_splitting(monkeypatch) -> None:
+    @dataclass(slots=True)
+    class _TransientSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            if self.attempts < 3:
+                raise ValueError("PubTator3 request failed") from URLError("temporary outage")
+            return [_doc(pmid, title="PubTator title", source="pubtator3") for pmid in request.pmids]
+
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", lambda _delay: None)
+    pubtator = _TransientSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert pubtator.attempts == 3
+
+
+@pytest.mark.parametrize(
+    ("status", "retry_after", "expected_delay"),
+    [(408, None, 1.0), (429, "7", 7.0)],
+)
+def test_pubtator_first_retries_http_errors_and_respects_retry_after(
+    monkeypatch,
+    status: int,
+    retry_after: str | None,
+    expected_delay: float,
+) -> None:
+    @dataclass(slots=True)
+    class _HttpErrorSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            if self.attempts == 1:
+                headers = Message()
+                if retry_after is not None:
+                    headers["Retry-After"] = retry_after
+                error = HTTPError("https://pubtator3", status, "temporary", headers, None)
+                raise ValueError("PubTator3 request failed") from error
+            return [_doc(pmid, title="PubTator title", source="pubtator3") for pmid in request.pmids]
+
+    delays: list[float] = []
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", delays.append)
+    pubtator = _HttpErrorSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert pubtator.attempts == 2
+    assert delays == [expected_delay]
+
+
+def test_pubtator_first_skips_batch_after_persistent_transient_error(monkeypatch) -> None:
+    @dataclass(slots=True)
+    class _UnavailableSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            raise ValueError("PubTator3 request failed") from URLError("service unavailable")
+
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", lambda _delay: None)
+    pubtator = _UnavailableSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert out == []
+    assert pubtator.attempts == 3
 
 
 # E. Errors

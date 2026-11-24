@@ -6,6 +6,7 @@ import pytest
 
 from bio_annotation.pipeline_config import (
     SUPPORTED_FETCH_SOURCES,
+    effective_pmid_fetch_sources,
     load_pipeline_config,
 )
 
@@ -37,9 +38,15 @@ def test_source_as_string_becomes_one_element_list(tmp_path: Path) -> None:
 
 
 def test_source_as_list_is_preserved(tmp_path: Path) -> None:
-    body = _BASE + 'source = ["pubtator3", "entrez", "europe_pmc"]\n'
+    body = _BASE + 'source = ["pubtator3", "entrez"]\n'
     config = load_pipeline_config(_write_toml(tmp_path, body))
-    assert config.fetch_sources == ["pubtator3", "entrez", "europe_pmc"]
+    assert config.fetch_sources == ["pubtator3", "entrez"]
+
+
+def test_europe_pmc_is_allowed_for_pmid_metadata(tmp_path: Path) -> None:
+    body = _BASE + 'source = "europe_pmc"\n'
+    config = load_pipeline_config(_write_toml(tmp_path, body))
+    assert config.fetch_sources == ["europe_pmc"]
 
 
 def test_source_raw_text_is_rejected(tmp_path: Path) -> None:
@@ -56,6 +63,21 @@ def test_source_unknown_value_is_rejected(tmp_path: Path) -> None:
 
 def test_supported_fetch_sources_constant_excludes_raw_text() -> None:
     assert SUPPORTED_FETCH_SOURCES == ["pubtator3", "entrez", "europe_pmc"]
+
+
+def test_effective_sources_add_both_metadata_sources_for_entrez_request() -> None:
+    assert effective_pmid_fetch_sources(["entrez"], None, None) == [
+        "pubtator3",
+        "entrez",
+        "europe_pmc",
+    ]
+
+
+def test_effective_sources_add_europe_pmc_for_citation_count_only() -> None:
+    assert effective_pmid_fetch_sources([], ["citation_count"], None) == [
+        "pubtator3",
+        "europe_pmc",
+    ]
 
 
 # B. input.fields and input.fields_per_source
@@ -75,13 +97,20 @@ def test_fields_per_source_parsed(tmp_path: Path) -> None:
     body = _BASE + (
         "[input.fields_per_source]\n"
         'entrez = ["mesh_terms", "authors"]\n'
-        'europe_pmc = ["citation_count"]\n'
     )
     config = load_pipeline_config(_write_toml(tmp_path, body))
     assert config.fetch_fields_per_source == {
         "entrez": ["mesh_terms", "authors"],
-        "europe_pmc": ["citation_count"],
     }
+
+
+def test_europe_pmc_fields_are_allowed_for_pmid_metadata(tmp_path: Path) -> None:
+    body = _BASE + (
+        "[input.fields_per_source]\n"
+        'europe_pmc = ["citation_count"]\n'
+    )
+    config = load_pipeline_config(_write_toml(tmp_path, body))
+    assert config.fetch_fields_per_source == {"europe_pmc": ["citation_count"]}
 
 
 def test_fields_per_source_unknown_source_is_rejected(tmp_path: Path) -> None:

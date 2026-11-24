@@ -6,7 +6,7 @@ import os
 import re
 import sys
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Protocol
@@ -36,7 +36,7 @@ from bio_annotation.entity_types import (
     annotator_input_modes,
     annotator_tasks_for_selection,
 )
-from bio_annotation.pipeline_config import load_pipeline_config
+from bio_annotation.pipeline_config import SUPPORTED_ENRICHMENT_SOURCES, load_pipeline_config
 from bio_annotation.pipeline_runner import (
     RUN_INPUTS_DIR,
     RUN_RESULTS_DIR,
@@ -44,7 +44,12 @@ from bio_annotation.pipeline_runner import (
     create_run_dir,
     run_pipeline_from_config,
 )
-from bio_annotation.pipeline.progress import ProgressEvent, ProgressReporter, describe
+from bio_annotation.pipeline.progress import (
+    ProgressEvent,
+    ProgressReporter,
+    describe,
+    should_report_progress,
+)
 from bio_annotation.terminal_text_input import (
     is_text_table_file,
     prompt_existing_file,
@@ -114,11 +119,12 @@ class TerminalUIAnswers:
     plain_text_abstract: str | None = None
     domain: str = "biomedical"
     task: str = "NER"
+    enrichment_sources: list[str] = field(default_factory=list)
 
 
 def _text_progress_reporter(output_fn: OutputFn) -> ProgressReporter:
     def report(event: ProgressEvent) -> None:
-        if event.event != "start":
+        if event.event != "start" and should_report_progress(event):
             output_fn(describe(event))
 
     return report
@@ -337,6 +343,11 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
                 raise ValueError("Plain text table files must use .csv or .tsv extension.")
         else:
             text_content = prompt_multiline_text(input_fn=input_fn, output_fn=output_fn)
+    enrichment_sources = (
+        _prompt_metadata_enrichment(input_fn=input_fn, output_fn=output_fn)
+        if mode in {"pmids", "pmid_file"}
+        else []
+    )
     domain, task, annotator_choices = _prompt_domain_and_task(
         input_fn=input_fn,
         output_fn=output_fn,
@@ -376,6 +387,38 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         plain_text_content=text_content,
         domain=domain,
         task=task,
+        enrichment_sources=enrichment_sources,
+    )
+
+
+def _prompt_metadata_enrichment(*, input_fn: InputFn, output_fn: OutputFn) -> list[str]:
+    include_metadata = _prompt_choice(
+        input_fn=input_fn,
+        output_fn=output_fn,
+        title="Fetch additional article metadata?",
+        choices=(
+            ("yes", "Yes — citations, links, and identifiers from external sources"),
+            ("no", "No — fetch article text only"),
+        ),
+        default_value="no",
+    )
+    if include_metadata != "yes":
+        return []
+    labels = {
+        "elinks": "Entrez citation and related-article links",
+        "crossref": "Crossref citation metadata",
+        "europe_pmc": "Europe PMC metadata and citations",
+        "semantic_scholar": "Semantic Scholar citations",
+        "unpaywall": "Open-access status and links",
+        "biorxiv": "bioRxiv/medRxiv preprint links",
+    }
+    return _prompt_multi_choice(
+        input_fn=input_fn,
+        output_fn=output_fn,
+        title="Choose metadata sources",
+        choices=tuple((source, labels[source]) for source in SUPPORTED_ENRICHMENT_SOURCES),
+        default_values=["elinks", "crossref", "europe_pmc"],
+        allow_all=True,
     )
 
 
@@ -552,7 +595,14 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         ]
     else:
         raise ValueError(f"Unsupported terminal UI input mode: {answers.input_mode}")
-    lines += ["", "[enrichment]", "sources = []", "", "[annotators]", f"enabled = {_toml_string_list(answers.annotators)}"]
+    lines += [
+        "",
+        "[enrichment]",
+        f"sources = {_toml_string_list(answers.enrichment_sources)}",
+        "",
+        "[annotators]",
+        f"enabled = {_toml_string_list(answers.annotators)}",
+    ]
     if "bern2" in answers.annotators:
         lines += [
             "",
@@ -611,6 +661,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
 
 def terminal_ui_tsv_paths(paths: RunPaths) -> dict[str, Path]:
     return {
+        "Documents TSV": paths.results_path.with_name(f"{paths.results_path.stem}.documents.tsv"),
         "Keywords TSV": paths.results_path.with_name(f"{paths.results_path.stem}.keywords.tsv"),
         "Annotations TSV": paths.results_path.with_name(f"{paths.results_path.stem}.annotations.tsv"),
     }
@@ -904,3 +955,4 @@ def _toml_string(value: str) -> str:
 
 def _toml_string_list(values: list[str]) -> str:
     return "[" + ", ".join(_toml_string(v) for v in values) + "]"
+

@@ -32,6 +32,12 @@ PMID-based inputs use PubTator3 as the default fetch source when `[input].source
 
 Use comments inside `examples/pmid-single.toml` and `examples/pmid-file.toml` to switch to Entrez, Europe PMC, merged fetch, field filtering, or PubTator3 full text.
 
+## PMID Text and Metadata
+
+PubTator3 supplies the title and abstract used for annotation. Entrez and Europe PMC add metadata; they do not fill or replace annotation text. Metadata is attached when PubTator3 returns usable text. If one metadata source fails, results from other sources are retained. PMIDs without usable PubTator3 text are skipped and reported.
+
+The `fetch-merge.toml` example requests PubTator3, Entrez, and Europe PMC. The first non-empty source value supplies title, abstract, and full text; metadata from the sources accumulates on the merged document.
+
 ## Annotator Tables
 
 Annotator runtime metadata is defined under nested annotator tables.

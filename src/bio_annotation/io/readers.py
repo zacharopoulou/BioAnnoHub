@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 import json
 import os
 import socket
+import time
 from urllib.parse import urlencode
 import urllib.error
 import urllib.request
@@ -15,6 +17,7 @@ _EFETCH_URL = (
     "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
     "?db=pubmed&retmode=xml&id={pmid}"
 )
+_EFETCH_BATCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 _ELINK_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi"
 _CROSSREF_URL = "https://api.crossref.org/works/{doi}"
 _EUROPE_PMC_SEARCH_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
@@ -44,6 +47,8 @@ _SEMANTIC_SCHOLAR_FIELDS = ",".join(
     ]
 )
 _SEMANTIC_SCHOLAR_LINK_FIELDS = "title,year,authors,externalIds,citationCount,venue"
+
+logger = logging.getLogger(__name__)
 
 
 def fetch_pubmed_record(
@@ -81,9 +86,77 @@ def fetch_pubmed_record(
         parsed,
         timeout=timeout,
         enrichments=enrichments,
+        progress=(1, 1),
     )
 
     return parsed
+
+
+def fetch_pubmed_records(
+    pmids: list[str],
+    *,
+    timeout: int = 15,
+    enrichments: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch multiple PubMed records in one EFetch request."""
+
+    normalized_pmids = list(dict.fromkeys(_normalize_pmid(pmid) for pmid in pmids))
+    if not normalized_pmids:
+        return []
+
+    body = urlencode(
+        {
+            "db": "pubmed",
+            "retmode": "xml",
+            "id": ",".join(normalized_pmids),
+        }
+    ).encode("ascii")
+    request = urllib.request.Request(
+        _EFETCH_BATCH_URL,
+        data=body,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        xml_text = response.read().decode("utf-8")
+
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError as exc:
+        raise ValueError(f"Could not parse PubMed batch response: {exc}") from exc
+
+    articles = root.findall(".//PubmedArticle")
+    if not articles:
+        raise ValueError("PubMed returned no article records for the requested PMID batch.")
+
+    records: list[dict[str, Any]] = []
+    article_count = len(articles)
+    for index, article in enumerate(articles, start=1):
+        record_started = time.monotonic()
+        medline = article.find("MedlineCitation")
+        if medline is None:
+            raise ValueError("PubMed batch response contains an article without MedlineCitation.")
+        pubmed_data = article.find("PubmedData")
+        pmid = _normalize_pmid(_node_text(medline.find("PMID")))
+        parsed = _parse_medline_article(medline, pubmed_data)
+        parsed["pmid"] = pmid
+        parsed["elinks"] = _build_enrichment_bundle(
+            parsed,
+            timeout=timeout,
+            enrichments=enrichments,
+            progress=(index, article_count),
+        )
+        records.append(parsed)
+        if enrichments and (index == 1 or index % 25 == 0 or index == article_count):
+            logger.info(
+                "Completed enrichments for %d/%d PMID(s); latest PMID %s took %.1fs",
+                index,
+                article_count,
+                pmid,
+                time.monotonic() - record_started,
+            )
+
+    return records
 
 
 def _parse_medline_article(medline: ET.Element, pubmed_data: ET.Element | None) -> dict[str, Any]:
@@ -432,21 +505,46 @@ def _build_enrichment_bundle(
     *,
     timeout: int,
     enrichments: list[str] | None,
+    progress: tuple[int, int] | None = None,
 ) -> dict[str, Any]:
     requested = set(enrichments or [])
     bundle: dict[str, Any] = {}
-    if "elinks" in requested:
-        _merge_dict(bundle, _fetch_elinks(record.get("pmid"), timeout=timeout))
-    if "crossref" in requested:
-        _merge_dict(bundle, _fetch_crossref(record.get("doi"), timeout=timeout))
-    if "europe_pmc" in requested:
-        _merge_dict(bundle, _fetch_europe_pmc(record.get("pmid"), timeout=timeout))
-    if "semantic_scholar" in requested:
-        _merge_dict(bundle, _fetch_semantic_scholar(record.get("pmid"), timeout=timeout))
-    if "unpaywall" in requested:
-        _merge_dict(bundle, _fetch_unpaywall(record.get("doi"), timeout=timeout))
-    if "biorxiv" in requested:
-        _merge_dict(bundle, _fetch_biorxiv(record.get("doi"), timeout=timeout))
+    pmid = _clean_optional_text(str(record.get("pmid") or "")) or "unknown"
+    operations = [
+        ("elinks", lambda: _fetch_elinks(record.get("pmid"), timeout=timeout)),
+        ("crossref", lambda: _fetch_crossref(record.get("doi"), timeout=timeout)),
+        ("europe_pmc", lambda: _fetch_europe_pmc(record.get("pmid"), timeout=timeout)),
+        ("semantic_scholar", lambda: _fetch_semantic_scholar(record.get("pmid"), timeout=timeout)),
+        ("unpaywall", lambda: _fetch_unpaywall(record.get("doi"), timeout=timeout)),
+        ("biorxiv", lambda: _fetch_biorxiv(record.get("doi"), timeout=timeout)),
+    ]
+    selected = [(name, operation) for name, operation in operations if name in requested]
+    for source_index, (source_name, operation) in enumerate(selected, start=1):
+        progress_label = f"PMID {pmid}"
+        if progress is not None:
+            progress_label += f" ({progress[0]}/{progress[1]})"
+        logger.debug(
+            "%s: enrichment %s/%s %s started",
+            progress_label,
+            source_index,
+            len(selected),
+            source_name,
+        )
+        started = time.monotonic()
+        try:
+            result = operation()
+        except Exception as exc:
+            logger.warning("%s: enrichment %s failed: %s", progress_label, source_name, exc)
+            continue
+        _merge_dict(bundle, result)
+        logger.debug(
+            "%s: enrichment %s/%s %s finished in %.1fs",
+            progress_label,
+            source_index,
+            len(selected),
+            source_name,
+            time.monotonic() - started,
+        )
     return bundle
 
 
@@ -579,10 +677,25 @@ def _fetch_semantic_scholar(pmid: Any, *, timeout: int) -> dict[str, Any]:
     except Exception:
         return {}
 
+    reference_items = references.get("data")
+    citation_items = citations.get("data")
+    if not isinstance(reference_items, list):
+        reference_items = []
+    if not isinstance(citation_items, list):
+        citation_items = []
+
     return {
         "s2_paper": paper,
-        "s2_references": [item.get("citedPaper", {}) for item in references.get("data", [])],
-        "s2_citations": [item.get("citingPaper", {}) for item in citations.get("data", [])],
+        "s2_references": [
+            item.get("citedPaper", {})
+            for item in reference_items
+            if isinstance(item, dict)
+        ],
+        "s2_citations": [
+            item.get("citingPaper", {})
+            for item in citation_items
+            if isinstance(item, dict)
+        ],
     }
 
 
