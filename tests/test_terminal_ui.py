@@ -24,6 +24,12 @@ from bio_annotation.terminal_ui import (
 from bio_annotation.terminal_theme import run_plan_lines
 
 
+@pytest.fixture(autouse=True)
+def no_image(monkeypatch):
+    """Offer every annotator, as outside a Docker image."""
+    monkeypatch.delenv("BIOANNOHUB_IMAGE", raising=False)
+
+
 def test_parse_pmids_deduplicates_common_separators() -> None:
     assert parse_pmids("123, 456\n123 789") == ["123", "456", "789"]
 
@@ -573,3 +579,28 @@ def test_terminal_results_keep_execution_status_separate_from_filtered_counts(
         "annotations": annotations,
     })
     assert rows == [{"annotator": "BERN2", "status": expected_status, "entity_count": expected_count}]
+
+
+def test_slim_image_offers_only_its_annotators_without_flair_linking(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("BIOANNOHUB_IMAGE", "slim")
+    with (Path(__file__).resolve().parents[1] / "images.toml").open("rb") as handle:
+        slim = set(tomllib.load(handle)["slim"]["annotators"])
+
+    offered = {name for name, _ in annotator_choices_for(domain="both", input_kind="pmid", task="both")}
+    assert offered <= slim and "bent" not in offered
+    assert "flair" not in {name for name, _ in annotator_choices_for(domain="both", input_kind="pmid", task="NEN")}
+
+    answers = TerminalUIAnswers(
+        input_mode="pmids", pmids=["123"], pmid_file=None,
+        annotators=["flair"], entity_types=[], domain="both", task="both",
+    )
+    assert tomllib.loads(build_terminal_ui_config_text(answers, create_run_paths(tmp_path / "runs")))["annotators"]["flair"]["linking"] is False
+
+
+def test_full_image_offers_every_annotator(monkeypatch) -> None:
+    def offered():
+        return annotator_choices_for(domain="both", input_kind="pmid", task="both")
+
+    everything = offered()
+    monkeypatch.setenv("BIOANNOHUB_IMAGE", "full")
+    assert offered() == everything

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tomllib
 from importlib.util import find_spec
 from pathlib import Path
 from typing import Iterable
@@ -95,6 +96,27 @@ def flair_linker_installed(linker: str) -> bool:
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _image_sections() -> list[dict] | None:
+    """The images.toml sections of the Docker image in use; None outside an image."""
+
+    image = os.environ.get("BIOANNOHUB_IMAGE")
+    if not image:
+        return None
+    with (repo_root() / "images.toml").open("rb") as handle:
+        images = tomllib.load(handle)
+    return [images["slim"]] if image == "slim" else [images["slim"], images[image]]
+
+
+def image_ships(annotator: str) -> bool:
+    sections = _image_sections()
+    return sections is None or any(annotator in section["annotators"] for section in sections)
+
+
+def image_ships_flair_linkers() -> bool:
+    sections = _image_sections()
+    return sections is None or any(section.get("flair_linkers", False) for section in sections)
 
 
 def bent_root(project: str | Path) -> Path | None:

@@ -51,7 +51,8 @@ ENV UV_FROZEN=1 \
     UV_CACHE_DIR=/tmp/uv-cache \
     MPLCONFIGDIR=/tmp/matplotlib \
     HF_HUB_OFFLINE=1 \
-    USER=bioannohub
+    USER=bioannohub \
+    BIOANNOHUB_IMAGE=${IMAGE}
 
 WORKDIR /work
 

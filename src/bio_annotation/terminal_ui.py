@@ -17,6 +17,8 @@ from bio_annotation.entity_proposal.bern2_proposer import DEFAULT_BERN2_API_URL
 from bio_annotation.entity_proposal.clinicalbert_proposer import DEFAULT_CLINICALBERT_MODEL
 from bio_annotation.entity_proposal.d4data_proposer import DEFAULT_D4DATA_MODEL
 from bio_annotation.entity_proposal.medcat_proposer import DEFAULT_MEDCAT_API_URL
+from bio_annotation.deps import image_ships, image_ships_flair_linkers
+from bio_annotation.deps import image_ships, image_ships_flair_linkers
 from bio_annotation.entity_proposal.scispacy_proposer import (
     SCISPACY_LINKER_NAME_BY_ANNOTATOR,
     SCISPACY_MODEL_BY_ANNOTATOR,
@@ -362,7 +364,7 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
             _annotator_capability_rows(annotators, task=task)
         ),
     )
-    if "flair" in annotators and task in {"NEN", "both"}:
+    if "flair" in annotators and _flair_linking(task):
         output_fn("Flair entity linkers will be enabled for NEN.")
     entity_types = _prompt_entity_types(input_fn=input_fn, output_fn=output_fn, annotators=annotators)
     return TerminalUIAnswers(
@@ -423,20 +425,26 @@ def _prompt_domain_and_task(
         )
 
 
+def _flair_linking(task: str) -> bool:
+    return task in {"NEN", "both"} and image_ships_flair_linkers()
+
+
 def annotator_choices_for(
     *, domain: str, input_kind: str, task: str
 ) -> tuple[tuple[str, str], ...]:
     required_tasks = {"NER", "NEN"} if task == "both" else {task}
     choices: list[tuple[str, str]] = []
     for annotator, label in ANNOTATOR_CHOICES:
+        if not image_ships(annotator):
+            continue
         capability = ANNOTATOR_CAPABILITIES[annotator]
         if not _domain_matches_capability(domain, capability.domains) or input_kind not in capability.input_modes:
             continue
         tasks = set(
             annotator_tasks_for_selection(
                 annotator,
-                # The terminal enables default linkers whenever NEN is requested.
-                flair_linking=task in {"NEN", "both"},
+                # The terminal enables default linkers whenever NEN is requested and the image has them.
+                flair_linking=_flair_linking(task),
             )
         )
         if required_tasks.intersection(tasks):
@@ -458,7 +466,7 @@ def _annotator_capability_rows(
         tasks = ", ".join(
             annotator_tasks_for_selection(
                 annotator,
-                flair_linking=task in {"NEN", "both"},
+                flair_linking=_flair_linking(task),
             )
         )
         entity_types = ", ".join(
@@ -585,7 +593,7 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
             "[annotators.flair]",
             'runtime = "local_model"',
             'model = "hunflair2"',
-            f"linking = {str(answers.task in {'NEN', 'both'}).lower()}",
+            f"linking = {str(_flair_linking(answers.task)).lower()}",
             f"linkers = {_toml_string_list(DEFAULT_FLAIR_LINKERS.values())}",
         ]
     if "medcat" in answers.annotators:
@@ -787,7 +795,7 @@ def _validate_selected_annotators(
         available_tasks = set(
             annotator_tasks_for_selection(
                 annotator,
-                flair_linking=task in {"NEN", "both"},
+                flair_linking=_flair_linking(task),
             )
         )
         if (
