@@ -105,6 +105,7 @@ class PipelineConfig:
     fetch_fields: list[str] | None
     fetch_fields_per_source: dict[str, list[str]] | None
     pubtator3_full_text: bool
+    include_retracted: bool
 
 
 def load_pipeline_config(path: Path) -> PipelineConfig:
@@ -160,6 +161,11 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         fetch_fields_per_source=fetch_fields_per_source,
     )
     pubtator3_full_text = _read_pubtator3_full_text(input_config.get("pubtator3"))
+    include_retracted = _read_optional_bool(
+        input_config.get("include_retracted"),
+        field_name="input.include_retracted",
+        default=False,
+    )
 
     _validate_input_config(
         path,
@@ -188,6 +194,7 @@ def load_pipeline_config(path: Path) -> PipelineConfig:
         fetch_fields=fetch_fields,
         fetch_fields_per_source=fetch_fields_per_source,
         pubtator3_full_text=pubtator3_full_text,
+        include_retracted=include_retracted,
     )
 
 
@@ -215,6 +222,14 @@ def _read_string_list(value: object, *, field_name: str, allow_empty: bool = Fal
 def _read_optional_path(value: object) -> Path | None:
     cleaned = _read_optional_string(value)
     return Path(cleaned) if cleaned is not None else None
+
+
+def _read_optional_bool(value: object, *, field_name: str, default: bool) -> bool:
+    if value is None:
+        return default
+    if not isinstance(value, bool):
+        raise ValueError(f"{field_name} must be true or false.")
+    return value
 
 
 def _read_optional_string(value: object) -> str | None:

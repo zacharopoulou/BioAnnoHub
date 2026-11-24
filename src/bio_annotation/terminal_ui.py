@@ -77,6 +77,7 @@ class PipelineRunFn(Protocol):
         *,
         run_dir: Path | None = None,
         progress: ProgressReporter | None = None,
+        confirm_retracted_pmids: Callable[[list[str]], bool] | None = None,
     ) -> dict[str, Any]: ...
 
 
@@ -114,6 +115,7 @@ class TerminalUIAnswers:
     plain_text_abstract: str | None = None
     domain: str = "biomedical"
     task: str = "NER"
+    include_retracted: bool = False
 
 
 def _text_progress_reporter(output_fn: OutputFn) -> ProgressReporter:
@@ -183,7 +185,17 @@ def run_terminal_annotation_ui(
     else:
         progress_display = nullcontext(_text_progress_reporter(output_fn))
     with progress_display as progress:
-        payload = pipeline_run_fn(paths.config_path, run_dir=paths.run_dir, progress=progress)
+        run_kwargs: dict[str, Any] = {
+            "run_dir": paths.run_dir,
+            "progress": progress,
+        }
+        if answers.include_retracted:
+            run_kwargs["confirm_retracted_pmids"] = lambda pmids: _confirm_retracted_pmids(
+                pmids,
+                input_fn=input_fn,
+                output_fn=output_fn,
+            )
+        payload = pipeline_run_fn(paths.config_path, **run_kwargs)
     output_fn("")
     emit(
         output_fn,
@@ -200,7 +212,37 @@ def run_terminal_annotation_ui(
         output_fn,
         annotator_results_lines(_terminal_annotator_results(payload)),
     )
+    _report_retraction_check(payload, output_fn=output_fn)
     return payload
+
+
+def _confirm_retracted_pmids(
+    pmids: list[str], *, input_fn: InputFn, output_fn: OutputFn
+) -> bool:
+    emit(
+        output_fn,
+        warning_lines(
+            "Retracted papers found",
+            [
+                f"The following PMIDs are marked as Retracted Publication: {', '.join(pmids)}.",
+                "Include them in this analysis?",
+            ],
+        ),
+    )
+    return _prompt_yes_no(input_fn=input_fn, prompt="Include retracted papers? [y/N]: ")
+
+
+def _report_retraction_check(payload: dict[str, Any], *, output_fn: OutputFn) -> None:
+    input_summary = payload.get("input")
+    input_summary = input_summary if isinstance(input_summary, dict) else {}
+    check = input_summary.get("retraction_check")
+    check = check if isinstance(check, dict) else {}
+    excluded = check.get("excluded_pmids")
+    included = check.get("included_pmids")
+    if isinstance(excluded, list) and excluded:
+        output_fn(f"Excluded retracted PMID(s): {', '.join(str(pmid) for pmid in excluded)}")
+    if isinstance(included, list) and included:
+        output_fn(f"Included retracted PMID(s): {', '.join(str(pmid) for pmid in included)}")
 
 
 def _terminal_annotator_results(payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -337,6 +379,16 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
                 raise ValueError("Plain text table files must use .csv or .tsv extension.")
         else:
             text_content = prompt_multiline_text(input_fn=input_fn, output_fn=output_fn)
+    include_retracted = False
+    if mode in {"pmids", "pmid_file"}:
+        output_fn(
+            "By default, retracted papers are excluded. You can ask to review and "
+            "confirm them if found."
+        )
+        include_retracted = _prompt_yes_no(
+            input_fn=input_fn,
+            prompt="Ask before including retracted papers? [y/N]: ",
+        )
     domain, task, annotator_choices = _prompt_domain_and_task(
         input_fn=input_fn,
         output_fn=output_fn,
@@ -376,6 +428,7 @@ def collect_terminal_ui_answers(*, input_fn: InputFn, output_fn: OutputFn) -> Te
         plain_text_content=text_content,
         domain=domain,
         task=task,
+        include_retracted=include_retracted,
     )
 
 
@@ -535,11 +588,19 @@ def build_terminal_ui_config_text(answers: TerminalUIAnswers, paths: RunPaths) -
         "[input]",
     ]
     if answers.input_mode == "pmids":
-        lines += ['mode = "pmids"', f"pmids = {_toml_string_list(answers.pmids)}"]
+        lines += [
+            'mode = "pmids"',
+            f"pmids = {_toml_string_list(answers.pmids)}",
+            f"include_retracted = {str(answers.include_retracted).lower()}",
+        ]
     elif answers.input_mode == "pmid_file":
         if answers.pmid_file is None:
             raise ValueError("PMID file input mode requires a PMID file path.")
-        lines += ['mode = "pmid_file"', f"pmid_file = {_toml_string(str(answers.pmid_file))}"]
+        lines += [
+            'mode = "pmid_file"',
+            f"pmid_file = {_toml_string(str(answers.pmid_file))}",
+            f"include_retracted = {str(answers.include_retracted).lower()}",
+        ]
     elif answers.input_mode == "plain_text":
         text_file = _plain_text_config_file(answers, paths)
         lines += [

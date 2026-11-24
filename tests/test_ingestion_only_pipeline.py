@@ -3,11 +3,18 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+import pytest
+
 from bio_annotation.fetch import FetchOrchestrator
 from bio_annotation.fetch.input import FetchInput, FetchKind
 from bio_annotation.pipeline_config import load_pipeline_config
 from bio_annotation.pipeline_runner import run_pipeline_from_config
 from bio_annotation.schemas.document import Document
+
+
+@pytest.fixture(autouse=True)
+def _skip_live_retraction_lookup(monkeypatch):
+    monkeypatch.setattr("bio_annotation.pipeline.runner.find_retracted_pmids", lambda pmids: [])
 
 
 @dataclass(slots=True)

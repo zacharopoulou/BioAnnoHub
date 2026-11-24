@@ -89,13 +89,13 @@ def _preflight_load(
     try:
         loaded = loader()
     except Exception as exc:
-        unavailable[annotator] = str(exc)
+        unavailable[annotator] = _model_load_failure_reason(annotator, exc)
         reporter(
             replace(
                 event,
                 event="error",
                 elapsed_seconds=time.perf_counter() - started_at,
-                reason=str(exc),
+                reason=unavailable[annotator],
             )
         )
         return None
@@ -777,55 +777,19 @@ def document_to_dict(document: Document) -> dict[str, Any]:
     }
 
 
-def _no_annotations_reason(annotator: str) -> str:
-    if annotator == "bern2":
-        return (
-            "No annotations returned. Verify the Bern2 service is reachable "
-            "and returned entities for this document."
-        )
-    if annotator == "flair":
-        return (
-            "No annotations returned. The Flair model may be unavailable/not "
-            "cached, or it found no entities."
-        )
-    if annotator == "pubtator3":
-        return (
-            "No annotations returned. PubTator3 only annotates documents with a "
-            "PMID or PMCID; otherwise verify it is reachable and returned entities."
-        )
-    if annotator == "clinicalbert":
-        return (
-            "No annotations returned. The ClinicalBERT model may be unavailable/not "
-            "downloaded (uv sync --extra clinicalbert), or it found no entities."
-        )
-    if annotator == "apollo":
-        return (
-            "No annotations returned. The apollo model may be unavailable/not "
-            "downloaded (uv sync --extra apollo), or it found no entities."
-        )
-    if annotator == "d4data":
-        return (
-            "No annotations returned. The d4data model may be unavailable/not "
-            "downloaded (uv sync --extra d4data), or it found no entities."
-        )
-    if annotator == "medcat":
-        return (
-            "No annotations returned. Verify the MedCAT service is reachable "
-            "(set annotators.medcat.endpoint or MEDCAT_API_URL) and returned "
-            "entities for this document."
-        )
-    if annotator in SCISPACY_ANNOTATOR_SET:
-        return (
-            "No annotations returned. The scispaCy model may be unavailable/not "
-            "installed (uv sync --extra scispacy, then install the model package), "
-            "or it found no entities."
-        )
-    if annotator in STANZA_ANNOTATORS:
-        return (
-            "No annotations returned. The Stanza model may be unavailable/not "
-            "downloaded, or it found no entities."
-        )
-    return "No annotations returned."
+def _model_load_failure_reason(annotator: str, exc: Exception) -> str:
+    """Keep the load error visible and include setup guidance when available."""
+
+    reason = str(exc).strip() or type(exc).__name__
+    extra = ANNOTATOR_EXTRAS.get(annotator)
+    hint = EXTRA_INSTALL_HINTS.get(extra) if extra else None
+    if hint and hint not in reason:
+        reason = f"{reason}. {hint}"
+    return reason
+
+
+def _no_annotations_reason(_annotator: str) -> str:
+    return "No entities found in this document."
 
 
 def _finalize_mention(

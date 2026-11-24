@@ -10,7 +10,11 @@ from pathlib import Path
 import pytest
 
 from bio_annotation.cli import main
-from bio_annotation.io.search import search_pubmed_pmids, write_pmids
+from bio_annotation.io.search import (
+    find_retracted_pmids,
+    search_pubmed_pmids,
+    write_pmids,
+)
 
 
 def test_write_pmids_writes_one_per_line(tmp_path: Path) -> None:
@@ -49,6 +53,30 @@ def test_retraction_setting_is_preserved_across_split_windows(include_retracted)
     )
     assert len(terms) == 3
     assert all(('NOT "Retracted Publication"[Publication Type]' in term) is not include_retracted for term in terms)
+
+
+def test_find_retracted_pmids_batches_and_preserves_input_order() -> None:
+    queries = []
+
+    def fake_search(term: str) -> dict:
+        queries.append(term)
+        return {"count": 1, "pmids": ["2"] if len(queries) == 1 else ["3"]}
+
+    pmids = find_retracted_pmids(
+        ["PMID:1", "2", "3", "2"],
+        esearch_fn=fake_search,
+        batch_size=2,
+    )
+
+    assert pmids == ["2", "3"]
+    assert len(queries) == 2
+    assert '"Retracted Publication"[Publication Type]' in queries[0]
+    assert "1[PMID]" in queries[0] and "2[PMID]" in queries[0]
+
+
+def test_find_retracted_pmids_rejects_invalid_pmid() -> None:
+    with pytest.raises(ValueError, match="Invalid PMID"):
+        find_retracted_pmids(["not-a-pmid"], esearch_fn=lambda _term: {"pmids": []})
 
 
 def test_default_upper_date_is_today() -> None:
