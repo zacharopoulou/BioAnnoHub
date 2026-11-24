@@ -2,12 +2,19 @@
 
 This directory contains runnable pipeline configurations for BioAnnoHub.
 
+For a guided first run, start with the [README quickstart](../README.md).
+
 ## Files
 
 - `pipeline.toml`
-  Default config, set up for a first live PubTator3 PMID run.
+  Default PMID config with BERN2, Flair, and PubTator3 enabled. Flair requires
+  its optional dependencies and model assets.
 - `examples/`
-  Small runnable configs for common input modes, plus one advanced multi-source fetch example.
+  Runnable configs for common input modes, plus an advanced multi-source fetch example. The `examples/data/` folder contains their small sample inputs.
+
+Run the repository examples from the repository root. Relative input and output
+paths resolve from the working directory. `inspect-config` does not run models;
+`load-documents` fetches articles when using PMID input.
 
 ## Main Sections
 
@@ -21,21 +28,11 @@ Each pipeline config is organized around:
 
 ## Fetch Defaults
 
-PMID-based annotation always uses PubTator3 for title, abstract, and optional full text. If `[input].source` is omitted, BioAnnoHub fetches text from PubTator3 only. Entrez is requested only when you select it as a source, select Entrez-only fields, or request enrichment sources.
+PMID-based inputs use PubTator3 as the default fetch source when `[input].source` is omitted.
 
-Entrez metadata is attached only to PMIDs returned by PubTator3. It never fills or replaces the annotation text. PMIDs PubTator3 does not return with usable text are skipped and reported in a warning. Use `input.fields_per_source` to select the Entrez metadata fields:
+Use comments inside `examples/pmid-single.toml` and `examples/pmid-file.toml` to switch to Entrez, Europe PMC, merged fetch, field filtering, or PubTator3 full text.
 
-```toml
-[input]
-mode = "pmid_file"
-pmid_file = "data/inputs/example_pmids.txt"
-source = ["pubtator3", "entrez"]
-
-[input.fields_per_source]
-entrez = ["mesh_terms", "authors", "journal", "year"]
-```
-
-Add `"full_text"` to `input.fields` and enable `[input.pubtator3].full_text = true` to request PubTator3 full text where available.
+For PMID annotation, PubTator3 supplies title, abstract, and optional full text. Entrez and Europe PMC provide selected metadata only; they do not fill or replace missing annotation text. Metadata is attached to PMIDs with usable PubTator3 text, and PMIDs without it are skipped and reported.
 
 ## Annotator Tables
 
@@ -59,10 +56,12 @@ The pipeline reads these settings and uses them at runtime for the matching anno
 ## Current Examples
 
 - `examples/pmid-single.toml`
-  Inline PMID input using PubTator3 text without an Entrez request.
+  Inline PMID input using the default PubTator3 fetch source.
 - `examples/pmid-file.toml`
-  PMID batch input using PubTator3 text without an Entrez request.
+  PMID batch input using the default PubTator3 fetch source. Commented options show Entrez, Europe PMC, merged fetch, field filtering, and PubTator3 full text.
 - `examples/corpus-file.toml`
   Local text-table input annotated with Flair (PubTator3 only annotates PubMed/PMC publications).
 - `examples/fetch-merge.toml`
-  PMID batch example where PubTator3 supplies all text and Entrez adds selected metadata only.
+  Advanced multi-source fetch example. Fetches from PubTator3, Entrez, and Europe PMC, then merges results into one canonical document per PMID.
+
+The PMID list and text table used by these examples are in `examples/data/`. Paths in the example configs are written relative to the repository root.

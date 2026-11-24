@@ -206,4 +206,3 @@ def test_cli_search_pmids_writes_output(tmp_path: Path, monkeypatch) -> None:
     assert exit_code == 0
     assert payload["pmid_count"] == 2
     assert output.read_text(encoding="utf-8") == "38123456\n31452104\n"
-

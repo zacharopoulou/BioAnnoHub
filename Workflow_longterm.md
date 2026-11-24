@@ -637,7 +637,7 @@ The pipeline combines:
 * deterministic validation,
 * and confidence-based filtering.
 
-It is designed to be practical now, extensible later, and suitable for future domain-specific benchmarking and specialization.
+It is designed to be practical now, extensible later, and suitable for future domain-specific specialization.
 
 ## Future work
 
