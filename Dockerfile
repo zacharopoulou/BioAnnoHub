@@ -29,6 +29,8 @@ FROM base AS slim-env
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra slim --no-install-project
 RUN python tools/fetch_models.py slim
+# Compile once here: at run time the .venv is read-only, so Python would recompile (and warn) on every run.
+RUN python -m compileall -q -j 0 .venv/lib > /dev/null
 
 FROM slim-env AS full-env
 COPY tools/bent/pyproject.toml tools/bent/uv.lock tools/bent/setup.sh tools/bent/
@@ -38,6 +40,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra full --no-install-project
 RUN python tools/fetch_models.py full
+RUN python -m compileall -q -j 0 .venv/lib > /dev/null
 
 FROM ${IMAGE}-env
 ARG IMAGE
