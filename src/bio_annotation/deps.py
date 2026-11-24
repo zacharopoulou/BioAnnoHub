@@ -40,7 +40,6 @@ EXTRA_MODULES: dict[str, tuple[str, ...]] = {
     "d4data": ("transformers", "torch"),
     "stanza": ("stanza",),
     "scispacy": ("scispacy", "spacy"),
-    "benchmarks": ("datasets", "pandas", "tabulate"),
 }
 
 ANNOTATOR_EXTRAS: dict[str, str] = {

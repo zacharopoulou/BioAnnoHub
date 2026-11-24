@@ -1,6 +1,6 @@
 [input]
 mode = "text_table"
-text_file = "data/inputs/plain_text.tsv"
+text_file = "configs/examples/data/plain_text.tsv"
 format = "tsv"
 document_id_column = "document_id"
 title_column = "title"
