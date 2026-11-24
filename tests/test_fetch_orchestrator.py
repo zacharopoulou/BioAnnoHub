@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from dataclasses import dataclass, field
 from typing import Iterable
+from urllib.error import URLError
 
 import pytest
 
@@ -13,6 +14,7 @@ from bio_annotation.fetch.input import (
 )
 from bio_annotation.fetch.orchestrator import (
     FetchOrchestrator,
+    PubtatorFirstOrchestrator,
     SourceNotFoundError,
     default_fetch_orchestrator,
     unite_into,
@@ -113,6 +115,146 @@ def test_origin_sources_records_only_contributors() -> None:
     orch = FetchOrchestrator(sources=[a, b])
     out = orch.fetch(FetchInput.from_pmid("1"), prefer=["a", "b"])
     assert out[0].metadata["origin_sources"] == ["a"]
+
+
+def test_pubtator_first_uses_pubtator_text_and_only_entrez_metadata() -> None:
+    @dataclass(slots=True)
+    class _RecordingSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            return _StubSource.fetch(self, request)
+
+    pubtator = _RecordingSource(
+        "pubtator3",
+        documents=[
+            _doc("2", title="P3 title", abstract="P3 abstract", source="pubtator3"),
+            _doc("1", title="P3 title 1", abstract="P3 abstract 1", source="pubtator3"),
+        ],
+    )
+    entrez = _RecordingSource(
+        "entrez",
+        documents=[
+            _doc(
+                "1",
+                title="Entrez title",
+                abstract="Entrez abstract",
+                source="entrez",
+                metadata={"pubmed_record": {"pmid": "1", "authors": ["A. Author"]}},
+            ),
+            _doc("2", title="Entrez title", abstract="Entrez abstract", source="entrez"),
+        ],
+    )
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=entrez)
+    request = FetchInput.from_pmid_list(
+        ["1", "2"],
+        fields=frozenset({"authors"}),
+        fields_per_source={"entrez": frozenset({"authors"})},
+    )
+
+    out = orchestrator.fetch(request, prefer=["pubtator3", "entrez"])
+
+    assert [doc.pmid for doc in out] == ["1", "2"]
+    assert [doc.title for doc in out] == ["P3 title 1", "P3 title"]
+    assert [doc.abstract for doc in out] == ["P3 abstract 1", "P3 abstract"]
+    assert out[0].metadata["pubmed_record"] == {"pmid": "1", "authors": ["A. Author"]}
+    assert out[1].metadata.get("pubmed_record") is None
+    assert "title" in pubtator.requests[0].fields_for("pubtator3")
+    assert "abstract" in pubtator.requests[0].fields_for("pubtator3")
+    assert entrez.requests[0].pmids == ("1", "2")
+
+
+def test_pubtator_first_skips_requested_pmids_without_text(caplog: pytest.LogCaptureFixture) -> None:
+    pubtator = _StubSource(
+        "pubtator3",
+        documents=[_doc("1", title="", abstract="", source="pubtator3")],
+    )
+    entrez = _StubSource("entrez", documents=[_doc("2", title="Entrez title", source="entrez")])
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=entrez)
+
+    out = orchestrator.fetch(
+        FetchInput.from_pmid_list(["1", "2"]),
+        prefer=["pubtator3", "entrez"],
+    )
+
+    assert out == []
+    assert "1, 2" in caplog.text
+
+
+def test_pubtator_first_splits_failed_batch_and_skips_only_unavailable_pmid(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    @dataclass(slots=True)
+    class _FailOneBatchSource(_StubSource):
+        requests: list[FetchInput] = field(default_factory=list)
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.requests.append(request)
+            if "bad" in request.pmids:
+                raise ValueError("PubTator3 rejected PMID")
+            return [
+                _doc(pmid, title=f"PubTator title {pmid}", source="pubtator3")
+                for pmid in request.pmids
+            ]
+
+    pubtator = _FailOneBatchSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(
+        pubtator=pubtator,
+        entrez=_StubSource("entrez"),
+    )
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "bad", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert [request.pmids for request in pubtator.requests] == [
+        ("1", "bad", "2"),
+        ("1",),
+        ("bad", "2"),
+        ("bad",),
+        ("2",),
+    ]
+    assert "Skipping PMID bad" in caplog.text
+
+
+def test_pubtator_first_retries_transient_batch_error_without_splitting(monkeypatch) -> None:
+    @dataclass(slots=True)
+    class _TransientSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            if self.attempts < 3:
+                raise ValueError("PubTator3 request failed") from URLError("temporary outage")
+            return [_doc(pmid, title="PubTator title", source="pubtator3") for pmid in request.pmids]
+
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", lambda _delay: None)
+    pubtator = _TransientSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert [document.pmid for document in out] == ["1", "2"]
+    assert pubtator.attempts == 3
+
+
+def test_pubtator_first_skips_batch_after_persistent_transient_error(monkeypatch) -> None:
+    @dataclass(slots=True)
+    class _UnavailableSource(_StubSource):
+        attempts: int = 0
+
+        def fetch(self, request: FetchInput) -> list[Document]:
+            self.attempts += 1
+            raise ValueError("PubTator3 request failed") from URLError("service unavailable")
+
+    monkeypatch.setattr("bio_annotation.fetch.orchestrator.time.sleep", lambda _delay: None)
+    pubtator = _UnavailableSource("pubtator3")
+    orchestrator = PubtatorFirstOrchestrator(pubtator=pubtator, entrez=_StubSource("entrez"))
+
+    out = orchestrator.fetch(FetchInput.from_pmid_list(["1", "2"]))
+
+    assert out == []
+    assert pubtator.attempts == 3
 
 
 # E. Errors

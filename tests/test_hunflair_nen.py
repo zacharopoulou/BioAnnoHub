@@ -81,6 +81,39 @@ def test_hunflair_linker_reads_name_metadata_and_keeps_scores_separate() -> None
     assert annotation.normalization_score == 211.5
 
 
+def test_flair_processes_title_and_abstract_separately_and_shifts_body_offsets() -> None:
+    document = Document(
+        document_id="doc1",
+        title="Study of PTEN",
+        abstract="PTEN is a gene.",
+        source="test",
+    )
+    seen_texts: list[str] = []
+
+    class FakeTagger:
+        def predict(self, sentence: FakeSentence) -> None:
+            sentence.ner_labels = []
+            if sentence.text == document.abstract:
+                span = FakeSpan(text="PTEN", start_position=0, end_position=4)
+                sentence.ner_labels = [FakeLabel(value="Gene", score=0.99, data_point=span)]
+
+    def sentence_factory(text: str) -> FakeSentence:
+        seen_texts.append(text)
+        return FakeSentence(text)
+
+    annotations = annotate_with_flair(
+        document,
+        tagger=FakeTagger(),
+        sentence_factory=sentence_factory,
+    )
+
+    assert seen_texts == [document.title, document.abstract]
+    assert len(annotations) == 1
+    annotation = annotations[0]
+    assert annotation.start == len(document.title) + 2
+    assert document.text[annotation.start : annotation.end] == annotation.span_text == "PTEN"
+
+
 def test_hunflair_disease_ids_include_mesh_and_omim() -> None:
     assert normalization_databases("disease", "flair") == ("MeSH", "OMIM")
     assert normalization_databases("chemical", "flair") == ("MeSH",)

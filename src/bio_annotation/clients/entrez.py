@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from bio_annotation.io.readers import fetch_pubmed_record
+from bio_annotation.io.readers import fetch_pubmed_record, fetch_pubmed_records
 from bio_annotation.io.search import search_pubmed_pmids
 
 
@@ -20,6 +20,14 @@ class EntrezClient:
         enrichments: list[str] | None = None,
     ) -> dict[str, Any]:
         return fetch_pubmed_record(pmid, timeout=self.timeout, enrichments=enrichments)
+
+    def fetch_pubmed_many(
+        self,
+        pmids: list[str],
+        *,
+        enrichments: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        return fetch_pubmed_records(pmids, timeout=self.timeout, enrichments=enrichments)
 
     def search_pubmed(
         self,

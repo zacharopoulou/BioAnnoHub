@@ -56,6 +56,8 @@ uv run bioannohub load-documents --config configs/examples/pmid-single.toml
 
 Runs are saved in timestamped folders under `outputs/runs/` by default. Each folder contains the config and manifest, a copy of the input where applicable, and results in JSON, TSV, and HTML formats. Config-based runs use the parent directory of the configured output path as the runs directory.
 
+For PMID runs, PubTator3 is the only source of annotation text. Entrez and Europe PMC add metadata and never replace missing title, abstract, or full text. PMIDs without usable PubTator3 text are skipped and reported.
+
 ## Development
 
 Run the local demo or the test suite with:
